@@ -1,0 +1,1796 @@
+'use strict';
+// API 1 declarative; API 2 JavaScript in a sandboxed renderer.
+const fs=require('node:fs/promises');
+const path=require('node:path');
+const {randomUUID,createHash}=require('node:crypto');
+const {performance}=require('node:perf_hooks');
+const {SdkScheduler,SchedulerCapacityError}=require('./deckforge-sdk-scheduler.cjs');
+const {verifyPng}=require('./ulanzi-png-verifier.cjs');
+const {pixelImage}=require('./deckforge-pixel-image.cjs');
+const {NativeAnimationPlayer}=require('./deckforge-native-animation.cjs');
+const {NativeSettingsVault,validateValue}=require('./deckforge-native-settings.cjs');
+const {TrustedNodeTasks,validateNodeTasks,validateNodeOperation,digest:nodeManifestDigest}=require('./deckforge-trusted-node.cjs');
+const {validateNativeViews,validateViewOperation}=require('./deckforge-native-view.cjs');
+const {NativeVersionStore,assertAppRequirement}=require('./deckforge-native-versions.cjs');
+const {validateDependencies,resolveDependencies,assertDependencyChange}=require('./deckforge-native-dependencies.cjs');
+const {validateWideOverlay}=require('./deckforge-native-wide.cjs');
+const {validateNativeSettingsSchema,validateNativeSettingsUI,validateNativeTitlePolicy,nativeEffectiveSettings,nativeDynamicOptions}=require('./deck-core.js');
+const {validateNetworkEndpoints,validateNetworkRequest,resolveNetworkEndpoint,validateSocketOperation,createSocket,requestEndpoint,networkFailure,normalizeNetworkResult,credentialBinding,validBearer,socketReceiveLimit}=require('./deckforge-native-network.cjs');
+const APP_VERSION=require('./package.json').version;
+const SUFFIX='.deckforge-native.json', LIMIT=1024*1024;
+const ID=/^com\.deckforge\.native\.[a-z0-9][a-z0-9.-]{0,110}$/;
+const EVENTS=new Set(['appear','disappear','settings','press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
+const OPS=new Set(['title','titleFromSetting','state','stateFromSetting','toggleState','image']);
+const EXTRA_PERMISSIONS=['settings.write','navigation','wide.mode','global.settings','wide.overlay','network.request','timer.tick','network.poll','network.websocket','background.run','browser.open','node.run','view.open'];
+const SERVICE_PREFIX='@service:',MAX_SERVICES=8;
+const MAX_PENDING_EVENTS=64,INPUT_RESERVE=4,MAX_NETWORK_GLOBAL=8,MAX_NETWORK_PLUGIN=2;
+const RX_SOCKET_BYTES=2*1024*1024,RX_GLOBAL_BYTES=8*1024*1024,RX_FRAMES=256,RX_BATCH_BYTES=512*1024,RX_BATCH_COUNT=8;
+const ADMISSION_CANCELLED=Symbol('admission-cancelled');
+const INPUT_EVENTS=new Set(['press','release','rotateLeft','rotateRight','heldRotateLeft','heldRotateRight']);
+const obj=x=>x!==null&&typeof x==='object'&&!Array.isArray(x);
+const validText=(x,n)=>typeof x==='string'&&x.length>0&&x.length<=n;
+const exact=(x,keys)=>obj(x)&&Object.keys(x).every(k=>keys.includes(k));
+function check(ok,message){if(!ok)throw Error('DeckForge SDK: '+message);}
+// Built-in monitor gesture arbitration; never grant a new privileged event.
+const isMultiMonitor=ctx=>ctx.apiVersion===2&&ctx.pluginUUID==='com.deckforge.native.github-status'&&ctx.action.id==='com.deckforge.native.github-status.multi-build';
+function clearMultiMonitorPress(ctx){
+  ctx.multiInputGeneration=(ctx.multiInputGeneration||0)+1;
+  const record=ctx.multiMonitorPress;
+  if(record){clearTimeout(record.hold);clearTimeout(record.single);ctx.multiMonitorPress=null;}
+}
+function multiMonitorInput(ctx,gesture,current,dispatch){
+  let record=ctx.multiMonitorPress;
+  if(gesture==='down'){
+    if(record?.down)return false;
+    if(record?.single){
+      clearTimeout(record.single);record.single=null;record.down=true;record.consumed=true;
+      return dispatch('multiPrevious');
+    }
+    if(record)return false;
+    record={down:true,consumed:false,hold:null,single:null};ctx.multiMonitorPress=record;
+    record.hold=setTimeout(()=>{
+      if(ctx.multiMonitorPress!==record||!record.down||!current())return;
+      record.consumed=true;dispatch('press');
+    },600);record.hold.unref?.();return true;
+  }
+  if(gesture!=='up'||!record?.down)return false;
+  record.down=false;clearTimeout(record.hold);record.hold=null;
+  if(record.consumed){ctx.multiMonitorPress=null;return true;}
+  record.single=setTimeout(()=>{
+    if(ctx.multiMonitorPress!==record)return;
+    ctx.multiMonitorPress=null;
+    if(current())dispatch('multiNext');
+  },300);record.single.unref?.();return true;
+}
+function browserPermissionDigest(manifest){return createHash('sha256').update(JSON.stringify(manifest)).digest('hex');}
+function safeNativeBrowserUrl(raw){
+  if(typeof raw!=='string'||raw.length>2048||!/^(https?):\/\//i.test(raw)||/[\x00-\x20\x7f\\]/.test(raw))return null;
+  try{
+    const url=new URL(raw);
+    return ['http:','https:'].includes(url.protocol)&&url.hostname&&!url.username&&!url.password&&url.href.length<=2048?url.href:null;
+  }catch{return null;}
+}
+function validateNativePng(value){
+  check(typeof value==='string'&&value.length<=350000&&/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(value),'invalid PNG data URI');
+  const bytes=Buffer.from(value.slice(22),'base64');
+  check(bytes.toString('base64')===value.slice(22)&&verifyPng(bytes).ok,'invalid PNG integrity or unsupported encoding');
+}
+function validateNativeImage(value){
+  if(typeof value==='string'&&value.startsWith('data:image/svg+xml;base64,')){
+    const prefix='data:image/svg+xml;base64,',encoded=value.slice(prefix.length);
+    check(value.length<=350000&&/^[A-Za-z0-9+/]+={0,2}$/.test(encoded),'invalid SVG data URI');
+    const bytes=Buffer.from(encoded,'base64');
+    check(bytes.toString('base64')===encoded&&require('./ulanzi-media-analysis.cjs').svgReport(bytes).status==='restricted-vector-review','invalid or unsupported SVG');
+    return;
+  }
+  validateNativePng(value);
+}
+const sharedKey=v=>typeof v==='string'&&/^[a-zA-Z0-9_-]{1,48}$/.test(v)&&!['__proto__','prototype','constructor'].includes(v);
+function validateSharedView(view,schema){
+  check(exact(view,['keys','map','selection'])&&Object.keys(view).length===3&&Array.isArray(view.keys)&&view.keys.length<=8&&
+    view.keys.every(sharedKey)&&new Set(view.keys).size===view.keys.length&&sharedKey(view.map)&&!view.keys.includes(view.map)&&
+    sharedKey(view.selection)&&schema?.some(f=>f.key===view.selection&&['dynamicSelect','dynamicMultiSelect','text'].includes(f.type)),'invalid shared state view');
+}
+function projectSharedState(ctx,snapshot){
+  const view=ctx.action?.sharedStateView;
+  if(ctx.service||!view)return structuredClone(snapshot);
+  const out={};
+  for(const key of view.keys)if(Object.hasOwn(snapshot,key))out[key]=snapshot[key];
+  const field=ctx.action.settingsSchema?.find(f=>f.key===view.selection);
+  const raw=Object.hasOwn(ctx.settings||{},view.selection)?ctx.settings[view.selection]:field?.default;
+  const ids=(Array.isArray(raw)?raw:[raw]).filter(v=>typeof v==='string'&&v.length<=256).slice(0,8);
+  const entries={},source=snapshot[view.map];
+  if(obj(source))for(const id of ids)if(!['__proto__','constructor','prototype'].includes(id)&&Object.hasOwn(source,id))entries[id]=source[id];
+  out[view.map]=entries;
+  return structuredClone(out);
+}
+function validateNativeManifest(m){
+  check(exact(m,['apiVersion','id','name','version','permissions','actions','requiresDeckForge','dependencies','networkEndpoints','service','capabilities','nodeTasks','views'])&&[1,2].includes(m.apiVersion)&&
+    typeof m.id==='string'&&ID.test(m.id)&&!m.id.endsWith('.')&&!m.id.includes('..')&&
+    validText(m.name,180)&&validText(m.version,64),'invalid manifest or API version');
+  assertAppRequirement(m.requiresDeckForge,APP_VERSION);
+  validateDependencies(m.id,m.dependencies);
+  check(Array.isArray(m.permissions)&&m.permissions.includes('display')&&new Set(m.permissions).size===m.permissions.length&&
+    m.permissions.every(p=>p==='display'||(m.apiVersion===2&&EXTRA_PERMISSIONS.includes(p))),'unsupported permissions');
+  validateNodeTasks(m.nodeTasks,m.permissions.includes('node.run'));
+  validateNativeViews(m.views,m.permissions.includes('view.open'));
+  if(m.capabilities!==undefined)check(m.apiVersion===2&&Array.isArray(m.capabilities)&&
+    m.capabilities.length>0&&new Set(m.capabilities).size===m.capabilities.length&&
+    m.capabilities.every(c=>c==='settingsResult'?m.permissions.includes('settings.write'):(c==='socketBatch'||c==='socketJsonArray'&&m.capabilities.includes('socketBatch'))&&m.permissions.includes('network.websocket')&&m.permissions.includes('background.run')),
+    'unsupported capabilities or missing permissions');
+  check((m.service!==undefined)===m.permissions.includes('background.run'),'background service requires explicit permission and declaration');
+  if(m.service!==undefined){
+    const service=m.service;
+    check(m.apiVersion===2&&exact(service,['script','tickIntervalMs','sharedStateBytes'])&&typeof service.script==='string'&&service.script.length>0&&Buffer.byteLength(service.script)<=65536,'invalid background service');
+    check(service.tickIntervalMs===undefined||(m.permissions.includes('timer.tick')&&Number.isInteger(service.tickIntervalMs)&&service.tickIntervalMs>=1000&&service.tickIntervalMs<=3600000),'invalid background tick');
+    check(service.sharedStateBytes===undefined||[8192,262144].includes(service.sharedStateBytes),'invalid shared state limit');
+    try{const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;new AsyncFunction('event','settings','state','memory','api','"use strict";\n'+service.script);}catch{throw Error('DeckForge SDK: invalid background JavaScript syntax');}
+  }
+  validateNetworkEndpoints(m.networkEndpoints,m.permissions);
+  check(!m.permissions.includes('network.poll')||(m.permissions.includes('network.request')&&m.permissions.includes('timer.tick')),'network polling requires timer and network permissions');
+  check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
+  const ids=new Set();
+  for(const a of m.actions){
+    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','settingsUI','titlePolicy','visualPolicy','stateImages']:['id','name','controllers','states','script','settingsSchema','settingsUI','titlePolicy','visualPolicy','tickIntervalMs','stateImages','sharedStateView','tickWhen','pollIntervalMs','settingsView'])&&typeof a.id==='string'&&
+      a.id.startsWith(m.id+'.')&&/^[a-z0-9.-]+$/.test(a.id)&&a.id.length<=180&&
+      !a.id.endsWith('.')&&!a.id.includes('..')&&!ids.has(a.id)&&validText(a.name,180),'invalid action');
+    ids.add(a.id);
+    validateNativeSettingsSchema(a.settingsSchema);
+    validateNativeSettingsUI(a.settingsSchema,a.settingsUI);
+    validateNativeTitlePolicy(a.settingsSchema,a.titlePolicy);
+    if(a.settingsView!==undefined)check(m.apiVersion===2&&m.permissions.includes('view.open')&&typeof a.settingsView==='string'&&Object.hasOwn(m.views||{},a.settingsView)&&m.views[a.settingsView].mode==='modal','settingsView requires a declared modal view');
+    if(a.sharedStateView!==undefined){check(m.apiVersion===2&&m.permissions.includes('background.run'),'shared state view requires background service');validateSharedView(a.sharedStateView,a.settingsSchema);}
+    check(Array.isArray(a.controllers)&&a.controllers.length>0&&a.controllers.length<=2&&
+      new Set(a.controllers).size===a.controllers.length&&a.controllers.every(c=>['Keypad','Encoder'].includes(c))&&
+      [1,2].includes(a.states),'invalid action controllers or states');
+    check(a.visualPolicy===undefined||(a.visualPolicy==='foreground'&&a.states===1&&a.controllers.includes('Keypad')),'invalid visual policy');
+    if(a.stateImages!==undefined){
+      check(Array.isArray(a.stateImages)&&a.stateImages.length===a.states,'invalid state image count');
+      for(const image of a.stateImages)validateNativeImage(image);
+    }
+    if(m.apiVersion===2){
+      check(a.tickIntervalMs===undefined||(m.permissions.includes('timer.tick')&&Number.isInteger(a.tickIntervalMs)&&a.tickIntervalMs>=1000&&a.tickIntervalMs<=3600000),'invalid or unauthorized tick interval');
+      if(a.pollIntervalMs!==undefined)check(m.permissions.includes('network.poll')&&a.tickIntervalMs!==undefined&&Number.isInteger(a.pollIntervalMs)&&a.pollIntervalMs>=5000&&a.pollIntervalMs<=3600000,'invalid independent polling interval');
+      if(a.tickWhen!==undefined){
+        const rule=a.tickWhen;
+        check(a.tickIntervalMs!==undefined&&exact(rule,['setting','equals','selection','minItems'])&&Object.keys(rule).length===4,'invalid tick condition');
+        const field=a.settingsSchema?.find(x=>x.key===rule.setting),selection=a.settingsSchema?.find(x=>x.key===rule.selection);
+        check(field&&(field.type==='boolean'&&typeof rule.equals==='boolean'||field.type==='select'&&field.options.some(o=>o.value===rule.equals))&&
+          selection?.type==='dynamicMultiSelect'&&Number.isInteger(rule.minItems)&&rule.minItems>=1&&rule.minItems<=selection.maxItems,'invalid tick condition settings');
+      }
+      check(typeof a.script==='string'&&a.script.length>0&&Buffer.byteLength(a.script)<=65536,'invalid JavaScript source');
+      // Compile for syntax validation only. Never invoke plugin code in Node.
+      try{const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;new AsyncFunction('event','settings','state','memory','api','"use strict";\n'+a.script);}catch{throw Error('DeckForge SDK: invalid JavaScript syntax');}
+      continue;
+    }
+    check(obj(a.events),'invalid events');
+    for(const [event,program] of Object.entries(a.events)){
+      check(EVENTS.has(event)&&Array.isArray(program)&&program.length<=16,'unsupported event or program size');
+      for(const op of program){
+        check(obj(op)&&OPS.has(op.op),'unsupported operation');
+        switch(op.op){
+          case 'title':check(exact(op,['op','value'])&&typeof op.value==='string'&&op.value.length<=256,'invalid title');break;
+          case 'titleFromSetting':check(exact(op,['op','key','fallback'])&&typeof op.key==='string'&&/^[a-zA-Z0-9_-]{1,64}$/.test(op.key)&&
+            !['__proto__','constructor','prototype'].includes(op.key)&&typeof op.fallback==='string'&&op.fallback.length<=256,'invalid setting reference');break;
+          case 'stateFromSetting':check(exact(op,['op','key','match','yes','no'])&&typeof op.key==='string'&&/^[a-zA-Z0-9_-]{1,48}$/.test(op.key)&&
+            !['__proto__','constructor','prototype'].includes(op.key)&&typeof op.match==='string'&&op.match.length<=256&&
+            [op.yes,op.no].every(x=>Number.isInteger(x)&&x>=0&&x<a.states),'invalid setting state mapping');break;
+          case 'state':check(exact(op,['op','value'])&&Number.isInteger(op.value)&&op.value>=0&&op.value<a.states,'invalid state');break;
+          case 'toggleState':check(exact(op,['op'])&&a.states===2,'toggle requires two states');break;
+          case 'image':check(exact(op,['op','value']),'invalid image operation');validateNativeImage(op.value);break;
+        }
+      }
+    }
+  }
+  return m;
+}
+function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],dependencies:{...(m.dependencies||{})},background:!!m.service,...(m.capabilities?{capabilities:[...m.capabilities]}:{}),
+  actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
+    propertyInspectorPath:'',defaultImages:{off:a.stateImages?.[0]||null,on:a.stateImages?.[1]||null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{}),...(a.settingsUI?{settingsUI:a.settingsUI}:{}),...(a.settingsView?{settingsView:a.settingsView}:{}),...(a.titlePolicy?{titlePolicy:a.titlePolicy}:{}),...(a.visualPolicy?{visualPolicy:a.visualPolicy}:{})}))};}
+class NativePluginHost{
+  constructor(userData,onUpdate=()=>{},runnerFactory=null,options={}){
+    this.root=path.join(userData,'Plugins');this.onUpdate=onUpdate;
+    this.contexts=new Map();this.serviceDisabled=new Set();this.servicePolicyLoaded=false;this.servicePolicyLoad=null;this.servicePolicyError=false;this.suspended=false;this.closed=false;this.retired=new Set();
+    const {createScriptRunner,ScriptRunnerPool}=require('./deckforge-js-runtime.cjs');
+    // Explicit legacy rollback; never retry a failed input in another runner.
+    this.runnerPool=!runnerFactory&&process.env.DECKFORGE_SDK_RUNNER!=='legacy'?new ScriptRunnerPool():null;
+    this.runnerFactory=runnerFactory||(this.runnerPool?
+      (id,scope)=>this.runnerPool.lease(id,scope):id=>createScriptRunner(id));
+    const storage=options.storage||{
+      isAsyncEncryptionAvailable:()=>require('electron').safeStorage.isAsyncEncryptionAvailable(),
+      encryptStringAsync:value=>require('electron').safeStorage.encryptStringAsync(value),
+      decryptStringAsync:value=>require('electron').safeStorage.decryptStringAsync(value)
+    };
+    this.vault=options.vault||new NativeSettingsVault(userData,storage);
+    const credentialStorage=options.storage||{...storage,isAsyncEncryptionAvailable:()=>process.platform==='win32'&&storage.isAsyncEncryptionAvailable()};
+    this.credentials=options.credentials||new NativeSettingsVault(userData,credentialStorage,'credentials');
+    this.credentialChanges=new Set();
+    this.recoveryDelay=options.recoveryDelay||[1000,3000];
+    this.versions=new NativeVersionStore(this.root,validateNativeManifest);
+    this.dependencyWarnings=new Map();this.runtimeDiagnostics=new Map();
+    this.networkRequest=options.networkRequest||requestEndpoint;this.networkPending=new Set();
+    // Separate, OS-protected grant store; never expose it to plugin script or settings API.
+    this.browserPermissions=options.browserPermissions||new NativeSettingsVault(userData,credentialStorage,'browser');
+    this.browserChanges=new Set();this.browserPermissionEpoch=new Map();
+    this.browserOpen=options.browserOpen||null;
+    this.browserApproval=options.browserApproval||(async(id,digest)=>{
+      try{const {value}=await this.browserPermissions.read(id);return value.approved===true&&value.digest===digest;}catch{return false;}
+    });
+    this.lastBrowserOpen=-Infinity;
+    this.nodePermissions=options.nodePermissions||new NativeSettingsVault(userData,credentialStorage,'node');
+    this.nodeTasks=new TrustedNodeTasks(path.join(this.root,'NativeNodeData'),this.nodePermissions,options.nodeApprove,options.nodeExecute);
+    this.viewManager=options.viewManager||null;
+    this.socketFactory=options.socketFactory||createSocket;this.socketPending=new Set();this.rxReservedBytes=0;
+    this.socketRetryDelays=options.socketRetryDelays||[1000,2000,5000,10000,30000];
+    this.socketStableMs=options.socketStableMs??30000;
+    this.socketRetryJitter=options.socketRetryDelays?0:0.2;
+    this.socketHeartbeatMs=options.socketHeartbeatMs??30000;this.socketPongMs=options.socketPongMs??10000;
+    this.socketAuthMs=options.socketAuthMs??5000;
+    // Use elapsed time for periodic work and rate limits. Wall clock changes
+    // must not postpone ticks or reset request/socket limits. Cross-process
+    // settings receipt timestamps retain their existing wall-clock contract.
+    this.tickTimer=null;this.now=options.now||(()=>performance.now());
+    this.scheduler=new SdkScheduler();
+    this.settingsReceiptTimeout=options.settingsReceiptTimeout??5000;
+    this.animations=new NativeAnimationPlayer((ctx,image)=>this.onUpdate({kind:'setImage',context:ctx.context,payload:{image}}),options.animationNow);
+  }
+  loadServicePolicy(){
+    if(!this.servicePolicyLoad){
+      this.servicePolicyLoad=this.readServicePolicy().finally(()=>{this.servicePolicyLoaded=true;});
+    }
+    return this.servicePolicyLoad;
+  }
+  async readServicePolicy(){
+    const file=path.join(this.root,'NativeServicePreferences.json');
+    try{
+      let st;try{st=await fs.lstat(file);}catch(error){if(error.code==='ENOENT')return;throw error;}
+      check(st.isFile()&&st.size<=262144,'invalid background service preferences');
+      const raw=await fs.readFile(file,'utf8');
+      check(Buffer.byteLength(raw)<=262144,'invalid background service preferences');
+      const data=JSON.parse(raw);
+      check(exact(data,['version','disabled'])&&data.version===1&&Array.isArray(data.disabled)&&data.disabled.length<=1024&&
+        data.disabled.every(id=>typeof id==='string'&&ID.test(id)&&!id.endsWith('.')&&!id.includes('..'))&&new Set(data.disabled).size===data.disabled.length,'invalid background service preferences');
+      this.serviceDisabled=new Set(data.disabled);
+    }catch{
+      // Fail closed; never overwrite an unreadable user preference file.
+      this.servicePolicyError=true;this.report('background',Error('service preferences unavailable'));
+    }
+  }
+  async saveServicePolicy(next){
+    check(!this.servicePolicyError&&next.size<=1024,'background service preferences unavailable');
+    const data=JSON.stringify({version:1,disabled:[...next].sort()});
+    check(Buffer.byteLength(data)<=262144,'background service preferences limit');
+    const file=path.join(this.root,'NativeServicePreferences.json'),tmp=path.join(this.root,'.native-service-'+randomUUID());
+    await fs.mkdir(this.root,{recursive:true});
+    try{await fs.writeFile(tmp,data,{flag:'wx'});await fs.rename(tmp,file);}
+    finally{await fs.rm(tmp,{force:true}).catch(()=>{});}
+    this.serviceDisabled=next;
+  }
+  serviceStatus(id,available=true){
+    const enabled=!this.serviceDisabled.has(id)&&!this.servicePolicyError;
+    const ctx=this.contexts.get(SERVICE_PREFIX+id);
+    const state=this.servicePolicyError?'policy-error':!enabled?'stopped':!available?'unavailable':this.suspended?'suspended':
+      this.serviceCapacity?.has(id)?'capacity':!ctx?'waiting':ctx.failed?(ctx.recoveryTimer?'recovering':'failed'):'active';
+    const token=ctx?.socketToken;
+    return {enabled,state,socket:token?(token.retryTimer?'reconnecting':token.ready?'connected':'connecting'):'disconnected',...(ctx?.socketError?{socketError:ctx.socketError}:{}),...(ctx?.failed?{socketError:'runtime-failed'}:{})};
+  }
+  async manageService(manifests,id,mode){
+    check(!this.closed,'native host closed');
+    await this.loadServicePolicy();
+    check(!this.closed,'native host closed');
+    const manifest=manifests.find(m=>m.id===id&&m.service);
+    check(manifest&&['start','stop','restart'].includes(mode),'invalid background service control');
+    check(!this.servicePolicyError,'background service preferences unavailable');
+    const graph=resolveDependencies(manifests);
+    check(mode==='stop'||graph.ready.has(id),'background service dependency unavailable');
+    const next=new Set(this.serviceDisabled);
+    if(mode==='stop')next.add(id);else next.delete(id);
+    if(next.size!==this.serviceDisabled.size||[...next].some(x=>!this.serviceDisabled.has(x)))await this.saveServicePolicy(next);
+    // A committed preference remains durable, but an asynchronous management
+    // operation must never recreate a service after host shutdown.
+    check(!this.closed,'native host closed');
+    if(mode==='restart'){
+      const key=SERVICE_PREFIX+id,ctx=this.contexts.get(key);
+      if(ctx){this.retire(ctx);this.contexts.delete(key);}
+    }
+    this.syncServices(new Map(manifests.filter(m=>graph.ready.has(m.id)).map(m=>[m.id,m])),new Set());
+    this.reconcileTickTimer();
+    return this.serviceStatus(id,graph.ready.has(id));
+  }
+  async manifests(){
+    await fs.mkdir(this.root,{recursive:true});const items=[];
+    for(const e of await fs.readdir(this.root,{withFileTypes:true})){
+      if(!e.isFile()||!e.name.endsWith(SUFFIX))continue;
+      try{
+        const file=path.join(this.root,e.name),st=await fs.lstat(file);
+        check(st.isFile()&&st.size<=LIMIT,'invalid installed program');
+        const m=validateNativeManifest(JSON.parse(await fs.readFile(file,'utf8')));
+        check(e.name===m.id+SUFFIX,'file ID mismatch');items.push(m);
+      }catch{this.report(e.name,Error('invalid installed program'),'manifest-invalid');}
+    }
+    return items;
+  }
+  report(id,error,category){
+    const message=String(error?.message||error),known={
+      'runtime unavailable':'runtime-unavailable','action stopped (execution or validation failure)':'execution-failed',
+      'background service message not accepted':'service-busy','background service capacity':'service-capacity',
+      'animation capacity or inactive context':'animation-unavailable','WebSocket already active':'socket-busy',
+      'WebSocket not open':'socket-closed','WebSocket send rate limit; command not sent':'socket-rate',
+      'WebSocket send capacity; command not sent':'socket-capacity','network request busy':'network-busy',
+      'network request capacity':'network-capacity','input queue busy; event not accepted':'input-busy',
+      'settings write outcome unknown; context paused until confirmed settings change or remount':'settings-unknown',
+      'settings write not confirmed':'settings-rejected','global settings conflict; write rejected':'settings-conflict',
+      'Node task unavailable':'node-unavailable','browser opening not approved or temporarily unavailable':'browser-unavailable'
+    };
+    const pluginId=typeof id==='string'&&id.endsWith(SUFFIX)?id.slice(0,-SUFFIX.length):id;
+    const code=category==='dependency'||category==='manifest-invalid'?category:(Object.hasOwn(known,message)?known[message]:'other');
+    if(typeof pluginId==='string'&&ID.test(pluginId)){
+      let entry=this.runtimeDiagnostics.get(pluginId);
+      if(!entry){if(this.runtimeDiagnostics.size>=256)this.runtimeDiagnostics.delete(this.runtimeDiagnostics.keys().next().value);entry={total:0,counts:{},lastCode:null,lastAt:null};this.runtimeDiagnostics.set(pluginId,entry);}
+      entry.total=Math.min(1000000000,entry.total+1);entry.counts[code]=Math.min(1000000000,(entry.counts[code]||0)+1);entry.lastCode=code;entry.lastAt=new Date().toISOString();
+    }
+    this.onUpdate({kind:'error',message:'DeckForge SDK '+id+': '+message.slice(0,300)});
+  }
+  diagnostics(manifest,available=true){
+    const id=manifest.id,summary=this.runtimeDiagnostics.get(id)||{total:0,counts:{},lastCode:null,lastAt:null};
+    const states={active:0,recovering:0,failed:0,paused:0,suspended:0};
+    const actions=manifest.actions.map(a=>({id:a.id,name:a.name,active:0,recovering:0,failed:0,paused:0,suspended:0,recoveryAttempts:0}));
+    const byId=new Map(actions.map(a=>[a.id,a]));
+    let recoveryAttempts=0;
+    for(const ctx of this.contexts.values()){
+      if(ctx.pluginUUID!==id||ctx.service)continue;
+      const row=byId.get(ctx.action?.id);if(!row)continue;
+      const state=this.suspended?'suspended':ctx.settingsUncertain?'paused':ctx.failed?(ctx.recoveryTimer?'recovering':'failed'):'active';
+      const attempts=Number.isSafeInteger(ctx.recoveryAttempts)?Math.max(0,ctx.recoveryAttempts):0;
+      row[state]++;states[state]++;row.recoveryAttempts+=attempts;recoveryAttempts+=attempts;
+    }
+    const service=manifest.service?this.serviceStatus(id,available):null;
+    const serviceContext=this.contexts.get(SERVICE_PREFIX+id);
+    return {id,version:manifest.version,available,states,actions,recoveryAttempts,service:service?{state:service.state,socket:service.socket,recoveryAttempts:serviceContext?.recoveryAttempts||0}:null,errors:structuredClone(summary)};
+  }
+  async credentialInfo(manifest){
+    const endpoints=(manifest.networkEndpoints||[]).filter(e=>e.auth!==undefined);
+    return Promise.all(endpoints.map(async e=>{
+      const binding=credentialBinding(manifest.id,e);
+      const {value,revision}=await this.credentials.read(binding);
+      return {id:e.id,url:e.url,method:e.method,binding,revision,configured:validBearer(value.token)};
+    }));
+  }
+  async writeCredential(manifest,binding,revision,token){
+    const endpoint=(manifest.networkEndpoints||[]).find(e=>e.auth!==undefined&&credentialBinding(manifest.id,e)===binding);
+    check(endpoint&&(revision===null||typeof revision==='string'&&/^[a-f0-9]{64}$/.test(revision))&&
+      (token===null||validBearer(token)),'invalid credential input or changed endpoint');
+    check(!this.credentialChanges.has(binding),'credential update busy');
+    this.credentialChanges.add(binding);
+    const cancel=()=>{
+      for(const ctx of this.contexts.values())if(ctx.pluginUUID===manifest.id){
+        if(ctx.networkToken?.binding===binding)this.cancelNetwork(ctx);
+        if(ctx.socketToken?.binding===binding)this.cancelSocket(ctx);
+      }
+    };
+    try{
+      cancel();
+      const ok=await this.credentials.write(binding,token===null?{}:{token},revision,()=>!this.closed);
+      check(ok,'credential changed; reopen settings');
+      cancel();
+      return {configured:token!==null};
+    }finally{this.credentialChanges.delete(binding);}
+  }
+  async checkDependencies(m,excluded=new Set()){
+    validateNativeManifest(m);
+    const manifests=(await this.manifests()).filter(p=>!excluded.has(p.id));
+    return assertDependencyChange(manifests,m);
+  }
+  async install(m){
+    await this.checkDependencies(m);await this.versions.assertReinstall(m);const data=JSON.stringify(m);
+    check(Buffer.byteLength(data)<=LIMIT,'program too large');
+    await fs.mkdir(this.root,{recursive:true});
+    const tmp=path.join(this.root,'.native-'+randomUUID()),target=path.join(this.root,m.id+SUFFIX);
+    try{
+      await fs.writeFile(tmp,data,{flag:'wx'});
+      // Exclusive publication: never replace the existing installed program.
+      await fs.link(tmp,target);
+    }finally{await fs.rm(tmp,{force:true}).catch(()=>{});}
+    return catalog(m);
+  }
+  async planInstall(m){await this.checkDependencies(m);return this.versions.plan(m);}
+  async replace(m,expectedRevision,haConfiguration=false){
+    await this.checkDependencies(m);
+    const retired=[];
+    const stop=()=>{
+      this.viewManager?.cancelPlugin?.(m.id);
+      for(const [id,ctx] of this.contexts)if(ctx.pluginUUID===m.id){
+        this.resetScript(ctx);ctx.pressed=false;
+        retired.push([id,ctx]);this.contexts.delete(id);
+      }
+    };
+    const restore=()=>{
+      if(this.closed)return;
+      for(const [id,ctx] of retired){
+        this.contexts.set(id,ctx);
+        if(!ctx.failed&&!this.suspended)this.initialize(ctx);
+      }
+    };
+    await this.versions.replace(m,expectedRevision,stop,restore,haConfiguration);
+    return catalog(m);
+  }
+  validateScriptOps(ctx,event,program,response=null){
+    check(Array.isArray(program)&&program.length<=16,'invalid operation list');
+    const normal=[],effects=[];let pixelCount=0,animationCount=0;
+    const validSettings=(v,depth=0)=>{
+      if(depth>12)return false;
+      if(Array.isArray(v))return v.every(x=>validSettings(x,depth+1));
+      if(obj(v))return Object.keys(v).every(k=>!['__proto__','constructor','prototype'].includes(k)&&validSettings(v[k],depth+1));
+      return v===null||typeof v==='string'||typeof v==='boolean'||(typeof v==='number'&&Number.isFinite(v));
+    };
+    if(ctx.service)check(ctx.permissions.includes('background.run')&&['start','settings','tick','networkResult','socketEvent','serviceMessage'].includes(event),'invalid background event');
+    for(let op of program){
+      if(op?.op==='publishSharedState'){
+        check(ctx.service&&ctx.permissions.includes('background.run')&&exact(op,['op','value'])&&!normal.some(o=>o.op==='publishSharedState'),'unauthorized or duplicate shared state publication');
+        validateValue(op.value,ctx.sharedStateBytes||8192);normal.push(op);continue;
+      }
+      if(ctx.service)check(['networkRequest','socketConnect','socketSend','socketClose'].includes(op?.op),'background service cannot operate physical controls or saved settings');
+      if(op?.op==='animation'||op?.op==='stopAnimation'){
+        check(ctx.slot>=0&&ctx.slot<13&&ctx.action.controllers.includes('Keypad')&&++animationCount===1,'animation requires a normal key and one command');
+        if(op.op==='animation'){
+          check(exact(op,['op','value']),'invalid animation operation');
+          normal.push({op:'animation',prepared:this.animations.prepare(ctx,op.value)});
+        }else{
+          check(exact(op,['op']),'invalid animation stop');
+          normal.push(op);
+        }
+        continue;
+      }
+      if(op?.op==='pixels'){
+        check(++pixelCount<=2,'key drawing limit');
+        normal.push(pixelImage(op));continue;
+      }
+      if(OPS.has(op?.op)){normal.push(op);continue;}
+      const polling=event==='tick'&&op?.op==='networkRequest'&&ctx.permissions.includes('network.poll')&&(ctx.action.pollIntervalMs??ctx.action.tickIntervalMs)>=5000;
+      const socketLifecycle=op?.op==='socketConnect'&&['appear','settings','start'].includes(event)&&(event!=='start'||ctx.service);
+      const socketContinuation=['socketSend','socketClose'].includes(op?.op)&&event==='socketEvent';
+      const serviceInput=ctx.service&&event==='serviceMessage'&&['networkRequest','socketSend','socketClose','socketConnect'].includes(op?.op);
+      const viewSave=event==='viewResult'&&response?.status==='submitted'&&!ctx.service&&ctx.permissions.includes('view.open')&&['settings','settingsPatch'].includes(op?.op);
+      check(event!=='settingsResult'&&(INPUT_EVENTS.has(event)||polling||socketLifecycle||socketContinuation||serviceInput||viewSave),'privileged operation requires input event');
+      const batchedSend=ctx.service&&ctx.capabilities?.includes('socketBatch')&&event==='socketEvent'&&response?.event==='messages'&&op?.op==='socketSend'&&effects.every(e=>e.op==='socketSend')&&effects.length<RX_BATCH_COUNT;
+      check(effects.length===0||batchedSend,'only one privileged operation per event');
+      if(op?.op==='settingsPatch'){
+        check(ctx.permissions.includes('settings.write')&&exact(op,['op','value'])&&obj(op.value)&&
+          Object.keys(op.value).length>0&&Buffer.byteLength(JSON.stringify(op.value))<=8192&&
+          validSettings(op.value)&&obj(ctx.settings),'invalid or unauthorized settings patch');
+        // Shallow merge against the current generation's stored settings.
+        // The existing expectedSettings receipt still rejects concurrent edits.
+        op={op:'settings',value:{...ctx.settings,...structuredClone(op.value)}};
+      }
+      if(op?.op==='settings'){
+        check(ctx.permissions.includes('settings.write')&&exact(op,['op','value'])&&obj(op.value)&&
+          Buffer.byteLength(JSON.stringify(op.value))<=8192,'invalid or unauthorized settings');
+        check(validSettings(op.value),'unsafe settings keys or values');
+        if(ctx.action.settingsSchema)nativeEffectiveSettings(ctx.action.settingsSchema,op.value);
+      }else if(op?.op==='globalSettings'){
+        check(ctx.permissions.includes('global.settings')&&exact(op,['op','value']),'unauthorized global settings');
+        validateValue(op.value);
+      }else if(op?.op==='navigate'){
+        check(ctx.permissions.includes('navigation')&&exact(op,['op','target','value']),'unauthorized navigation');
+        const {target,value}=op;
+        check((target==='page'&&Number.isInteger(value)&&value>=0&&value<128)||
+          (target==='profile'&&validText(value,160))||
+          (target==='folder'&&Number.isInteger(value)&&value>=0&&value<13)||
+          (target==='back'&&value===null),'invalid navigation target');
+      }else if(op?.op==='serviceMessage'){
+        check(!ctx.service&&ctx.permissions.includes('background.run')&&exact(op,['op','value']),'unauthorized service message');
+        validateValue(op.value);
+      }else if(op?.op==='networkRequest'){
+        check(ctx.permissions.includes('network.request'),'unauthorized network request');
+        const endpoint=validateNetworkRequest(op,ctx.networkEndpoints);
+        check(!polling||endpoint.method==='GET','periodic network request must use GET');
+      }else if(['socketConnect','socketSend','socketClose'].includes(op?.op)){
+        check(ctx.permissions.includes('network.websocket'),'unauthorized WebSocket operation');
+        validateSocketOperation(op,ctx.networkEndpoints);
+      }else if(op?.op==='wideOverlay'){
+        check(ctx.permissions.includes('wide.overlay'),'unauthorized wide overlay');
+        validateWideOverlay(op);
+      }else if(op?.op==='openView'){
+        check(!ctx.service&&ctx.permissions.includes('view.open'),'unauthorized native view');
+        validateViewOperation(op,ctx.viewManifest?.views);
+      }else if(op?.op==='runNode'){
+        check(!ctx.service&&ctx.permissions.includes('node.run'),'unauthorized Node task');
+        validateNodeOperation(op,ctx.nodeManifest?.nodeTasks);
+      }else if(op?.op==='openUrl'){
+        check(ctx.permissions.includes('browser.open')&&exact(op,['op','value']),'unauthorized browser operation');
+        check(event==='press'&&!ctx.service,'browser operation requires press input event');
+        const href=safeNativeBrowserUrl(op.value);
+        check(href,'invalid browser URL');op={op:'openUrl',value:href};
+      }else if(op?.op==='wideMode'){
+        check(ctx.permissions.includes('wide.mode')&&exact(op,['op','value'])&&['clock','datetime','stats','knobs'].includes(op.value),'invalid or unauthorized wide mode');
+      }else throw Error('DeckForge SDK: unsupported operation');
+      effects.push(op);
+    }
+    check(!animationCount||!normal.some(op=>op.op==='image'),'animation and static image cannot share an event');
+    if(ctx.service){
+      if(effects.length>1)check(effects.reduce((sum,e)=>sum+Buffer.byteLength(JSON.stringify(e.value)),0)<=16384,'socket batch send budget');
+      return {normal,effects};
+    }
+    const {script,tickIntervalMs,stateImages,sharedStateView,tickWhen,pollIntervalMs,settingsView,...action}=ctx.action;
+    validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
+      permissions:['display'],actions:[{...action,events:{press:normal.filter(op=>!['animation','stopAnimation'].includes(op.op))}}]});
+    return {normal,effects};
+  }
+  async browserPermissionInfo(manifest){
+    check(manifest.permissions.includes('browser.open'),'browser permission not requested');
+    const digest=browserPermissionDigest(manifest),{value}=await this.browserPermissions.read(manifest.id);
+    return {id:manifest.id,name:manifest.name,version:manifest.version,digest,approved:value.approved===true&&value.digest===digest};
+  }
+  async setBrowserPermission(manifest,approved){
+    check(typeof approved==='boolean'&&manifest.permissions.includes('browser.open'),'invalid browser permission change');
+    const id=manifest.id,digest=browserPermissionDigest(manifest);
+    check(!this.closed&&!this.browserChanges.has(id),'browser permission update busy');
+    this.browserChanges.add(id);this.browserPermissionEpoch.set(id,(this.browserPermissionEpoch.get(id)||0)+1);
+    try{
+      const {value,revision}=await this.browserPermissions.read(id);
+      if(value.digest===digest&&value.approved===approved)return {approved};
+      const saved=await this.browserPermissions.write(id,{digest,approved},revision,()=>!this.closed);
+      check(saved,'browser permission write not confirmed');
+      return {approved};
+    }finally{this.browserChanges.delete(id);}
+  }
+  async dispatchBrowserUrl(ctx,operation,active){
+    const href=safeNativeBrowserUrl(operation?.value),id=ctx.pluginUUID;
+    if(!href||!ctx.permissions.includes('browser.open')||ctx.service||!active()||!this.browserOpen||!this.browserApproval||this.browserChanges.has(id))return false;
+    const epoch=this.browserPermissionEpoch.get(id)||0;
+    // Use the mounted manifest digest, not a URL or permission claim from the script.
+    const approved=await this.browserApproval(id,ctx.browserRevision||ctx.signature);
+    if(approved!==true||!active()||this.browserChanges.has(id)||(this.browserPermissionEpoch.get(id)||0)!==epoch)return false;
+    const now=this.now();if(now-this.lastBrowserOpen<750)return false;
+    this.lastBrowserOpen=now;
+    await this.browserOpen(href);return true;
+  }
+  sendServiceMessage(ctx,operation){
+    const target=this.contexts.get(SERVICE_PREFIX+ctx.pluginUUID);
+    if(!target||target.failed||target.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE||this.suspended||this.closed){
+      this.report(ctx.pluginUUID,Error('background service message not accepted'));return;
+    }
+    this.runScript(target,'serviceMessage',{actionId:ctx.action.id,message:structuredClone(operation.value)});
+  }
+  sharedSnapshot(ctx){
+    if(!ctx.permissions.includes('background.run'))return {};
+    const service=this.contexts.get(SERVICE_PREFIX+ctx.pluginUUID);
+    return projectSharedState(ctx,service?.sharedState||{});
+  }
+  notifyShared(pluginUUID,previous){
+    for(const other of this.contexts.values())if(!other.service&&other.pluginUUID===pluginUUID&&other.permissions.includes('background.run')&&!other.failed){
+      if(previous&&other.action.sharedStateView&&JSON.stringify(projectSharedState(other,previous))===JSON.stringify(this.sharedSnapshot(other)))continue;
+      other.sharedDirty=true;this.queueSharedRefresh(other);
+    }
+  }
+  queueSharedRefresh(ctx){
+    if(ctx.sharedDirty&&!ctx.sharedQueued&&!ctx.failed&&!this.closed&&!this.suspended&&this.contexts.get(ctx.context)===ctx&&ctx.pending<MAX_PENDING_EVENTS-INPUT_RESERVE){
+      ctx.sharedDirty=false;ctx.sharedQueued=true;
+      if(!this.runScript(ctx,'sharedState')){ctx.sharedQueued=false;ctx.sharedDirty=true;}
+    }
+  }
+  applyOps(ctx,program){
+      for(const op of program){
+        if(op.op==='publishSharedState'){
+          if(JSON.stringify(ctx.sharedState)!==JSON.stringify(op.value)){const previous=ctx.sharedState;ctx.sharedState=structuredClone(op.value);this.notifyShared(ctx.pluginUUID,previous);}
+          continue;
+        }
+        const send=(kind,payload)=>this.onUpdate({kind,context:ctx.context,payload});
+        if(op.op==='title')send('setTitle',{title:op.value});
+        if(op.op==='titleFromSetting'){
+          const effective=ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,ctx.settings):ctx.settings;
+          const value=Object.hasOwn(effective,op.key)?effective[op.key]:undefined;
+          send('setTitle',{title:typeof value==='string'?value.slice(0,256):op.fallback});
+        }
+        if(op.op==='stateFromSetting'){
+          const effective=ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,ctx.settings):ctx.settings;
+          ctx.state=Object.hasOwn(effective,op.key)&&effective[op.key]===op.match?op.yes:op.no;
+          send('setState',{state:ctx.state});
+        }
+        if(op.op==='state'||op.op==='toggleState'){
+          ctx.state=op.op==='state'?op.value:1-ctx.state;send('setState',{state:ctx.state});
+        }
+        if(op.op==='image'){this.animations.stop(ctx);send('setImage',{image:op.value});}
+        if(op.op==='stopAnimation')this.animations.stop(ctx);
+        if(op.op==='animation'){
+          const epoch=ctx.epoch,revision=ctx.settingsRevision;
+          const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&this.contexts.get(ctx.context)===ctx&&ctx.epoch===epoch&&ctx.settingsRevision===revision;
+          if(!this.animations.start(ctx,op.prepared,active))this.report(ctx.pluginUUID,Error('animation capacity or inactive context'));
+        }
+      }
+  }
+  cancelSettingsReceipt(ctx,result='cancelled'){
+    const pending=ctx.settingsReceipt;
+    if(pending){ctx.settingsReceipt=null;clearTimeout(pending.timer);pending.resolve({status:result,requestId:pending.id});}
+  }
+  requestSettingsCommit(ctx,operation,expectedSettings,active){
+    if(!active()||ctx.settingsReceipt||ctx.settingsUncertain)return Promise.resolve({status:'cancelled',requestId:null});
+    return new Promise(resolve=>{
+      const id=randomUUID(),expiresAt=Date.now()+this.settingsReceiptTimeout;
+      const pending={id,active,resolve,value:structuredClone(operation.value),expiresAt,revision:ctx.configRevision,timer:null};
+      ctx.settingsReceipt=pending;
+      pending.timer=setTimeout(()=>{
+        if(ctx.settingsReceipt!==pending)return;
+        // A missing receipt does not prove that the profile write failed.
+        ctx.settingsUncertain=true;ctx.pressed=false;
+        this.cancelSettingsReceipt(ctx,'unknown');
+      },this.settingsReceiptTimeout);
+      try{
+        pending.request=structuredClone({kind:'nativeSettingsCommit',context:ctx.context,pluginUUID:ctx.pluginUUID,
+          actionUUID:ctx.action.id,operation,expectedSettings,receiptId:id,requestId:id,
+          instanceId:ctx.instanceId,mountGeneration:ctx.mountGeneration,expectedRevision:ctx.configRevision,
+          slot:ctx.slot,gesture:ctx.gesture,expiresAt});
+        this.onUpdate(structuredClone(pending.request));
+      }catch{ctx.settingsUncertain=true;ctx.pressed=false;this.cancelSettingsReceipt(ctx,'unknown');}
+    });
+  }
+  pendingSettingsRequest(context,id){
+    const ctx=this.contexts.get(context),pending=ctx?.settingsReceipt;
+    if(!pending||pending.id!==id||!pending.active()||ctx.configRevision!==pending.revision||Date.now()>pending.expiresAt)return null;
+    return structuredClone(pending.request);
+  }
+  acknowledgeSettings(context,id,accepted){
+    const ctx=this.contexts.get(context),pending=ctx?.settingsReceipt;
+    if(!pending||pending.id!==id||typeof accepted!=='boolean')return false;
+    const current=pending.active()&&ctx.configRevision===pending.revision;
+    const timely=Date.now()<=pending.expiresAt;
+    const ok=accepted&&current&&timely;
+    if(accepted&&(!current||!timely)){ctx.settingsUncertain=true;ctx.pressed=false;}
+    ctx.settingsReceipt=null;clearTimeout(pending.timer);
+    if(ok){
+      // A confirmed write from this same action is not an external edit.
+      // Already-admitted input events keep their generation and read the
+      // newly saved settings when they reach the head of the FIFO.
+      const changed=JSON.stringify(ctx.settings)!==JSON.stringify(pending.value);
+      ctx.settings=pending.value;
+      if(changed){
+        if(Number.isSafeInteger(ctx.configRevision))ctx.configRevision++;
+        this.cancelNetwork(ctx);this.cancelSocket(ctx);this.nodeTasks.cancel(ctx);this.viewManager?.cancel(ctx);ctx.settingsRefresh=true;
+        if(ctx.action.tickWhen)this.refreshTickSchedule(ctx);
+      }
+    }
+    pending.resolve({status:ok?'saved':accepted?'unknown':'rejected',requestId:pending.id});return ok;
+  }
+  queueSettingsRefresh(ctx){
+    if(ctx.settingsRefresh&&ctx.pending<MAX_PENDING_EVENTS&&!ctx.failed&&!this.closed&&!this.suspended){
+      ctx.settingsRefresh=false;this.runScript(ctx,'settings');
+    }
+  }
+  resetScript(ctx){
+    clearMultiMonitorPress(ctx);
+    this.cancelSettingsReceipt(ctx);ctx.settingsRefresh=false;ctx.sharedDirty=false;ctx.sharedQueued=false;
+    if(ctx.service&&Object.keys(ctx.sharedState||{}).length){const previous=ctx.sharedState;ctx.sharedState={};this.notifyShared(ctx.pluginUUID,previous);}
+    this.animations.stop(ctx);
+    ctx.tickDue=null;
+    this.cancelNetwork(ctx);this.cancelSocket(ctx);this.nodeTasks.cancel(ctx);this.viewManager?.cancel(ctx);
+    if(ctx.wideOverlaySent){ctx.wideOverlaySent=false;this.onUpdate({kind:'nativeWideReleased',context:ctx.context});}
+    clearTimeout(ctx.recoveryTimer);ctx.recoveryTimer=null;
+    ctx.epoch=(ctx.epoch||0)+1;
+    try{ctx.runner?.close();}catch{}
+    ctx.runner=null;ctx.pending=0;ctx.queue=Promise.resolve();
+    this.scheduler.prune();
+  }
+  fail(ctx,error){
+    ctx.failed=true;ctx.pressed=false;this.resetScript(ctx);
+    // Plugin exceptions may contain credentials; do not forward their text.
+    const recoverable=ctx.apiVersion===2&&error?.code==='SDK_RUNTIME_UNAVAILABLE';
+    this.report(ctx.pluginUUID,Error(recoverable?'runtime unavailable':'action stopped (execution or validation failure)'));
+    const attempt=ctx.recoveryAttempts||0;
+    if(!recoverable||this.closed||this.suspended||attempt>=this.recoveryDelay.length)return;
+    ctx.recoveryAttempts=attempt+1;
+    const epoch=ctx.epoch;
+    ctx.recoveryTimer=setTimeout(()=>{
+      ctx.recoveryTimer=null;
+      if(this.closed||this.suspended||ctx.epoch!==epoch||this.contexts.get(ctx.context)!==ctx)return;
+      ctx.failed=false;ctx.pressed=false;ctx.memory={};
+      // Only initialize a new instance: never replay a press or write.
+      this.initialize(ctx);
+    },this.recoveryDelay[attempt]);
+    ctx.recoveryTimer.unref?.();
+  }
+  cancelNetwork(ctx){
+    const token=ctx.networkToken;
+    if(token){ctx.networkToken=null;token.controller.abort();}
+  }
+  disposeSocketTransport(token){
+    for(const name of ['retryTimer','heartbeatTimer','pongTimer','authTimer']){
+      clearTimeout(token[name]);token[name]=null;
+    }
+    // Queued but not dispatched frames are freed now. Accepted frames remain
+    // charged until their actual queue closures settle, even across generations.
+    this.rxReservedBytes-=(token.rxQueue||[]).reduce((sum,f)=>sum+f.bytes,0);
+    token.rxQueue=[];token.rxBytes=0;token.rxCount=0;token.rxInFlight=0;token.openedAt=null;
+    const socket=token.socket;token.socket=null;token.ready=false;
+    try{socket?.terminate();}catch{}
+  }
+  cancelSocket(ctx){
+    ctx.socketGeneration=(ctx.socketGeneration||0)+1;
+    ctx.socketNotice=null;
+    const token=ctx.socketToken;
+    if(!token)return;
+    ctx.socketToken=null;this.socketPending.delete(token);
+    this.disposeSocketTransport(token);
+  }
+  socketEvent(ctx,token,event,body='',error=null,receipt=null,bodies=null){
+    if(!token.active()||ctx.socketGeneration!==token.generation)return false;
+    const terminal=['error','close','reconnecting'].includes(event);
+    const response={endpoint:token.endpoint.id,event,body,error,generation:token.generation,gap:terminal,...(bodies?{bodies}:{})};
+    if(terminal){
+      // Loss of a transport is not ordinary traffic. Reserve capacity for
+      // its invalidation; retain at most the newest undelivered notice.
+      ctx.socketNotice={token,response};
+      this.queueSocketNotice(ctx);
+      return true;
+    }
+    if(ctx.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE){this.reportBackpressure(ctx);return false;}
+    return this.runScript(ctx,'socketEvent',response,token.settings,token.generation,receipt);
+  }
+  queueSocketNotice(ctx){
+    const notice=ctx.socketNotice;
+    if(!notice)return;
+    const {token,response}=notice;
+    if(!token.active()||ctx.socketGeneration!==token.generation||this.contexts.get(ctx.context)!==ctx){
+      ctx.socketNotice=null;return;
+    }
+    if(ctx.pending>=MAX_PENDING_EVENTS+2)return;
+    if(this.runScript(ctx,'socketEvent',response,token.settings,token.generation))ctx.socketNotice=null;
+  }
+  finishSocket(ctx,token,event,error=null,retry=false){
+    if(ctx.socketToken!==token)return;
+    ctx.socketError=error||null;
+    if(token.ready&&token.openedAt!==null&&this.now()-token.openedAt>=this.socketStableMs)token.attempt=0;
+    this.disposeSocketTransport(token);
+    // A disconnected stream cannot be treated as a complete snapshot.
+    // Discard queued data from the old connection before delivering notice.
+    token.generation=ctx.socketGeneration=(ctx.socketGeneration||0)+1;
+    ctx.socketNotice=null;
+    if(retry&&token.endpoint.reconnect===true&&token.active()&&token.attempt<this.socketRetryDelays.length){
+      // Invalidate all previously queued socket events before a new transport.
+      // Reconnect the approved endpoint only, never replay a send or input.
+      const base=this.socketRetryDelays[token.attempt++];
+      const delay=Math.round(base*(1+(Math.random()*2-1)*this.socketRetryJitter));
+      token.retryTimer=setTimeout(()=>{
+        token.retryTimer=null;
+        if(ctx.socketToken===token&&token.active())this.openSocketTransport(ctx,token);
+        else if(ctx.socketToken===token)this.cancelSocket(ctx);
+      },delay);
+      token.retryTimer.unref?.();
+      if(this.socketEvent(ctx,token,'reconnecting','',error))return;
+      this.disposeSocketTransport(token);
+    }
+    ctx.socketToken=null;this.socketPending.delete(token);
+    this.socketEvent(ctx,token,event,'',error);
+  }
+  socketRate(token,direction,bytes=0,count=1){
+    const now=this.now(),field=direction+'Rate',rx=direction==='receive';
+    const capacity=rx?128:16,refill=rx?64:8,byteCapacity=rx?RX_SOCKET_BYTES:32768,byteRefill=rx?512*1024:32768;
+    let rate=token[field];
+    if(!rate)rate=token[field]={start:now,tokens:capacity,bytes:byteCapacity};
+    const elapsed=Math.max(0,now-rate.start)/1000;
+    rate.start=Math.max(now,rate.start);
+    rate.tokens=Math.min(capacity,rate.tokens+elapsed*refill);
+    rate.bytes=Math.min(byteCapacity,rate.bytes+elapsed*byteRefill);
+    if(rate.tokens<count||rate.bytes<bytes)return false;
+    rate.tokens-=count;rate.bytes-=bytes;return true;
+  }
+  receiveSocketFrame(ctx,token,body,bytes){
+    let frames=[{body,bytes}];
+    // Explicit opt-in only. Preserve the ordinary opaque WebSocket contract.
+    // Admit a complete array atomically, charging every logical message and
+    // the larger of original vs normalized bytes; never drop a partial array.
+    if(ctx.service&&ctx.capabilities?.includes('socketJsonArray')&&ctx.capabilities.includes('socketBatch')&&body.trimStart().startsWith('[')){
+      let messages;
+      try{messages=JSON.parse(body);}catch{this.finishSocket(ctx,token,'error','invalid-message');return;}
+      if(!Array.isArray(messages)||messages.length===0||messages.length>RX_FRAMES||messages.some(v=>!obj(v))){
+        this.finishSocket(ctx,token,'error','invalid-message');return;
+      }
+      frames=messages.map(v=>{const body=JSON.stringify(v);return {body,bytes:Buffer.byteLength(JSON.stringify(body))};});
+      const normalized=frames.reduce((total,f)=>total+f.bytes,0);
+      if(frames.some(f=>f.bytes>socketReceiveLimit(token.endpoint)||token.bearer&&f.body.includes(token.bearer))){
+        this.finishSocket(ctx,token,'error','invalid-message');return;
+      }
+      if(bytes>normalized)frames[0].bytes+=bytes-normalized;
+      bytes=Math.max(bytes,normalized);
+    }
+    const count=frames.length;
+    if(!this.socketRate(token,'receive',bytes,count)){this.finishSocket(ctx,token,'error','rate-limit',true);return;}
+    if(token.rxCount+count>RX_FRAMES||token.rxBytes+bytes>RX_SOCKET_BYTES||this.rxReservedBytes+bytes>RX_GLOBAL_BYTES){
+      this.finishSocket(ctx,token,'error','queue-capacity',true);return;
+    }
+    token.rxQueue.push(...frames);token.rxBytes+=bytes;token.rxCount+=count;this.rxReservedBytes+=bytes;
+    this.flushSocketFrames(ctx,token);
+  }
+  flushSocketFrames(ctx,token,force=false){
+    if(!token||ctx.socketToken!==token||!token.active()||!token.ready||ctx.socketGeneration!==token.generation)return false;
+    if(!force&&token.rxInFlight)return token.rxQueue.length===0;
+    do{
+      if(!token.rxQueue.length)return true;
+      if(ctx.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE)return false;
+      const max=ctx.service&&ctx.capabilities?.includes('socketBatch')?RX_BATCH_COUNT:1;
+      let bytes=0,count=0;
+      for(const frame of token.rxQueue){
+        if(count>=max||(count>0&&bytes+frame.bytes>RX_BATCH_BYTES))break;
+        bytes+=frame.bytes;count++;
+      }
+      const frames=token.rxQueue.slice(0,count),bodies=frames.map(f=>f.body);
+      const receipt={token,generation:token.generation,bytes,count};
+      if(!this.socketEvent(ctx,token,count===1?'message':'messages',count===1?bodies[0]:'',null,receipt,count===1?null:bodies))return false;
+      token.rxQueue.splice(0,count);token.rxInFlight++;
+    }while(force);
+    return token.rxQueue.length===0;
+  }
+  completeSocketFrames(ctx,receipt){
+    const {token,generation,bytes,count}=receipt;
+    // A stale generation still owns retained bytes until its FIFO settles.
+    this.rxReservedBytes-=bytes;
+    if(ctx.socketToken!==token||token.generation!==generation)return;
+    token.rxBytes-=bytes;token.rxCount-=count;token.rxInFlight--;
+  }
+  startSocket(ctx,operation,active){
+    const endpoint=validateSocketOperation(operation,ctx.networkEndpoints);
+    if(ctx.socketToken){this.report(ctx.pluginUUID,Error('WebSocket already active'));return;}
+    const generation=ctx.socketGeneration=(ctx.socketGeneration||0)+1;
+    const binding=endpoint.auth!==undefined?credentialBinding(ctx.pluginUUID,endpoint):null;
+    const token={endpoint,binding,generation,active,settings:JSON.stringify(ctx.settings),plugin:ctx.pluginUUID,
+      query:structuredClone(operation.query),socket:null,bearer:null,attempt:0,ready:false};
+    if(this.socketPending.size>=8||[...this.socketPending].filter(t=>t.plugin===ctx.pluginUUID).length>=2){
+      ctx.socketError='capacity';this.socketEvent(ctx,token,'error','','capacity');return;
+    }
+    ctx.socketError=null;ctx.socketToken=token;this.socketPending.add(token);
+    this.openSocketTransport(ctx,token);
+  }
+  openSocketTransport(ctx,token){
+    const {endpoint,binding,generation}=token;
+    const active=()=>token.active()&&ctx.socketToken===token&&ctx.socketGeneration===generation;
+    const fail=(error,retry=false)=>this.finishSocket(ctx,token,'error',error,retry);
+    token.ready=false;token.bearer=null;token.sendRate=null;token.receiveRate=null;
+    token.rxQueue=[];token.rxBytes=0;token.rxCount=0;token.rxInFlight=0;token.openedAt=null;
+    Promise.resolve().then(async()=>{
+      if(!active())return;
+      if(binding){
+        if(this.credentialChanges.has(binding)){fail('credential-update-busy');return;}
+        try{token.bearer=(await this.credentials.read(binding)).value.token;}
+        catch{fail('credential-unavailable');return;}
+        if(!active())return;
+        if(!validBearer(token.bearer)){fail('credential-required');return;}
+        if(this.credentialChanges.has(binding)){fail('credential-update-busy');return;}
+      }
+      if(!active())return;
+      const socket=token.socket=this.socketFactory(resolveNetworkEndpoint(endpoint,token.query),{bearer:token.bearer});
+      const live=()=>active()&&token.socket===socket;
+      const later=(fn,ms)=>{const timer=setTimeout(fn,ms);timer.unref?.();return timer;};
+      const heartbeat=()=>{
+        if(!live()||!token.ready||typeof socket.ping!=='function')return;
+        token.heartbeatTimer=later(()=>{
+          if(!live()||!token.ready)return;
+          token.pongTimer=later(()=>{if(live())fail('heartbeat-timeout',true);},this.socketPongMs);
+          try{socket.ping(undefined,undefined,error=>{if(error&&live())fail('connection-error',true);});}
+          catch{if(live())fail('connection-error',true);}
+        },this.socketHeartbeatMs);
+      };
+      const opened=()=>{
+        clearTimeout(token.authTimer);token.authTimer=null;token.ready=true;token.openedAt=this.now();ctx.socketError=null;
+        if(!this.socketEvent(ctx,token,'open')){fail('queue-capacity',true);return;}
+        heartbeat();
+      };
+      let authPhase=endpoint.auth==='home-assistant'?'required':null;
+      socket.on('error',error=>{
+        if(!live())return;
+        const code=error?.code;
+        const reason=code==='WS_ERR_UNSUPPORTED_MESSAGE_LENGTH'?'message-limit':
+          /^(?:ERR_TLS|CERT_|DEPTH_ZERO|SELF_SIGNED|UNABLE_TO_VERIFY|UNABLE_TO_GET)/.test(String(code||''))?'tls-error':
+          /^Unexpected server response: [0-9]{3}$/.test(String(error?.message||''))?'upgrade-rejected':'connection-error';
+        fail(reason,['ECONNRESET','ECONNREFUSED','ETIMEDOUT','EPIPE','EHOSTUNREACH','ENETUNREACH','EAI_AGAIN'].includes(code));
+      });
+      socket.on('close',code=>{if(live())this.finishSocket(ctx,token,'close',null,[1001,1006,1011,1012,1013].includes(code));});
+      socket.on('pong',()=>{
+        if(!live()||!token.pongTimer)return;
+        clearTimeout(token.pongTimer);token.pongTimer=null;heartbeat();
+      });
+      socket.on('open',()=>{
+        if(!live())return;
+        if(authPhase)token.authTimer=later(()=>{if(live()&&!token.ready)fail('authentication-timeout');},this.socketAuthMs);
+        else opened();
+      });
+      socket.on('message',(data,binary)=>{
+        if(!live())return;
+        // Authentication remains on the small default budget. Large frames are opt-in,
+        // admitted only after authentication and bounded before queueing.
+        const limit=authPhase?8192:socketReceiveLimit(endpoint);
+        if(binary||!Buffer.isBuffer(data)||data.length>limit){fail('invalid-message');return;}
+        const body=data.toString('utf8');
+        const serializedBytes=Buffer.byteLength(JSON.stringify(body));
+        if(serializedBytes>limit){fail('message-limit');return;}
+        if(token.bearer!==null&&body.includes(token.bearer)){fail('credential-in-response');return;}
+        if(authPhase){
+          let message;try{message=JSON.parse(body);}catch{fail('authentication-protocol');return;}
+          if(message?.type==='auth_invalid'){fail('authentication-rejected');return;}
+          if(authPhase==='required'&&message?.type==='auth_required'){
+            authPhase='waiting';
+            try{socket.send(JSON.stringify({type:'auth',access_token:token.bearer}),error=>{if(error&&live())fail('connection-error');});}
+            catch{if(live())fail('connection-error');}
+            return;
+          }
+          if(authPhase==='waiting'&&message?.type==='auth_ok'){authPhase=null;opened();return;}
+          fail('authentication-protocol');return;
+        }
+        if(!token.ready){fail('invalid-message');return;}
+        this.receiveSocketFrame(ctx,token,body,serializedBytes);
+      });
+    }).catch(()=>{if(active())fail('connection-error');});
+  }
+  sendSocket(ctx,operation){
+    const token=ctx.socketToken;
+    if(!token||!token.active()||!token.ready||token.socket?.readyState!==1){this.report(ctx.pluginUUID,Error('WebSocket not open'));return;}
+    const socket=token.socket,generation=token.generation;
+    const fail=error=>{if(ctx.socketToken===token&&token.socket===socket&&token.generation===generation)this.finishSocket(ctx,token,'error',error,true);};
+    const data=typeof operation.value==='string'?operation.value:JSON.stringify(operation.value);
+    const bytes=Buffer.byteLength(data);
+    if(!this.socketRate(token,'send',bytes)){this.report(ctx.pluginUUID,Error('WebSocket send rate limit; command not sent'));fail('send-rate-limit');return;}
+    if(socket.bufferedAmount+bytes>32768){this.report(ctx.pluginUUID,Error('WebSocket send capacity; command not sent'));fail('send-capacity');return;}
+    try{socket.send(data,error=>{if(error)fail('connection-error');});}
+    catch{fail('connection-error');}
+  }
+  closeSocket(ctx){
+    const token=ctx.socketToken;
+    if(token)this.finishSocket(ctx,token,'close');
+  }
+  startNetwork(ctx,operation,active,event){
+    const endpoint=validateNetworkRequest(operation,ctx.networkEndpoints);
+    if(ctx.networkToken){
+      // An existing context request retains its single result contract.
+      this.report(ctx.pluginUUID,Error('network request busy'));return;
+    }
+    if(event==='tick'&&ctx.action.pollIntervalMs!==undefined){
+      const now=this.now();
+      if(ctx.lastPeriodicRequest!==undefined&&now-ctx.lastPeriodicRequest<ctx.action.pollIntervalMs){
+        if(active())this.runScript(ctx,'networkResult',networkFailure(endpoint.id,'capacity'),JSON.stringify(ctx.settings));return;
+      }
+      ctx.lastPeriodicRequest=now;
+    }
+    const pluginPending=[...this.networkPending].filter(t=>t.plugin===ctx.pluginUUID).length;
+    if(this.networkPending.size>=MAX_NETWORK_GLOBAL||pluginPending>=MAX_NETWORK_PLUGIN){
+      this.report(ctx.pluginUUID,Error('network request capacity'));
+      if(active())this.runScript(ctx,'networkResult',networkFailure(endpoint.id,'capacity'),JSON.stringify(ctx.settings));
+      return;
+    }
+    const binding=endpoint.auth==='bearer'?credentialBinding(ctx.pluginUUID,endpoint):null;
+    const controller=new AbortController(),token={controller,binding,plugin:ctx.pluginUUID};
+    const settings=JSON.stringify(ctx.settings);
+    ctx.networkToken=token;this.networkPending.add(token);
+    Promise.resolve().then(async()=>{
+      if(!active()||controller.signal.aborted)return networkFailure(endpoint.id,'cancelled');
+      let bearer=null;
+      if(binding){
+        if(this.credentialChanges.has(binding))return networkFailure(endpoint.id,'credential-update-busy');
+        try{bearer=(await this.credentials.read(binding)).value.token;}
+        catch{return networkFailure(endpoint.id,'credential-unavailable');}
+        if(!validBearer(bearer))return networkFailure(endpoint.id,'credential-required');
+        if(this.credentialChanges.has(binding)||!active()||controller.signal.aborted)return networkFailure(endpoint.id,'cancelled');
+      }
+      return normalizeNetworkResult(endpoint,await this.networkRequest(resolveNetworkEndpoint(endpoint,operation.query,operation.options),operation.body,controller.signal,{bearer}),bearer);
+    }).catch(()=>networkFailure(endpoint.id,'connection-error')).then(result=>{
+      if(!active()||ctx.networkToken!==token||controller.signal.aborted)return;
+      ctx.networkToken=null;
+      if(settings!==JSON.stringify(ctx.settings))return;
+      // A bounded continuation event, not a replay of the triggering input.
+      this.runScript(ctx,'networkResult',result,settings);
+    }).finally(()=>{
+      if(ctx.networkToken===token)ctx.networkToken=null;
+      this.networkPending.delete(token);
+    });
+  }
+  refreshTickSchedule(ctx){
+    let enabled=ctx.apiVersion===2&&ctx.permissions.includes('timer.tick')&&!!ctx.action.tickIntervalMs;
+    if(enabled&&ctx.action.tickWhen){
+      const rule=ctx.action.tickWhen;
+      try{
+        const settings=nativeEffectiveSettings(ctx.action.settingsSchema,ctx.settings);
+        enabled=settings[rule.setting]===rule.equals&&Array.isArray(settings[rule.selection])&&settings[rule.selection].length>=rule.minItems;
+      }catch{enabled=false;}
+    }
+    ctx.tickDue=enabled?this.now()+ctx.action.tickIntervalMs:null;
+    this.reconcileTickTimer();
+  }
+  initialize(ctx){
+    this.refreshTickSchedule(ctx);
+    this.run(ctx,ctx.service?'start':'appear');
+    this.reconcileTickTimer();
+  }
+  reconcileTickTimer(){
+    const needed=!this.closed&&!this.suspended&&[...this.contexts.values()].some(ctx=>!ctx.failed&&!ctx.settingsUncertain&&ctx.tickDue!==null&&ctx.tickDue!==undefined);
+    if(needed&&!this.tickTimer){
+      this.tickTimer=setInterval(()=>this.tick(),1000);this.tickTimer.unref?.();
+    }else if(!needed&&this.tickTimer){clearInterval(this.tickTimer);this.tickTimer=null;}
+  }
+  tick(now=this.now()){
+    if(this.closed||this.suspended)return;
+    let dispatched=0;
+    // Oldest due context first: the per-sweep cap must not starve later slots.
+    const due=[...this.contexts.values()].filter(ctx=>!ctx.failed&&!ctx.settingsUncertain&&ctx.tickDue!=null&&now>=ctx.tickDue)
+      .sort((a,b)=>a.tickDue-b.tickDue);
+    for(const ctx of due){
+      // Skip busy periods rather than queuing missed ticks. Limit work per
+      // sweep so periodic plugins do not monopolize the input dispatcher.
+      if(ctx.pending||ctx.networkToken){ctx.tickDue=now+ctx.action.tickIntervalMs;continue;}
+      if(dispatched>=8)continue;
+      ctx.tickDue=now+ctx.action.tickIntervalMs;
+      dispatched++;this.runScript(ctx,'tick');
+    }
+    this.reconcileTickTimer();
+  }
+  reportBackpressure(ctx){
+    const now=this.now();
+    if(ctx.lastBackpressureAt===undefined||now-ctx.lastBackpressureAt>=1000){
+      ctx.lastBackpressureAt=now;
+      this.report(ctx.pluginUUID,Error('input queue busy; event not accepted'));
+    }
+  }
+  async runAdmitted(ctx,event,active,work,scope){
+    const started=this.now();
+    while(active()){
+      try{return await this.scheduler.run(ctx.pluginUUID,active,work,scope);}
+      catch(error){
+        if(!(error instanceof SchedulerCapacityError))throw error;
+        if((INPUT_EVENTS.has(event)||event==='serviceMessage')&&this.now()-started>=2000){
+          this.reportBackpressure(ctx);return ADMISSION_CANCELLED;
+        }
+        await new Promise(resolve=>setTimeout(resolve,25));
+      }
+    }
+    return ADMISSION_CANCELLED;
+  }
+  runScript(ctx,event,response=null,expectedSettings=null,expectedSocket=null,socketReceipt=null){
+    const resultEvent=event==='settingsResult';
+    const socketNoticeEvent=event==='socketEvent'&&['error','close','reconnecting'].includes(response?.event);
+    if(resultEvent&&(!ctx.capabilities?.includes('settingsResult')||ctx.service))return false;
+    if(ctx.settingsUncertain&&!resultEvent)return false;
+    // Never read stale state when an earlier socket frame is still buffered.
+    if((INPUT_EVENTS.has(event)||event==='serviceMessage')&&ctx.socketToken?.rxQueue?.length&&
+       !this.flushSocketFrames(ctx,ctx.socketToken,true)){this.reportBackpressure(ctx);return false;}
+    // Saturation is backpressure, not a plugin failure. Keep admitted work
+    // ordered and leave the renderer and context alive.
+    if(ctx.pending>=MAX_PENDING_EVENTS+(socketNoticeEvent?2:resultEvent?1:0)){
+      this.reportBackpressure(ctx);return false;
+    }
+    const epoch=ctx.epoch||0,revision=ctx.settingsRevision||0;
+    // Every dispatch is tied to the settings generation at acceptance.
+    // A changed setting invalidates old queued work, including ABA changes
+    // where a user subsequently restores exactly the old values.
+    const monitorInput=isMultiMonitor(ctx)&&['press','multiNext','multiPrevious'].includes(event);
+    const multiInputGeneration=ctx.multiInputGeneration||0;
+    const active=()=>!this.closed&&!this.suspended&&!ctx.failed&&(!ctx.settingsUncertain||resultEvent)&&ctx.epoch===epoch&&this.contexts.get(ctx.context)===ctx&&
+      (!monitorInput||((ctx.multiInputGeneration||0)===multiInputGeneration&&(!ctx.multiRouteCurrent||ctx.multiRouteCurrent())))&&
+      (ctx.settingsRevision||0)===revision&&
+      (expectedSettings===null||expectedSettings===JSON.stringify(ctx.settings))&&
+      (expectedSocket===null||expectedSocket===ctx.socketGeneration);
+    ctx.pending++;
+    ctx.queue=ctx.queue.then(async()=>{
+      if(!active())return;
+      try{
+        const global=ctx.permissions.includes('global.settings')?
+          await this.vault.read(ctx.pluginUUID):{value:{},revision:null};
+        if(!active())return;
+        const settingsSnapshot=structuredClone(ctx.settings);
+        const result=await this.runAdmitted(ctx,event,active,()=>{
+          if(!ctx.runner)ctx.runner=this.runnerFactory(ctx.pluginUUID,ctx.service?'service':'button');
+          return ctx.runner.run(ctx.action.script,{
+            event:{type:event,slot:ctx.service?null:ctx.slot,gesture:ctx.service?null:ctx.gesture||'down',...(ctx.service?{scope:'service'}:{}),...(response?{response}:{})},
+            settings:ctx.action.settingsSchema?nativeEffectiveSettings(ctx.action.settingsSchema,settingsSnapshot):structuredClone(settingsSnapshot),state:ctx.state,memory:structuredClone(ctx.memory),globalSettings:structuredClone(global.value),sharedState:this.sharedSnapshot(ctx)
+          });
+        },this.runnerPool?(ctx.service?'service':'button'):null);
+        if(!active()||result===ADMISSION_CANCELLED)return;
+        check(exact(result,['ops','memory'])&&obj(result.memory),'invalid JavaScript memory');
+        validateValue(result.memory,8192);
+        const {normal,effects}=this.validateScriptOps(ctx,event,result.ops,response);
+        for(const operation of effects){
+          if(operation.op==='settings'){
+            const receipt=await this.requestSettingsCommit(ctx,operation,settingsSnapshot,active);
+            // Result notifications are optional, local to the same mount and
+            // generation. A notification can update display/memory, never
+            // submit another privileged effect. No cancelled input is replayed.
+            const sameMount=!this.closed&&!this.suspended&&!ctx.failed&&ctx.epoch===epoch&&
+              this.contexts.get(ctx.context)===ctx&&(ctx.settingsRevision||0)===revision;
+            if(sameMount&&ctx.capabilities?.includes('settingsResult')&&['saved','rejected','unknown'].includes(receipt.status))
+              this.runScript(ctx,'settingsResult',receipt);
+            if(receipt.status==='unknown'){
+              if(sameMount)this.report(ctx.pluginUUID,Error('settings write outcome unknown; context paused until confirmed settings change or remount'));
+              return;
+            }
+            if(!active())return;
+            if(receipt.status!=='saved'){this.report(ctx.pluginUUID,Error('settings write not confirmed'));return;}
+          }
+          if(operation.op==='globalSettings'){
+            const saved=await this.vault.write(ctx.pluginUUID,operation.value,global.revision,active);
+            if(!active())return;
+            if(!saved){this.report(ctx.pluginUUID,Error('global settings conflict; write rejected'));return;}
+            // Other active actions of the same plugin will read the new value.
+            for(const other of this.contexts.values())if(other.pluginUUID===ctx.pluginUUID&&other.permissions.includes('global.settings'))
+              this.run(other,'settings');
+          }
+        }
+        if(!active())return;
+        ctx.memory=result.memory;
+        this.applyOps(ctx,normal);
+        for(const operation of effects)if(!['globalSettings','settings'].includes(operation.op)){
+          if(operation.op==='openView'){
+            if(!this.viewManager){this.runScript(ctx,'viewResult',{view:operation.view,status:'unavailable'});continue;}
+            this.viewManager.open(ctx,operation,active).then(result=>{
+              if(active()&&result.status!=='cancelled')this.runScript(ctx,'viewResult',{view:operation.view,...result},JSON.stringify(settingsSnapshot));
+            }).catch(()=>{if(active())this.runScript(ctx,'viewResult',{view:operation.view,status:'error'},JSON.stringify(settingsSnapshot));});
+            continue;
+          }
+          if(operation.op==='runNode'){
+            this.nodeTasks.run(ctx,operation,active).then(result=>{
+              if(active())this.runScript(ctx,'nodeResult',{task:operation.task,...result});
+            }).catch(()=>{if(active())this.report(ctx.pluginUUID,Error('Node task unavailable'));});
+            continue;
+          }
+          if(operation.op==='openUrl'){
+            if(!await this.dispatchBrowserUrl(ctx,operation,active)&&active())this.report(ctx.pluginUUID,Error('browser opening not approved or temporarily unavailable'));
+            continue;
+          }
+          if(operation.op==='serviceMessage'){this.sendServiceMessage(ctx,operation);continue;}
+          if(operation.op==='networkRequest'){this.startNetwork(ctx,operation,active,event);continue;}
+          if(operation.op==='socketConnect'){this.startSocket(ctx,operation,active);continue;}
+          if(operation.op==='socketSend'){this.sendSocket(ctx,operation);continue;}
+          if(operation.op==='socketClose'){this.closeSocket(ctx);continue;}
+          if(operation.op==='wideOverlay')ctx.wideOverlaySent=operation.value!==null;
+          this.onUpdate({kind:'nativeEffect',context:ctx.context,
+            pluginUUID:ctx.pluginUUID,actionUUID:ctx.action.id,operation});
+        }
+      }catch(error){if(active())this.fail(ctx,error);}
+    }).finally(()=>{
+      if(socketReceipt)this.completeSocketFrames(ctx,socketReceipt);
+      if(ctx.epoch===epoch){
+        ctx.pending--;
+        if(event==='sharedState')ctx.sharedQueued=false;
+        this.queueSocketNotice(ctx);this.flushSocketFrames(ctx,ctx.socketToken);this.queueSettingsRefresh(ctx);this.queueSharedRefresh(ctx);
+      }
+    });
+    return true; // accepted for dispatch; not a claim of completed execution
+  }
+  retire(ctx){
+    if(ctx.apiVersion!==2){this.run(ctx,'disappear');return;}
+    // A disappearing context cannot emit stale output. If idle, allow a
+    // bounded best-effort lifecycle callback, then dispose the renderer.
+    const runner=ctx.runner,idle=ctx.pending===0;
+    ctx.runner=null;this.resetScript(ctx);
+    if(runner){
+      if(idle&&!this.suspended&&!this.closed&&!ctx.failed&&this.retired.size<16){
+        this.retired.add(runner);
+        this.scheduler.run(ctx.pluginUUID,()=>!this.closed&&!this.suspended&&this.retired.has(runner),()=>runner.run(ctx.action.script,{event:{type:ctx.service?'stop':'disappear',slot:ctx.service?null:ctx.slot,gesture:ctx.service?null:ctx.gesture||'down',...(ctx.service?{scope:'service'}:{})},
+          settings:structuredClone(ctx.settings),state:ctx.state,memory:structuredClone(ctx.memory)}),this.runnerPool?(ctx.service?'service':'button'):null).catch(()=>{}).finally(()=>{this.retired.delete(runner);runner.close();});
+      }else runner.close();
+    }
+  }
+  run(ctx,event){
+    if(ctx.failed||this.closed||this.suspended)return false;
+    if(ctx.apiVersion===2)return this.runScript(ctx,event);
+    try{this.applyOps(ctx,ctx.action.events[event]||[]);return true;}
+    catch(error){this.fail(ctx,error);return false;}
+  }
+  syncServices(plugins,seen){
+    if(this.closed)return;
+    const eligible=this.servicePolicyError||(this.servicePolicyLoad&&!this.servicePolicyLoaded)?[]:[...plugins.values()].filter(m=>m.service&&!this.serviceDisabled.has(m.id)).sort((a,b)=>a.id.localeCompare(b.id));
+    const selected=eligible.slice(0,MAX_SERVICES),ids=new Set(selected.map(m=>SERVICE_PREFIX+m.id));
+    for(const [id,ctx] of this.contexts)if(ctx.service&&!ids.has(id)){
+      this.retire(ctx);this.contexts.delete(id);
+    }
+    for(const m of selected){
+      const id=SERVICE_PREFIX+m.id;
+      const signature=JSON.stringify([m.version,m.permissions,m.capabilities||[],m.networkEndpoints||[],m.service]);
+      let ctx=this.contexts.get(id);
+      if(ctx&&ctx.signature!==signature){this.retire(ctx);this.contexts.delete(id);ctx=null;}
+      if(!ctx){
+        ctx={context:id,service:true,pluginUUID:m.id,action:{id:m.id+'.service',script:m.service.script,tickIntervalMs:m.service.tickIntervalMs},
+          apiVersion:2,permissions:[...m.permissions],capabilities:[...(m.capabilities||[])],networkEndpoints:m.networkEndpoints||[],signature,settings:{},state:0,pressed:false,failed:false,sharedStateBytes:m.service.sharedStateBytes||8192,
+          epoch:0,settingsRevision:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},sharedState:{},recoveryAttempts:0,recoveryTimer:null};
+        this.contexts.set(id,ctx);if(!this.suspended)this.initialize(ctx);
+      }
+      seen.add(id);
+    }
+    for(const m of eligible.slice(MAX_SERVICES))if(!this.serviceCapacity?.has(m.id))this.report(m.id,Error('background service capacity'));
+    this.serviceCapacity=new Set(eligible.slice(MAX_SERVICES).map(m=>m.id));
+  }
+  sync(configs,manifests){
+    if(this.closed)return;
+    const graph=resolveDependencies(manifests);
+    const plugins=new Map(manifests.filter(m=>graph.ready.has(m.id)).map(m=>[m.id,m])),seen=new Set();
+    const browserRevisions=new Map([...plugins.values()].filter(m=>m.permissions.includes('browser.open')).map(m=>[m.id,browserPermissionDigest(m)]));
+    const warnings=new Map();
+    for(const cfg of configs){
+      const reason=graph.blocked.get(cfg?.pluginUUID);
+      if(!reason)continue;
+      warnings.set(cfg.pluginUUID,reason);
+      if(this.dependencyWarnings.get(cfg.pluginUUID)!==reason&&!this.suspended)
+        this.report(cfg.pluginUUID,Error(reason),'dependency');
+    }
+    this.dependencyWarnings=warnings;
+    this.syncServices(plugins,seen);
+    for(const cfg of configs){
+      if(!cfg||typeof cfg.context!=='string'||!cfg.context||cfg.context.length>160||cfg.context.startsWith(SERVICE_PREFIX)||
+        !Number.isInteger(cfg.slot)||cfg.slot<0||cfg.slot>18||seen.has(cfg.context))continue;
+      const plugin=plugins.get(cfg.pluginUUID),a=plugin?.actions.find(x=>x.id===cfg.actionUUID);
+      if(!a||!a.controllers.includes(cfg.slot>=16?'Encoder':'Keypad'))continue;
+      seen.add(cfg.context);
+      const incoming=obj(cfg.settings)?cfg.settings:{};
+      let ctx=this.contexts.get(cfg.context);
+      const browserRevision=browserRevisions.get(plugin.id);
+      const nodeManifest=plugin.permissions.includes('node.run')?plugin:null;
+      const viewManifest=plugin.permissions.includes('view.open')?plugin:null;
+      const signature=JSON.stringify([plugin.apiVersion,plugin.permissions,plugin.capabilities||[],plugin.networkEndpoints||[],a,...(browserRevision?[browserRevision]:[]),...((nodeManifest||viewManifest)?[nodeManifestDigest(plugin)]:[])]);
+      if(!ctx||ctx.pluginUUID!==cfg.pluginUUID||ctx.action.id!==a.id||ctx.signature!==signature||ctx.slot!==cfg.slot||ctx.gesture!==cfg.gesture){
+        if(ctx)this.retire(ctx);
+        ctx={...cfg,action:a,apiVersion:plugin.apiVersion,permissions:[...plugin.permissions],capabilities:[...(plugin.capabilities||[])],networkEndpoints:plugin.networkEndpoints||[],signature,browserRevision,nodeManifest,viewManifest,settings:incoming,state:0,pressed:false,failed:false,
+          epoch:0,settingsRevision:0,pending:0,queue:Promise.resolve(),runner:null,memory:{},recoveryAttempts:0,recoveryTimer:null};
+        this.contexts.set(cfg.context,ctx);this.initialize(ctx);
+      }else{
+        // Ignore delayed snapshots older than a confirmed write. A newer
+        // revision also invalidates work for an A/B/A settings change.
+        const versioned=Number.isSafeInteger(cfg.configRevision)&&Number.isSafeInteger(ctx.configRevision);
+        if(versioned&&cfg.configRevision<ctx.configRevision)continue;
+        const revisionChanged=versioned&&cfg.configRevision>ctx.configRevision;
+        const valueChanged=JSON.stringify(ctx.settings)!==JSON.stringify(incoming);
+        if(versioned&&!revisionChanged&&valueChanged)continue;
+        const changed=revisionChanged||valueChanged;
+        ctx.settings=incoming;
+        if(revisionChanged){ctx.configRevision=cfg.configRevision;ctx.settingsUncertain=false;}
+        if(changed){
+          this.cancelSettingsReceipt(ctx);ctx.settingsRefresh=false;
+          this.animations.stop(ctx);
+          ctx.settingsRevision++;
+          this.scheduler.prune();
+          this.cancelNetwork(ctx);this.cancelSocket(ctx);this.nodeTasks.cancel(ctx);this.viewManager?.cancel(ctx);
+          // Reset input pairing across settings generations. Never turn a
+          // discarded press into a release-triggered privileged operation.
+          if(ctx.apiVersion===2)ctx.pressed=false;
+          clearMultiMonitorPress(ctx);
+          if(ctx.action.tickWhen)this.refreshTickSchedule(ctx);
+          this.run(ctx,'settings');
+        }
+      }
+    }
+    for(const [id,ctx] of this.contexts)if(!seen.has(id)){
+      if(graph.blocked.has(ctx.pluginUUID)||!manifests.some(m=>m.id===ctx.pluginUUID)){
+        this.resetScript(ctx);
+        this.onUpdate({kind:'nativeUnavailable',context:id});
+      }else this.retire(ctx);
+      this.contexts.delete(id);
+    }
+    this.reconcileTickTimer();
+  }
+  key(context,gesture,ticks=1){
+    const ctx=this.contexts.get(context);
+    if(!ctx||ctx.service||this.closed||this.suspended||ctx.failed||ctx.settingsUncertain)return false;
+    if(isMultiMonitor(ctx)&&['down','up'].includes(gesture)){
+      const epoch=ctx.epoch,revision=ctx.settingsRevision;
+      const current=()=>!this.closed&&!this.suspended&&!ctx.failed&&!ctx.settingsUncertain&&this.contexts.get(context)===ctx&&ctx.epoch===epoch&&ctx.settingsRevision===revision&&(!ctx.multiRouteCurrent||ctx.multiRouteCurrent());
+      if(!current())return false;
+      return multiMonitorInput(ctx,gesture,current,event=>current()&&this.run(ctx,event));
+    }
+    if(gesture==='down'){
+      if(ctx.pressed)return false;
+      if(ctx.apiVersion===2&&ctx.pending>=MAX_PENDING_EVENTS-INPUT_RESERVE){this.reportBackpressure(ctx);return false;}
+      ctx.pressed=true;
+      const accepted=this.run(ctx,'press');
+      if(!accepted)ctx.pressed=false;
+      return accepted;
+    }
+    if(gesture==='up'){if(!ctx.pressed)return false;ctx.pressed=false;return this.run(ctx,'release');}
+    if(ctx.slot<16||!['left','right','hold-left','hold-right'].includes(gesture)||!Number.isInteger(ticks)||ticks<1||ticks>32)return false;
+    // Accept an entire hardware rotation packet or none of it. Reserve
+    // queue capacity for release and lifecycle/settings events.
+    if(ctx.apiVersion===2&&ctx.pending+ticks>MAX_PENDING_EVENTS-INPUT_RESERVE){this.reportBackpressure(ctx);return false;}
+    const event=(gesture.startsWith('hold-')||ctx.gesture==='hold-left'||ctx.gesture==='hold-right'||ctx.pressed?'heldRotate':'rotate')+(gesture.endsWith('left')?'Left':'Right');
+    for(let i=0;i<ticks;i++)if(!this.run(ctx,event))return false;
+    return true;
+  }
+  closeRetired(){for(const runner of this.retired)runner.close();this.retired.clear();}
+  suspend(){if(this.closed)return;this.suspended=true;this.viewManager?.cancelAll?.();this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}this.runnerPool?.clear();this.reconcileTickTimer();}
+  resume(){
+    if(this.closed)return;
+    // A wake notification need not have a matching suspend notification.
+    // Reset all old transports, runners and epochs before reinitializing;
+    // never replay an old input or clear an uncertain settings receipt.
+    if(!this.suspended)this.suspend();
+    this.suspended=false;
+    for(const ctx of this.contexts.values()){ctx.failed=false;ctx.recoveryAttempts=0;this.initialize(ctx);}
+  }
+  close(){this.closed=true;this.animations.close();this.scheduler.close();this.closeRetired();for(const ctx of this.contexts.values())this.resetScript(ctx);this.contexts.clear();this.viewManager?.close();this.runnerPool?.close();this.reconcileTickTimer();}
+}
+// Compatibility host stays unchanged; only validated native IDs are routed here.
+class PluginRouter{
+  constructor(legacy,native,original=null){this.legacy=legacy;this.native=native;this.original=original;this.queue=Promise.resolve();this.compatibilityQueue=Promise.resolve();this.closed=false;this.nativeContextIds=new Set();this.legacyMounts=new Map();this.desiredContexts=null;this.desiredMounts=null;this.syncRevision=0;}
+  enqueue(fn){const task=this.queue.then(()=>{if(this.closed)throw Error('Plugin host closed');return fn();});this.queue=task.catch(()=>{});return task;}
+  // Management still waits for outstanding compatibility startup before touching installed data.
+  serial(fn){return this.enqueue(async()=>{await this.compatibilityQueue;if(this.closed)throw Error('Plugin host closed');return fn();});}
+  enqueueCompatibility(fn){const task=this.compatibilityQueue.then(fn);this.compatibilityQueue=task.catch(()=>{});return task;}
+  async catalog(includeArtwork=false){
+    const legacy=await this.legacy.list({includeArtwork}),ids=new Set(legacy.map(x=>x.uuid.toLowerCase()));
+    const native=(await this.native.manifests()).filter(m=>!ids.has(m.id));
+    const occupied=new Set([...ids,...native.map(m=>m.id.toLowerCase())]);
+    const original=(await this.original?.list()||[]).filter(p=>!occupied.has(p.uuid.toLowerCase()));
+    return {legacy,native,original};
+  }
+  async list(){
+    const {legacy,native,original}=await this.catalog(true),graph=resolveDependencies(native);
+    await this.native.loadServicePolicy();
+    return [...legacy,...original,...native.map(m=>{
+      const entry=catalog(m),reason=graph.blocked.get(m.id);
+      if(m.service)entry.serviceStatus=this.native.serviceStatus(m.id,!reason);
+      return reason?{...entry,actions:[],available:false,dependencyError:reason}:{...entry,available:true};
+    })];
+  }
+  async checkNativeCandidate(m){
+    validateNativeManifest(m);
+    const legacyIds=new Set((await this.legacy.list({includeArtwork:false})).map(p=>p.uuid.toLowerCase()));
+    check(!legacyIds.has(m.id)&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===m.id.toLowerCase()),'plugin ID already installed');
+    await this.native.checkDependencies(m,legacyIds);
+  }
+  install(bytes){return this.serial(async()=>{
+    // Existing archive validator remains authoritative; native collisions cannot shadow a legacy plugin.
+    const {parseArchive}=require('./sd-plugin-host.cjs');
+    const {manifest}=await parseArchive(bytes);
+    check(!(await this.native.manifests()).some(m=>m.id===manifest.UUID.toLowerCase())&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===manifest.UUID.toLowerCase()),'plugin ID already installed');
+    return this.legacy.install(bytes);
+  });}
+  listRetainedOriginal(){return this.serial(async()=>{
+    if(!this.original)return [];
+    const {legacy,native,original}=await this.catalog();
+    const installed=new Set([...legacy.map(p=>p.uuid.toLowerCase()),...native.map(p=>p.id.toLowerCase()),...original.map(p=>p.uuid.toLowerCase())]);
+    return (await this.original.store.listRetained()).filter(p=>!installed.has(p.id.toLowerCase()));
+  });}
+  exportOriginalBackup(id,retained){return this.serial(()=>this.original.store.exportBackup(id,retained));}
+  importOriginalBackup(bytes,revision){return this.serial(async()=>{
+    const {manifest}=require('./ulanzi-original-store.cjs').parseOriginalBackup(bytes),key=manifest.UUID.toLowerCase();
+    const {legacy,native,original}=await this.catalog();
+    check(!legacy.some(p=>p.uuid.toLowerCase()===key)&&!native.some(p=>p.id.toLowerCase()===key)&&!original.some(p=>p.uuid.toLowerCase()===key),'plugin ID already installed');
+    return this.original.store.importBackup(bytes,revision);
+  });}
+  planOriginalRemoval(id){return this.serial(()=>this.original.store.removalPlan(id));}
+  removeOriginalKeepingData(id,revision,purge=false){return this.serial(()=>this.original.store.removeKeepingData(id,revision,purge));}
+  async originalRestoreCandidate(id){
+    const {legacy,native,original}=await this.catalog(),key=id.toLowerCase();
+    check(!legacy.some(p=>p.uuid.toLowerCase()===key)&&!native.some(p=>p.id.toLowerCase()===key)&&!original.some(p=>p.uuid.toLowerCase()===key),'plugin ID already installed');
+    const {directory,...record}=await this.original.store.retainedRecord(id);return record;
+  }
+  planOriginalRestore(id){return this.serial(()=>this.originalRestoreCandidate(id));}
+  restoreOriginalRetained(id,revision){return this.serial(async()=>{
+    const plan=await this.originalRestoreCandidate(id);
+    check(plan.revision===revision,'retained revision changed');return this.original.store.restoreRetained(id,revision);
+  });}
+  installOriginal(dir,revision){return this.serial(async()=>{
+    check(this.original,'original plugin host unavailable');
+    const plan=await this.original.store.inspect(dir),id=plan.manifest.UUID.toLowerCase();
+    const {legacy,native}=await this.catalog();
+    check(!legacy.some(p=>p.uuid.toLowerCase()===id)&&!native.some(m=>m.id.toLowerCase()===id),'plugin ID already installed');
+    const installed=await this.original.store.install(dir,revision);
+    const entry=(await this.catalog()).original.find(p=>p.uuid===installed.manifest.UUID);
+    check(entry&&installed.manifest.Actions.every(a=>entry.actions?.some(b=>b.uuid===a.UUID)),'원본 파일 복사 완료, 액션 목록 등록 실패 (설치 파일 보존)');
+    return entry;
+  });}
+  installDirectory(dir){return this.serial(async()=>{
+    const installed=new Set([...(await this.native.manifests()).map(m=>m.id),...(await this.original?.list()||[]).map(p=>p.uuid.toLowerCase())]);
+    const id=path.basename(dir).replace(/\.sdPlugin$/i,'').toLowerCase();
+    check(!installed.has(id),'plugin ID already installed');
+    // The existing folder importer ultimately uses the manifest UUID, not its folder name.
+    if(installed.size){
+      const file=path.join(dir,'manifest.json'),st=await fs.lstat(file);
+      check(st.isFile()&&st.size<=LIMIT,'invalid SDK manifest');
+      const m=JSON.parse(await fs.readFile(file,'utf8'));
+      check(typeof m.UUID==='string'&&!installed.has(m.UUID.toLowerCase()),'plugin ID already installed');
+    }
+    return this.legacy.installDirectory(dir);
+  });}
+  async finalizeBrowserInstall(manifest,result,approved){
+    if(!manifest.permissions.includes('browser.open'))return result;
+    // Installation has already committed. A failed permission write must not
+    // masquerade as failed installation or allow the capability silently.
+    if(approved!==true)return {...result,browserPermissionApproved:false};
+    try{
+      await this.native.setBrowserPermission(manifest,true);
+      return {...result,browserPermissionApproved:true};
+    }catch(error){
+      this.native.report(manifest.id,Error('browser permission save failed; manage permissions before use'));
+      return {...result,browserPermissionApproved:false};
+    }
+  }
+  installNative(m,browserApproved=false){return this.serial(async()=>{
+    await this.checkNativeCandidate(m);
+    const installed=await this.native.install(m);
+    return this.finalizeBrowserInstall(m,installed,browserApproved);
+  });}
+  ensureBuiltinHa(){return this.serial(async()=>{
+    const {createHomeAssistantManifest}=require('./deckforge-ha-plugin.cjs'),id='com.deckforge.native.home-assistant';
+    const current=await this.native.versions.read(this.native.versions.currentFile(id),true);
+    if(!current&&await this.native.versions.removed(id))return 'retained';
+    const server=current?.manifest.networkEndpoints?.find(e=>e.id==='ha')?.url??null;
+    if(current&&require('semver').gte(current.manifest.version,createHomeAssistantManifest(server).version))return 'existing';
+    const manifest=createHomeAssistantManifest(server);
+    await this.checkNativeCandidate(manifest);
+    if(current){await this.native.replace(manifest,current.revision);return 'updated';}
+    await this.native.install(manifest);return 'installed';
+  });}
+  planBuiltinHa(m){return this.serial(async()=>{
+    await this.checkNativeCandidate(m);return this.native.versions.planHaConfiguration(m);
+  });}
+  replaceBuiltinHa(m,revision){return this.serial(async()=>{
+    await this.checkNativeCandidate(m);return this.native.replace(m,revision,true);
+  });}
+  planNativeInstall(m){return this.serial(async()=>{
+    await this.checkNativeCandidate(m);
+    return this.native.planInstall(m);
+  });}
+  replaceNative(m,expectedRevision,browserApproved=false){return this.serial(async()=>{
+    await this.checkNativeCandidate(m);
+    const installed=await this.native.replace(m,expectedRevision);
+    return this.finalizeBrowserInstall(m,installed,browserApproved);
+  });}
+  listRetainedLegacy(){return this.serial(async()=>{
+    const {legacy,native}=await this.catalog(),installed=new Set([...legacy.map(p=>p.uuid.toLowerCase()),...native.map(p=>p.id)]);
+    return (await this.legacy.listRetained()).filter(p=>!installed.has(p.id.toLowerCase()));
+  });}
+  planLegacyPurge(id){return this.serial(async()=>{
+    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase())&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===id.toLowerCase()),'plugin ID already installed');
+    return this.legacy.planRetainedPurge(id);
+  });}
+  purgeRetainedLegacy(id,revision){return this.serial(async()=>{
+    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase())&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===id.toLowerCase()),'plugin ID already installed');
+    return this.legacy.purgeRetained(id,revision);
+  });}
+  planLegacyRemoval(id){return this.serial(()=>this.legacy.retainedRecord(id));}
+  removeLegacyKeepingData(id,revision){return this.serial(()=>this.legacy.removeKeepingData(id,revision));}
+  planLegacyRestore(id){return this.serial(async()=>{
+    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase())&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===id.toLowerCase()),'plugin ID already installed');
+    return this.legacy.retainedRecord(id,true);
+  });}
+  restoreLegacyRetained(id,revision){return this.serial(async()=>{
+    check(!(await this.native.manifests()).some(m=>m.id===id.toLowerCase())&&!(await this.original?.list()||[]).some(p=>p.uuid.toLowerCase()===id.toLowerCase()),'plugin ID already installed');
+    return this.legacy.restoreRetained(id,revision);
+  });}
+  listRetainedNative(){return this.serial(async()=>{
+    const {legacy,native}=await this.catalog();
+    const installed=new Set([...legacy.map(p=>p.uuid.toLowerCase()),...native.map(p=>p.id)]);
+    return (await this.native.versions.listRemoved()).filter(p=>!installed.has(p.id));
+  });}
+  async retainedCandidate(id){
+    const retained=await this.native.versions.removed(id);
+    check(retained,'retained plugin not found');
+    await this.checkNativeCandidate(retained.manifest);
+    const plan=await this.native.planInstall(retained.manifest);
+    check(plan.kind==='install','plugin already installed');
+    return retained;
+  }
+  planRetainedNative(id){return this.serial(async()=>{
+    const p=await this.retainedCandidate(id);
+    return {id,name:p.manifest.name,version:p.manifest.version,revision:p.revision,permissions:[...p.manifest.permissions],endpoints:(p.manifest.networkEndpoints||[]).map(e=>e.url)};
+  });}
+  restoreRetainedNative(id,revision,browserApproved=false){return this.serial(async()=>{
+    const p=await this.retainedCandidate(id);
+    check(p.revision===revision,'retained revision changed; reopen recovery');
+    const installed=await this.native.install(p.manifest);
+    return this.finalizeBrowserInstall(p.manifest,installed,browserApproved);
+  });}
+  // Only explicitly retained, uninstalled native programs can be purged.
+  // Resolve credential identities from validated current/archived manifests,
+  // never enumerate unrelated credential data or decrypt it.
+  async retainedPurgePlan(id){
+    const {legacy,native}=await this.catalog();
+    check(!legacy.some(p=>p.uuid.toLowerCase()===id)&&!native.some(m=>m.id===id),'remove installed plugin with keepData first');
+    const host=this.native,versions=host.versions,target=versions.currentFile(id);
+    try{await fs.lstat(target);throw Error('installed manifest exists; no data deleted');}catch(error){if(error.code!=='ENOENT')throw error;}
+    check(![...host.contexts.values()].some(c=>c.pluginUUID===id),'plugin is still active');
+    const retained=await versions.removed(id);
+    check(retained,'retained plugin not found');
+    const history=await versions.retainedHistory(id);
+    const bindings=new Set();
+    for(const record of [retained,...history])for(const endpoint of record.manifest.networkEndpoints||[])
+      if(endpoint.auth!==undefined)bindings.add(credentialBinding(id,endpoint));
+    check(!host.vault.writers.has(id)&&!host.browserPermissions.writers.has(id)&&!host.browserChanges.has(id)&&!host.nodePermissions.writers.has(id)&&!host.nodeTasks.changes.has(id)&&!host.nodeTasks.jobs.has(id)&&[...bindings].every(b=>!host.credentials.writers.has(b)&&!host.credentialChanges.has(b)),'plugin data write pending; retry');
+    const files=[];
+    const add=async(file,kind,required=false)=>{
+      // All paths come from validated IDs and known roots, not renderer input.
+      const relative=path.relative(host.root,file),parts=relative.split(path.sep);
+      check(parts.length>=2&&!path.isAbsolute(relative)&&!parts.includes('..'),'unsafe retained path');
+      let parent=host.root;
+      for(const part of parts.slice(0,-1)){
+        parent=path.join(parent,part);
+        try{const st=await fs.lstat(parent);check(st.isDirectory()&&!st.isSymbolicLink(),'unsafe retained directory');}
+        catch(error){if(!required&&error.code==='ENOENT')return;throw error;}
+      }
+      let st;
+      try{st=await fs.lstat(file);}catch(error){if(!required&&error.code==='ENOENT')return;throw error;}
+      check(st.isFile()&&!st.isSymbolicLink()&&st.size<=LIMIT,'unsafe retained file');
+      const raw=await fs.readFile(file);
+      check(raw.length<=LIMIT,'retained file exceeds limit');
+      files.push({file,relative,kind,digest:createHash('sha256').update(raw).digest('hex')});
+    };
+    // Credentials first; history and retained identity last, so an interrupted
+    // purge can be retried without losing the binding inventory.
+    for(const binding of [...bindings].sort())await add(host.credentials.file(binding),'credential');
+    await add(host.vault.file(id),'settings');
+    await add(host.browserPermissions.file(id),'settings');
+    await add(host.nodePermissions.file(id),'settings');
+    for(const h of history)await add(h.file,'history',true);
+    await add(versions.removedFile(id),'retained',true);
+    const revision=createHash('sha256').update(JSON.stringify(files.map(f=>[f.relative,f.kind,f.digest]))).digest('hex');
+    const counts={credential:0,settings:0,history:0,retained:0};
+    for(const f of files)counts[f.kind]++;
+    return {id,name:retained.manifest.name,version:retained.manifest.version,revision,counts,files};
+  }
+  planRetainedPurge(id){return this.serial(async()=>{
+    const {files,...plan}=await this.retainedPurgePlan(id);return plan;
+  });}
+  purgeRetainedNative(id,revision){return this.serial(async()=>{
+    const plan=await this.retainedPurgePlan(id);
+    check(plan.revision===revision,'retained data changed; reopen deletion');
+    let deleted=0;
+    try{
+      for(const f of plan.files){
+        const st=await fs.lstat(f.file);
+        check(st.isFile()&&!st.isSymbolicLink()&&st.size<=LIMIT,'retained file changed');
+        const bytes=await fs.readFile(f.file);
+        check(createHash('sha256').update(bytes).digest('hex')===f.digest,'retained file changed');
+        await fs.unlink(f.file);deleted++;
+      }
+    }catch{
+      // Do not report success on partial filesystem failure.
+      return {id,status:'incomplete',deleted,total:plan.files.length};
+    }
+    return {id,status:'purged',deleted,total:plan.files.length};
+  });}
+  async removalPlan(id){
+    const {native}=await this.catalog();
+    check(native.some(m=>m.id===id),'native plugin not installed');
+    const plan=await this.native.versions.planRemoval(id);
+    const dependents=native.filter(m=>Object.hasOwn(m.dependencies||{},id)).map(m=>({id:m.id,name:m.name})).sort((a,b)=>a.id.localeCompare(b.id));
+    return {...plan,dependents};
+  }
+  planNativeRemoval(id){return this.serial(()=>this.removalPlan(id));}
+  removeNativeKeepingData(id,revision){return this.serial(async()=>{
+    const plan=await this.removalPlan(id);
+    check(plan.revision===revision,'installed revision changed; reopen removal');
+    check(!plan.dependents.length,'installed dependents must be removed or updated first');
+    return this.native.versions.removeKeepingData(id,revision,()=>{
+      this.native.viewManager?.cancelPlugin?.(id);
+      for(const [context,ctx] of this.native.contexts)if(ctx.pluginUUID===id){
+        this.native.contexts.delete(context);this.native.retire(ctx);
+      }
+      this.native.reconcileTickTimer();
+    });
+  });}
+  // Read-only preview of the built-in HA sensor. No arbitrary plugin code,
+  // runner event, credential, network request, or profile mutation.
+  nativeHaSensorPreview(input,index){return this.serial(async()=>{
+    const {createHomeAssistantManifest,sensorKey}=require('./deckforge-ha-plugin.cjs');
+    const manifest=createHomeAssistantManifest(null),action=manifest.actions.find(a=>a.id.endsWith('.sensor'));
+    check(input&&typeof input==='object'&&!Array.isArray(input),'invalid sensor preview settings');
+    const schema=action.settingsSchema;
+    const selected=Object.fromEntries(schema.filter(f=>Object.hasOwn(input,f.key)).map(f=>[f.key,input[f.key]]));
+    const settings=nativeEffectiveSettings(schema,selected);
+    check(Number.isInteger(index)&&index>=0&&index<settings.entities.length,'invalid sensor preview index');
+    check(settings.entities.every(id=>/^(sensor|binary_sensor)\.[a-z0-9_]+$/.test(id)),'invalid sensor entity');
+    const service=this.native.contexts.get(SERVICE_PREFIX+manifest.id);
+    const snapshot=service&&!service.failed&&!this.native.suspended?service.sharedState:{};
+    let spec=null;
+    sensorKey({type:'sharedState'},settings,0,{index},{getSharedState:()=>snapshot||{},setTitle(){},drawKey:value=>{spec=value;}});
+    check(spec,'sensor preview unavailable');
+    return require('./deckforge-draw-ops.cjs').validateDrawSpec(spec);
+  });}
+  async customSettings(pluginId,actionId,stored){
+    // A property editor operates on a draft, which may not have a mounted key.
+    // Never keep the host/catalogue queue locked while the user edits a form.
+    const plan=await this.serial(async()=>{
+      const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+      const action=manifest?.actions.find(a=>a.id===actionId);
+      check(action?.settingsView&&manifest.permissions.includes('view.open')&&resolveDependencies(native).ready.has(pluginId),'custom settings view unavailable');
+      validateValue(stored);const initial=nativeEffectiveSettings(action.settingsSchema,stored);validateValue(initial);
+      return {manifest,action,initial,digest:nodeManifestDigest(manifest)};
+    });
+    const manager=this.native.viewManager;
+    if(!manager||this.closed||this.native.suspended)return {status:'unavailable'};
+    const ctx={pluginUUID:pluginId,viewManifest:plan.manifest};
+    const result=await manager.open(ctx,{op:'openView',view:plan.action.settingsView,input:plan.initial},()=>!this.closed&&!this.native.suspended);
+    if(result.status!=='submitted')return {status:result.status};
+    return this.serial(async()=>{
+      const {native}=await this.catalog(),current=native.find(m=>m.id===pluginId);
+      if(!current||nodeManifestDigest(current)!==plan.digest||!resolveDependencies(native).ready.has(pluginId)||this.native.suspended)return {status:'cancelled'};
+      validateValue(result.value);const next=nativeEffectiveSettings(plan.action.settingsSchema,{...plan.initial,...result.value});validateValue(next);
+      return {status:'submitted',settings:next};
+    });
+  }
+  dynamicOptions(pluginId,actionId){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    const action=manifest?.actions.find(a=>a.id===actionId);
+    check(action,'native plugin action not installed');
+    const service=this.native.contexts.get(SERVICE_PREFIX+pluginId);
+    const snapshot=service&&!service.failed&&!this.native.suspended?service.sharedState:{};
+    const phase=typeof snapshot?.status==='string'&&snapshot.status.length<=100&&!/[\x00-\x1f\x7f]/.test(snapshot.status)?snapshot.status:'';
+    return {status:this.native.serviceStatus(pluginId),phase,fields:Object.fromEntries((action.settingsSchema||[])
+      .filter(f=>f.type==='dynamicSelect'||f.type==='dynamicMultiSelect')
+      .map(f=>[f.key,nativeDynamicOptions(f,snapshot)]))};
+  });}
+  async githubBuildOptions(repository){
+    const id='com.deckforge.native.github-status';
+    check(!this.githubCatalogPending,'GitHub 목록 조회 중');
+    this.githubCatalogPending=true;
+    try{
+      const auth=await this.serial(async()=>{
+        const {native}=await this.catalog(),manifest=native.find(m=>m.id===id);
+        const endpoint=manifest?.networkEndpoints?.find(e=>e.id==='runs');
+        const expected=require('./deckforge-github-plugin.cjs').createGitHubManifest().networkEndpoints[0];
+        check(endpoint&&credentialBinding(id,endpoint)===credentialBinding(id,expected),'GitHub 인증 대상 확인');
+        const binding=credentialBinding(id,endpoint);
+        check(!this.native.credentialChanges.has(binding),'인증정보 변경 중');
+        const {value,revision}=await this.native.credentials.read(binding);
+        return {binding,revision,bearer:value.token};
+      });
+      const result=await require('./deckforge-github-plugin.cjs').discoverGitHubBuildOptions(repository,auth.bearer);
+      const current=await this.native.credentials.read(auth.binding);
+      check(!this.native.closed&&!this.native.credentialChanges.has(auth.binding)&&current.revision===auth.revision,'인증정보 변경됨');
+      return result;
+    }finally{this.githubCatalogPending=false;}
+  }
+  nodePermissionInfo(pluginId){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    check(manifest?.permissions.includes('node.run'),'Node permission not requested');return this.native.nodeTasks.info(manifest);
+  });}
+  setNodePermission(pluginId,digest,approved){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    check(manifest&&nodeManifestDigest(manifest)===digest,'plugin changed; reopen permissions');
+    return this.native.nodeTasks.set(manifest,approved,()=>!this.native.closed);
+  });}
+  browserPermissionInfo(pluginId){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    check(manifest,'native plugin not installed');return this.native.browserPermissionInfo(manifest);
+  });}
+  setBrowserPermission(pluginId,digest,approved){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    check(manifest&&browserPermissionDigest(manifest)===digest,'plugin changed; reopen permissions');
+    return this.native.setBrowserPermission(manifest,approved);
+  });}
+  credentialInfo(pluginId){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    check(manifest,'native plugin not installed');return this.native.credentialInfo(manifest);
+  });}
+  writeCredential(pluginId,binding,revision,token){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+    check(manifest,'native plugin not installed');
+    const result=await this.native.writeCredential(manifest,binding,revision,token);
+    // Credential replacement invalidates old sockets. Restart only an enabled
+    // service, preserving an explicit user stop and never replaying input.
+    if(manifest.service&&this.native.serviceStatus(pluginId).enabled&&!this.native.suspended&&resolveDependencies(native).ready.has(pluginId))
+      await this.native.manageService(native,pluginId,'restart');
+    return result;
+  });}
+  manageService(id,mode){return this.serial(async()=>{
+    const {native}=await this.catalog();return this.native.manageService(native,id,mode);
+  });}
+  nativeDiagnostics(id){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===id);
+    check(manifest,'native plugin not installed');await this.native.loadServicePolicy();
+    return this.native.diagnostics(manifest,resolveDependencies(native).ready.has(id));
+  });}
+  serviceStatus(id){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===id&&m.service);
+    check(manifest,'background service not installed');await this.native.loadServicePolicy();
+    return this.native.serviceStatus(id,resolveDependencies(native).ready.has(id));
+  });}
+  sync(configs){
+    // Invalidate removed mounts immediately, before slower catalogue/legacy work.
+    const revision=++this.syncRevision;
+    this.desiredContexts=new Set(configs.map(c=>c?.context));
+    // Use one owned snapshot for both the routing guards and queued work.
+    configs=structuredClone(configs);
+    this.desiredMounts=new Map(configs.map(c=>[c?.context,c]));
+    for(const [id,ctx] of this.native.contexts)if(isMultiMonitor(ctx)&&!this.nativeRouteReady(id,this.desiredMounts.get(id)))clearMultiMonitorPress(ctx);
+    // Invalidate incompatible compatibility contexts before awaiting an older startup.
+    this.legacy.retireUnmatched?.(configs);
+    this.original?.retireUnmatched(configs);
+    for(const [id,ctx] of this.native.contexts)if(!ctx.service&&!this.desiredContexts.has(id)){
+      this.native.contexts.delete(id);this.native.retire(ctx);
+    }
+    return this.enqueue(async()=>{
+    if(revision!==this.syncRevision)return;
+    const {native,legacy,original}=await this.catalog(),ids=new Set(native.map(m=>m.id));
+    await this.native.loadServicePolicy();
+    if(this.closed||revision!==this.syncRevision)return;
+    const legacyIds=new Set(legacy.map(p=>p.uuid.toLowerCase()));
+    const isNative=c=>ids.has(c?.pluginUUID)||(typeof c?.pluginUUID==='string'&&ID.test(c.pluginUUID)&&!legacyIds.has(c.pluginUUID.toLowerCase()));
+    const originalIds=new Set(original.map(p=>p.uuid));
+    const originals=configs.filter(c=>originalIds.has(c.pluginUUID));
+    const local=configs.filter(c=>!originalIds.has(c.pluginUUID)&&isNative(c)),other=configs.filter(c=>!originalIds.has(c.pluginUUID)&&!isNative(c));
+    this.nativeContextIds=new Set(local.map(c=>c.context));
+    // Retire incompatible old mounts synchronously before publishing native
+    // routes. Starting unrelated compatibility processes must not delay native
+    // input. Catalogue and dependency validation still precede either host.
+    try{
+      if(typeof this.legacy.retireUnmatched==='function'){
+        this.legacy.retireUnmatched(other);
+        if(this.closed||revision!==this.syncRevision)return;
+        this.native.sync(local,native);
+        if(this.closed||revision!==this.syncRevision)return;
+        const active=()=>!this.closed&&revision===this.syncRevision;
+        // Return a wrapper, not the startup promise itself: the catalogue/native
+        // queue can advance while older compatibility work drains in order.
+        const completion=this.enqueueCompatibility(async()=>{
+          if(!active())return;
+          try{
+            await this.legacy.sync(other,legacy,active);
+            if(active())await this.original?.sync(originals,active);
+            if(active())this.legacyMounts=new Map(other.map(c=>[c.context,structuredClone(c)]));
+          }catch(error){if(active())this.legacyMounts.clear();throw error;}
+        });
+        return {completion};
+      }else{
+        // Hosts without a separate retirement phase retain the safe old order.
+        try{await this.legacy.sync(other,legacy);if(!this.closed&&revision===this.syncRevision)await this.original?.sync(originals);}
+        finally{if(!this.closed&&revision===this.syncRevision)this.native.sync(local,native);}
+      }
+      if(!this.closed&&revision===this.syncRevision)this.legacyMounts=new Map(other.map(c=>[c.context,structuredClone(c)]));
+    }catch(error){if(revision===this.syncRevision)this.legacyMounts.clear();throw error;}
+  }).then(result=>result?.completion);}
+  pendingSettingsRequest(context,id){
+    if(this.closed||this.desiredContexts&&!this.desiredContexts.has(context))return null;
+    const request=this.native.pendingSettingsRequest(context,id);
+    if(!request)return null;
+    const desired=this.desiredMounts?.get(context);
+    if(desired){
+      if(desired.instanceId!==request.instanceId||desired.mountGeneration!==request.mountGeneration||
+        desired.slot!==request.slot||desired.gesture!==request.gesture||desired.pluginUUID!==request.pluginUUID||
+        desired.actionUUID!==request.actionUUID)return null;
+      // A newer committed revision invalidates the pending write even while
+      // native.sync is queued. An older snapshot may precede a confirmed
+      // self-write, so it must not invalidate the current host revision.
+      if(Number.isSafeInteger(desired.configRevision)&&Number.isSafeInteger(request.expectedRevision)&&
+        (desired.configRevision>request.expectedRevision||
+         desired.configRevision===request.expectedRevision&&JSON.stringify(desired.settings||{})!==JSON.stringify(request.expectedSettings)))return null;
+    }
+    return request;
+  }
+  async acknowledgeSettings(context,id,accepted){
+    // Durable native receipts must not wait for unrelated compatibility I/O.
+    // Revalidate the latest desired mount synchronously before resolving.
+    if(typeof accepted!=='boolean'||!this.pendingSettingsRequest(context,id))return false;
+    return this.native.acknowledgeSettings(context,id,accepted);
+  }
+  nativeRouteReady(context,desired){
+    const ctx=this.native.contexts.get(context);
+    if(!ctx||ctx.service||!desired)return false;
+    if(['instanceId','mountGeneration','slot','gesture','pluginUUID','actionUUID'].some(k=>ctx[k]!==desired[k]))return false;
+    if(Number.isSafeInteger(ctx.configRevision)&&Number.isSafeInteger(desired.configRevision)){
+      if(desired.configRevision>ctx.configRevision)return false;
+      // A confirmed self-write can be newer than the renderer's last sync.
+      if(desired.configRevision<ctx.configRevision)return true;
+    }
+    return JSON.stringify(desired.settings||{})===JSON.stringify(ctx.settings||{});
+  }
+  legacyRouteReady(context,desired){
+    const confirmed=this.legacyMounts.get(context);
+    return !!confirmed&&!!desired&&JSON.stringify(confirmed)===JSON.stringify(desired);
+  }
+  key(context,gesture,ticks){
+    if(this.closed)return false;
+    const desired=this.desiredMounts?.get(context);
+    if(!desired)return false;
+    if(this.nativeContextIds.has(context)||this.native.contexts.has(context)){
+      const ctx=this.native.contexts.get(context);
+      if(!this.nativeRouteReady(context,desired))return false;
+      if(isMultiMonitor(ctx))ctx.multiRouteCurrent=()=>!this.closed&&this.nativeRouteReady(context,this.desiredMounts?.get(context));
+      return this.native.key(context,gesture,ticks);
+    }
+    if(this.original?.confirmed.has(context))return this.original.key(context,gesture,ticks,desired);
+    return this.legacyRouteReady(context,desired)&&this.legacy.key(context,gesture,ticks);
+  }
+  inspector(context,anchor){
+    if(this.closed||this.nativeContextIds.has(context)||this.native.contexts.has(context))return false;
+    if(this.original?.confirmed.has(context))return this.original.inspector(context,this.desiredMounts?.get(context));
+    return this.legacyRouteReady(context,this.desiredMounts?.get(context))&&this.legacy.inspector(context,anchor);
+  }
+  cancelMultiMonitorInput(){for(const ctx of this.native.contexts.values())if(isMultiMonitor(ctx))clearMultiMonitorPress(ctx);}
+  onSystemSuspend(){this.native.suspend();this.legacy.onSystemSuspend();this.original?.suspend();}
+  onSystemResume(){this.native.resume();this.legacy.onSystemResume();this.original?.resume()?.catch(()=>{});}
+  async close(){this.closed=true;this.native.close();await Promise.all([this.legacy.close(),this.original?.close()]);}
+}
+module.exports={validateNativeManifest,NativePluginHost,PluginRouter,projectSharedState,LIMIT,multiMonitorInput,clearMultiMonitorPress};

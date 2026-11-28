@@ -1,0 +1,37 @@
+{
+  "Author": "Nikita",
+  "Name": "n8n Workflow Monitor",
+  "Description": "Monitor any n8n workflow on your Ulanzi Deck. Enter a workflow ID and the key shows live runs, errors, success rate and average duration in your choice of 16 layouts and 10 colors — green when healthy, amber on warnings, blinking red when errors pile up. Configurable thresholds, polling interval, 24 languages and desktop alerts.",
+  "Category": "n8n Monitor",
+  "CategoryIcon": "assets/icons/categoryIcon.svg",
+  "Icon": "assets/icons/brand.svg",
+  "Version": "1.1.1",
+  "UUID": "com.n8n.workflowmonitor.deck",
+  "Type": "JavaScript",
+  "CodePath": "plugin/app.js",
+  "PrivateAPI": true,
+  "SupportedInMultiActions": false,
+  "Actions": [
+    {
+      "Name": "Workflow Monitor",
+      "Icon": "assets/icons/actionIcon.svg",
+      "UUID": "com.n8n.workflowmonitor.deck.monitor",
+      "PropertyInspectorPath": "property-inspector/inspector.html",
+      "States": [
+        {
+          "Name": "Default",
+          "Image": "assets/icons/actionIcon.svg"
+        }
+      ],
+      "Controllers": ["Keypad"],
+      "SupportedInMultiActions": false
+    }
+  ],
+  "OS": [
+    { "Platform": "windows", "MinimumVersion": "10" },
+    { "Platform": "mac",     "MinimumVersion": "10.11" }
+  ],
+  "Software": {
+    "MinVersion": "2.1.0"
+  }
+}

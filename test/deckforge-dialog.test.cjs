@@ -1,0 +1,177 @@
+'use strict';
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+
+function fakeDocument(){
+  const body={children:[],append(...items){this.children.push(...items);}};
+  function createElement(tag){
+    return {
+      tagName:tag.toUpperCase(),className:'',textContent:'',children:[],attributes:{},events:{},removed:false,style:{},getBoundingClientRect(){return {top:120};},
+      append(...children){this.children.push(...children);},
+      setAttribute(name,value){this.attributes[name]=value;},
+      getAttribute(name){return this.attributes[name];},
+      addEventListener(name,handler){(this.events[name]??=[]).push(handler);},
+      close(value){this.returnValue=value;(this.events.close||[]).forEach(fn=>fn());},
+      showModal(){this.open=true;},
+      focus(){this.focused=true;},
+      remove(){this.removed=true;}
+    };
+  }
+  return {body,createElement};
+}
+function descendants(node){return [node,...(node.children||[]).flatMap(descendants)];}
+function load(){
+  const document=fakeDocument(),window={};
+  const file=path.join(__dirname,'../app/deckforge-editor/deckforge-dialog.js');
+  vm.runInNewContext(fs.readFileSync(file,'utf8'),{document,window},{filename:file});
+  return {document,window};
+}
+test('DeckForge dialog presents structured backup details and confirms only on explicit action',async()=>{
+  const {document,window}=load();
+  const pending=window.DeckForgeDialogs.show({
+    title:'Google Drive 백업 완료',kind:'success',intro:'파일 검증 완료',
+    fields:[{label:'Google 계정',value:'example@example.com'},{label:'저장 위치',value:'DeckForge Backups'}],
+    detailLabel:'저장된 파일명',detail:'long-backup-file.json'
+  });
+  const dialog=document.body.children.at(-1),nodes=descendants(dialog);
+  assert.equal(dialog.open,true);
+  assert.ok(nodes.some(node=>node.textContent==='Google Drive 백업 완료'));
+  assert.ok(nodes.some(node=>node.textContent==='long-backup-file.json'));
+  assert.ok(nodes.some(node=>node.textContent==='example@example.com'));
+  const accept=nodes.find(node=>node.className.includes('deckforge-message-primary'));
+  assert.ok(accept.focused);
+  accept.events.click[0]();
+  assert.equal(await pending,true);
+  assert.equal(dialog.removed,true);
+});
+test('cancel and window close never authorize a destructive operation',async()=>{
+  const {document,window}=load();
+  const pending=window.DeckForgeDialogs.show({title:'전체 복원',kind:'warning',ask:true,actionLabel:'복원 실행'});
+  const dialog=document.body.children.at(-1),nodes=descendants(dialog);
+  nodes.find(node=>node.textContent==='취소').events.click[0]();
+  assert.equal(await pending,false);
+  const second=window.DeckForgeDialogs.show({title:'백업 업로드',kind:'warning',ask:true});
+  document.body.children.at(-1).close('cancel');
+  assert.equal(await second,false);
+});
+test('common dialog is loaded before editor and backup messages avoid native confirm/alert',()=>{
+  const base=path.join(__dirname,'../app/deckforge-editor');
+  const html=fs.readFileSync(path.join(base,'index.html'),'utf8');
+  const editor=fs.readFileSync(path.join(base,'editor.js'),'utf8');
+  assert.ok(html.indexOf('deckforge-dialog.js')>=0);
+  assert.ok(html.indexOf('deckforge-dialog.js')<html.indexOf('editor.js'));
+  const part=editor.slice(editor.indexOf('async function showBackupConfirmation'),editor.indexOf('function chooseGoogleBackup'));
+  assert.doesNotMatch(part,/\b(?:confirm|alert)\(/);
+  assert.match(editor,/title:'Google Drive 백업 완료'/);
+  assert.match(editor,/title:'백업 복원 완료'/);
+  const helper=fs.readFileSync(path.join(base,'deckforge-dialog.js'),'utf8');
+  assert.doesNotMatch(helper,/.innerHTML\s*=/);
+});
+
+test('alternate dialog action is distinct from confirm and cancel',async()=>{
+  const {document,window}=load();
+  const first=window.DeckForgeDialogs.show({title:'민감정보 검사',kind:'warning',ask:true,alternateLabel:'일반 백업 유지',actionLabel:'암호화 백업'});
+  let modal=document.body.children.at(-1);
+  const options=descendants(modal);
+  assert.equal(options.filter(x=>x.tagName==='BUTTON').length,4);
+  options.find(x=>x.textContent==='일반 백업 유지').events.click[0]();
+  assert.equal(await first,'alternate');
+  const second=window.DeckForgeDialogs.show({title:'민감정보 검사',kind:'warning',ask:true,alternateLabel:'일반 백업 유지',actionLabel:'암호화 백업'});
+  modal=document.body.children.at(-1);
+  descendants(modal).find(x=>x.textContent==='암호화 백업').events.click[0]();
+  assert.equal(await second,true);
+});
+
+
+test('backup confirmation supports a reusable checklist without saving on invalid selection',async()=>{
+  const {document,window}=load();
+  const custom=document.createElement('section');
+  let allowed=false;
+  const pending=window.DeckForgeDialogs.show({
+    title:'백업 확인',ask:true,content:custom,
+    onAccept:()=>allowed,actionLabel:'백업 시작'
+  });
+  const dialog=document.body.children.at(-1),nodes=descendants(dialog);
+  assert.ok(nodes.includes(custom));
+  assert.ok(dialog.className.includes('deckforge-message-dialog-selection'));
+  const accept=nodes.find(node=>node.className.includes('deckforge-message-primary'));
+  accept.events.click[0]();
+  assert.equal(dialog.removed,false);
+  allowed=true;accept.events.click[0]();
+  assert.equal(await pending,true);
+  assert.equal(dialog.removed,true);
+});
+
+test('privacy details are read-only text and can be copied with explicit click',async()=>{
+  const {document,window}=load();
+  const writes=[];
+  window.deckBridge={copyDialogText:async value=>{writes.push(value);return true;}};
+  const sample='사용자 폴더 경로 · 프로필 1 · 2페이지 · 8번 버튼\n주소 의심 · 프로필 2 · 1페이지 · 13번 버튼';
+  const pending=window.DeckForgeDialogs.show({
+    title:'백업 민감정보 검사 결과',kind:'warning',ask:true,alternateLabel:'일반 백업 유지',
+    detailLabel:'추정 항목과 저장 위치',detail:sample,copyDetail:true,actionLabel:'암호화 백업'
+  });
+  const dialog=document.body.children.at(-1),nodes=descendants(dialog);
+  const field=nodes.find(n=>n.tagName==='TEXTAREA');
+  assert.ok(field);assert.equal(field.value,sample);assert.equal(field.readOnly,true);
+  assert.equal(writes.length,0);
+  const copy=nodes.find(n=>n.textContent==='내용 복사');
+  assert.ok(copy);await copy.events.click[0]();
+  assert.deepEqual(writes,[sample]);assert.equal(copy.textContent,'복사됨');
+  assert.equal(dialog.removed,false);
+  nodes.find(n=>n.textContent==='취소').events.click[0]();
+  assert.equal(await pending,false);
+});
+
+test('dynamic modal captures initial top position without recentering on content changes',async()=>{
+ const {document,window}=load();
+ const content=document.createElement('div');
+ const pending=window.DeckForgeDialogs.show({title:'플러그인 속성',content,anchorTop:true,ask:true});
+ const modal=document.body.children.at(-1);
+ assert.equal(modal.style.top,'120px');
+ assert.equal(modal.style.bottom,'auto');
+ assert.equal(modal.style.marginBlock,'0');
+ assert.equal(modal.style.maxHeight,'min(720px, calc(100vh - 128px))');
+ content.append(document.createElement('div'));
+ assert.equal(modal.style.top,'120px');
+ modal.close('cancel');assert.equal(await pending,false);
+});
+
+
+test('sensor settings align with the first icon card at an 8px gap',async()=>{
+ const {document,window}=load();window.innerWidth=1400;window.innerHeight=900;
+ const anchorCard={isConnected:true,getBoundingClientRect:()=>({top:150,left:200,right:432})};
+ const pending=window.DeckForgeDialogs.show({title:'센서 설정',anchorCard,anchorTop:true});
+ const modal=document.body.children.at(-1);
+ assert.equal(modal.style.left,'440px');assert.equal(modal.style.top,'150px');
+ assert.equal(modal.style.maxWidth,'952px');modal.close('cancel');assert.equal(await pending,false);
+});
+
+
+test('read-only Fusion information has its title in the header and only the close button',async()=>{
+ const {document,window}=load();
+ const pending=window.DeckForgeDialogs.show({title:'Fusion 명령 속성',content:document.createElement('div'),headerTitleOnly:true});
+ const modal=document.body.children.at(-1),nodes=descendants(modal);
+ assert.equal(nodes.filter(n=>n.textContent==='Fusion 명령 속성').length,1);
+ assert.equal(nodes.some(n=>n.textContent==='DeckForge'),false);
+ const buttons=nodes.filter(n=>n.tagName==='BUTTON');assert.equal(buttons.length,1);assert.equal(buttons[0].textContent,'×');assert.ok(buttons[0].focused);
+ buttons[0].events.click[0]();assert.equal(await pending,false);
+});
+
+test('native action properties show DeckForge title and optional help without permanent intro or committing',async()=>{
+ const {document,window}=load();let applied=0;
+ const pending=window.DeckForgeDialogs.show({title:'HA 기기 제어',helpText:'초기 연결과 기기 선택 방법',content:document.createElement('div'),ask:true,onAccept:()=>{applied++;return true;}});
+ const modal=document.body.children.at(-1),nodes=descendants(modal);
+ assert.ok(nodes.some(n=>n.className==='deckforge-message-product'&&n.textContent==='DeckForge'));
+ assert.ok(nodes.some(n=>n.className==='deckforge-message-title'&&n.textContent==='HA 기기 제어'));
+ assert.equal(nodes.some(n=>n.className==='deckforge-message-intro'),false);
+ const help=nodes.find(n=>n.className.includes('deckforge-message-help'));
+ assert.equal(help.tagName,'BUTTON');help.events.click[0]();
+ const child=document.body.children.at(-1);assert.notEqual(child,modal);
+ assert.ok(descendants(child).some(n=>n.textContent==='초기 연결과 기기 선택 방법'));
+ child.close('cancel');assert.equal(modal.removed,false);assert.equal(applied,0);
+ modal.close('cancel');assert.equal(await pending,false);assert.equal(applied,0);
+});

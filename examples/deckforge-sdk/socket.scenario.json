@@ -1,0 +1,34 @@
+{
+  "actionId": "com.deckforge.native.socket-example.key",
+  "slot": 0,
+  "expectInitial": {
+    "socket": "disconnected"
+  },
+  "expectErrorTotal": 0,
+  "steps": [
+    {
+      "kind": "down",
+      "expect": {
+        "socket": "connected",
+        "title": "Connected"
+      }
+    },
+    {
+      "kind": "up"
+    },
+    {
+      "kind": "socket-message",
+      "body": "Offline status",
+      "expect": {
+        "title": "Offline status"
+      }
+    },
+    {
+      "kind": "socket-close",
+      "expect": {
+        "socket": "disconnected",
+        "title": "Disconnected"
+      }
+    }
+  ]
+}

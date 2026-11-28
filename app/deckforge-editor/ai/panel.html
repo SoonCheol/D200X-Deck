@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'self'; style-src 'self'; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>DeckForge AI 도우미</title><link rel="stylesheet" href="panel.css"><script src="markdown.js" defer></script><script src="selection.js" defer></script><script src="fusion-setup.js" defer></script><script src="panel.js" defer></script></head>
+<body>
+<header><strong>AI 도우미</strong><span id="status" role="status">연결 확인 중</span></header>
+<section class="account"><div id="account"></div><div class="row"><button id="login">ChatGPT로 계속</button><button id="logout" hidden>연결 해제</button><button id="usage">사용량 관리</button><button id="cancelLogin" hidden>취소</button></div><p>ChatGPT 구독 사용 · 유료 API 자동 전환 없음<br>크레딧 사용 여부는 ChatGPT 사용량 관리에서 확인하세요.</p></section>
+<section class="row models"><label for="model">모델</label><select id="model" disabled></select><button id="refresh" disabled>새로 고침</button></section>
+<section class="row history"><select id="history" aria-label="대화 기록"><option value="">새 대화</option></select><button id="new">새 대화</button><button id="delete" disabled>삭제</button></section>
+<main id="messages" aria-live="polite"><p class="empty">ChatGPT에 연결한 후 질문할 수 있습니다. 조회 및 승인 후 일반 버튼 편집을 지원합니다.</p></main>
+<section id="edit-preview" class="edit-preview" hidden aria-label="AI 변경안"><div class="row"><strong>변경사항 미리보기</strong><span id="edit-profile"></span></div><p>아직 저장하지 않았습니다. 아래 내용을 확인한 뒤 적용하세요.</p><div id="edit-rows"></div><div class="row"><button id="edit-cancel" type="button">취소</button><button id="edit-apply" type="button">적용 및 저장</button></div></section>
+<div id="notice" role="status"></div>
+<footer><label class="check"><input type="checkbox" id="tool">로컬 정보 조회 허용</label><div class="row edit-options"><label class="check"><input type="checkbox" id="edit-mode">변경안 만들기 (조회 포함)</label><button id="edit-undo" type="button" disabled>최근 AI 변경 되돌리기</button></div><div class="row template-row"><button id="templates" type="button" aria-expanded="false" aria-controls="template-list">템플릿 ▾</button></div><div id="template-list" hidden><small>기본 템플릿</small><button id="fusion-setup" type="button">Fusion 초기 연결</button></div><textarea id="input" rows="3" maxlength="12000" placeholder="무엇을 도와드릴까요?" aria-label="메시지"></textarea>
+<div class="row ai-attach-toolbar"><button id="attach" type="button" aria-label="이미지 또는 파일 첨부" title="이미지·문서·로그 선택">+ 첨부</button><input id="attach-files" type="file" hidden multiple accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.log,.md,.json,.csv,.xml,.js,.py,.docx,.xlsx" aria-label="AI에 첨부할 파일 선택"><small>이미지·문서·로그 · 최대 3개 · 파일당 6MB</small></div>
+<div id="attachment-list" class="ai-attachment-list" aria-label="전송할 첨부 파일" hidden></div>
+<div class="row"><small>첨부한 파일은 이 질문에만 전송하며 원본은 대화 기록에 저장하지 않습니다. 최근 대화와 허용한 로컬 조회 결과도 함께 전송됩니다. 변경안은 적용 버튼으로만 저장합니다.</small><button id="stop" disabled>중지</button><button id="send" disabled>전송</button></div></footer>
+</body></html>

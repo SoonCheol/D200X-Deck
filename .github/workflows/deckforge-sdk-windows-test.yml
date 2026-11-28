@@ -1,0 +1,86 @@
+name: DeckForge native SDK Windows verification
+on:
+  pull_request:
+    types: [synchronize]
+    paths:
+      - 'test/deckforge-native-js-electron.cjs'
+      - '.github/workflows/deckforge-sdk-windows-test.yml'
+      - 'app/deckforge-editor/deckforge-native-sdk.cjs'
+      - 'app/deckforge-editor/deckforge-ha-plugin.cjs'
+      - 'test/deckforge-plugin.test.cjs'
+      - 'app/deckforge-editor/deckforge-js-runtime.cjs'
+      - 'app/deckforge-editor/deckforge-sdk-scheduler.cjs'
+      - 'app/deckforge-editor/deckforge-native-network.cjs'
+      - 'app/deckforge-editor/deckforge-native-settings.cjs'
+      - 'app/deckforge-editor/deckforge-draw-ops.cjs'
+      - 'app/deckforge-editor/profile-store.cjs'
+      - 'app/deckforge-editor/deck-core.js'
+      - 'app/package-lock.json'
+permissions:
+  contents: read
+jobs:
+  native-sdk:
+    if: github.event.pull_request.number == 5 && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Check SDK-specific changes
+        id: changes
+        shell: pwsh
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          $run = $true
+          if ($env:BEFORE_SHA -match '^[0-9a-f]{40}$') {
+            git fetch --no-tags --depth=1 origin $env:BEFORE_SHA
+            if ($LASTEXITCODE -eq 0) {
+              $changed = git diff --name-only $env:BEFORE_SHA HEAD
+              if ($LASTEXITCODE -eq 0) {
+                $run = [bool]($changed | Where-Object { $_ -in @('test/deckforge-native-js-electron.cjs','.github/workflows/deckforge-sdk-windows-test.yml','app/deckforge-editor/deckforge-native-sdk.cjs','app/deckforge-editor/deckforge-ha-plugin.cjs','test/deckforge-plugin.test.cjs','app/deckforge-editor/deckforge-js-runtime.cjs','app/deckforge-editor/deckforge-sdk-scheduler.cjs','app/deckforge-editor/deckforge-native-network.cjs','app/deckforge-editor/deckforge-native-settings.cjs','app/deckforge-editor/deckforge-draw-ops.cjs','app/deckforge-editor/profile-store.cjs','app/deckforge-editor/deck-core.js','app/package-lock.json') })
+              }
+            }
+          }
+          "run=$($run.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        if: steps.changes.outputs.run == 'true'
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: Install Electron
+        id: install
+        if: steps.changes.outputs.run == 'true'
+        working-directory: app
+        run: npm ci
+      - name: Verify native SDK in Electron
+        if: steps.changes.outputs.run == 'true'
+        env:
+          DECKFORGE_SDK_SOAK: '1'
+        shell: pwsh
+        run: |
+          & app/node_modules/.bin/electron.cmd test/deckforge-native-js-electron.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Verify isolated renderer heap exhaustion
+        if: ${{ !cancelled() && steps.changes.outputs.run == 'true' && steps.install.outcome == 'success' }}
+        env:
+          DECKFORGE_SDK_OOM: '1'
+        shell: pwsh
+        run: |
+          $dir = Join-Path $env:RUNNER_TEMP ('deckforge-sdk-oom-' + [guid]::NewGuid())
+          New-Item -ItemType Directory -Path $dir | Out-Null
+          $log = Join-Path $dir 'electron.log'
+          $env:DECKFORGE_SDK_OOM_LOG = $log
+          $env:DECKFORGE_SDK_OOM_DUMPS = Join-Path $dir 'dumps'
+          try {
+            & app/node_modules/.bin/electron.cmd --enable-logging=file "--log-file=$log" test/deckforge-native-js-electron.cjs
+            $code = $LASTEXITCODE
+            $dumps = @(Get-ChildItem -LiteralPath $env:DECKFORGE_SDK_OOM_DUMPS -Recurse -Filter '*.dmp' -File -ErrorAction SilentlyContinue)
+            Write-Host "OOM local dump count: $($dumps.Count)"
+            if ($code -ne 0) { exit $code }
+          } finally {
+            # Never publish dump contents; this is a synthetic, disposable test.
+            Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+          }

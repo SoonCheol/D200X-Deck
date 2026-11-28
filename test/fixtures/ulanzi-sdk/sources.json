@@ -1,0 +1,56 @@
+{
+  "repository": "https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK",
+  "commit": "550ab80c69285ecf259bd494a7fff767c14f0c0f",
+  "files": [
+    {
+      "file": "LICENSE",
+      "upstreamPath": "LICENSE",
+      "gitBlobSha": "261eeb9e9f8b2b4b0d119366dda99c6fd7d35c64"
+    },
+    {
+      "file": "api/manifest.json",
+      "upstreamPath": "demo/com.ulanzi.APIRequest.ulanziPlugin/manifest.json",
+      "gitBlobSha": "cca11cf9e88b362d60c5848b463eedfe9589a539"
+    },
+    {
+      "file": "api/app.js",
+      "upstreamPath": "demo/com.ulanzi.APIRequest.ulanziPlugin/plugin/app.js",
+      "gitBlobSha": "df90d377f7703ba03d894bccbc77f6082b63d60d"
+    },
+    {
+      "file": "api/inspector.html",
+      "upstreamPath": "demo/com.ulanzi.APIRequest.ulanziPlugin/property-inspector/getResult/inspector.html",
+      "gitBlobSha": "c2321a7fa72641837db36d553ea6e27223c0491c"
+    },
+    {
+      "file": "api/inspector.js",
+      "upstreamPath": "demo/com.ulanzi.APIRequest.ulanziPlugin/property-inspector/getResult/inspector.js",
+      "gitBlobSha": "0a0fae3e95897e18ab874c855adcb29f0edf7a58"
+    },
+    {
+      "file": "clock/manifest.json",
+      "upstreamPath": "demo/com.ulanzi.analogclock.ulanziPlugin/manifest.json",
+      "gitBlobSha": "bde692841141b2d57241b353694e9e12bb8cced5"
+    },
+    {
+      "file": "clock/app.js",
+      "upstreamPath": "demo/com.ulanzi.analogclock.ulanziPlugin/plugin/app.js",
+      "gitBlobSha": "d0819bfd27a576959df574b9e8e2370c46909959"
+    },
+    {
+      "file": "clock/app.html",
+      "upstreamPath": "demo/com.ulanzi.analogclock.ulanziPlugin/plugin/app.html",
+      "gitBlobSha": "2f6d60625fa17f8b39900b3f22e295653a6fc732"
+    },
+    {
+      "file": "clock/inspector.html",
+      "upstreamPath": "demo/com.ulanzi.analogclock.ulanziPlugin/property-inspector/clock/inspector.html",
+      "gitBlobSha": "4934c5950ae346f156c0d388d281c38fba71fa84"
+    },
+    {
+      "file": "clock/inspector.js",
+      "upstreamPath": "demo/com.ulanzi.analogclock.ulanziPlugin/property-inspector/clock/inspector.js",
+      "gitBlobSha": "a290853827203d70e34fcb33daccfe855995d2c9"
+    }
+  ]
+}

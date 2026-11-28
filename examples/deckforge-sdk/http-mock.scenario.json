@@ -1,0 +1,93 @@
+{
+  "actionId": "com.deckforge.native.example.http-mock.status",
+  "slot": 0,
+  "steps": [
+    {
+      "kind": "down",
+      "expect": {
+        "title": "Ready",
+        "httpRequestCount": 1
+      }
+    },
+    {
+      "kind": "up",
+      "expect": {
+        "title": "Ready",
+        "httpRequestCount": 1
+      }
+    },
+    {
+      "kind": "down",
+      "expect": {
+        "title": "http-error",
+        "httpRequestCount": 2
+      }
+    },
+    {
+      "kind": "up",
+      "expect": {
+        "title": "http-error",
+        "httpRequestCount": 2
+      }
+    },
+    {
+      "kind": "down",
+      "expect": {
+        "title": "timeout",
+        "httpRequestCount": 3
+      }
+    },
+    {
+      "kind": "up",
+      "expect": {
+        "title": "timeout",
+        "httpRequestCount": 3
+      }
+    },
+    {
+      "kind": "down",
+      "expect": {
+        "title": "connection-error",
+        "httpRequestCount": 4
+      }
+    },
+    {
+      "kind": "up",
+      "expect": {
+        "title": "connection-error",
+        "httpRequestCount": 4
+      }
+    }
+  ],
+  "httpResponses": [
+    {
+      "endpoint": "status",
+      "ok": true,
+      "status": 200,
+      "body": "Ready",
+      "error": null
+    },
+    {
+      "endpoint": "status",
+      "ok": false,
+      "status": 503,
+      "body": "",
+      "error": "http-error"
+    },
+    {
+      "endpoint": "status",
+      "ok": false,
+      "status": 0,
+      "body": "",
+      "error": "timeout"
+    },
+    {
+      "endpoint": "status",
+      "ok": false,
+      "status": 0,
+      "body": "",
+      "error": "connection-error"
+    }
+  ],
+  "expectErrorTotal": 0
+}

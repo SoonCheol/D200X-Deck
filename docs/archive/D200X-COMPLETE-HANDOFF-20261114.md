@@ -1,0 +1,633 @@
+# D200X Stream Deck 편집기 — 대화창 간 완전 인수인계 (2026-11-14)
+
+> **문서 상태 정합성 공지 (2026-11-15):** 현재 코드 구현·미구현·실기 검증의 **유일한 기준은 [최신 기능 상태표](D200X-CURRENT-STATUS.md)**입니다. 이 문서의 아래 날짜별 절, 체크박스, 당시의 '최신'·'미구현'·'EXE 보류' 문구는 **작성 시점 이력**입니다. 2026-11-15 이후 기능 구현 여부를 여기의 과거 문구로 판단하거나 이미 구현한 기능을 재개발하지 마세요. 상세 이력은 삭제하지 않고 보존합니다.
+
+
+> **긴급 정정 (2026-11-14):** 사용자 보고 '물리 버튼/노브 페이지 이동이 한 번만 됨'은 **이미 코드 보정이 반영된 후 실기 결과를 기다리는 회귀 항목**이다. 기존 구현에는 전역/페이지별 설정, 입력 디바운스, 페이지 전환 시 눌림 상태 초기화가 들어 있다. 새 대화에서 이것을 '1번 미착수 개발'이라고 표현하거나 동일 수정부터 반복하지 말 것. 최신 EXE에서 재현되는지 사용자 실기 피드백을 먼저 확인하고, 재현된 경우에만 실제 로그와 함께 국소 디버깅한다. 아직 결과가 없다면 다음 **P0-B 버튼/노브 공통 액션 엔진과 P0-C 기본 8개 기능**으로 진행한다. 이전 대화가 수정 미완료를 인수인계에서 뚜렷이 분리하지 못한 데 따른 혼선이므로 이 정정을 최신 기준으로 적용한다. 이전 `docs/ACTION-MODEL-V2.md`는 보관용 자료이며 구현 지침 아님. Windows EXE는 반드시 그 커밋의 성공한 GitHub Actions Artifact ZIP 링크를 제공한다.
+
+
+> **목적:** 새로운 ChatGPT 대화창과 Codex 세션이 기존 설계·결정·작업 상태·다운로드 제공 방식까지 누락 없이 이어받도록 하는 작업 기준. 이 문서는 이전 대화의 사용자 요구와 2026-11-14 GitHub 대조 결과를 정리한 것이다. 실제 동작을 새로 검증했다고 주장하지 않는다.
+>
+> **진행 저장소:** [SoonCheol/D200X-Deck](https://github.com/SoonCheol/D200X-Deck) / 브랜치 `codex/streamdeck-761-clean-editor` / Draft [PR #5](https://github.com/SoonCheol/D200X-Deck/pull/5). **임의 병합 금지.**
+
+## 2026-11-14 폴더 → 프로필 → 고정 액션 → 자동 전환 순서로 구현 (최신)
+
+**사용자 승인 범위:** 권장 순서대로 개발, 실물 D200X/Windows GUI 시험 불가, 새 EXE 빌드 및 PR 병합 보류. 이번 작업은 **코드 연결·Node CI·입력 모의 검증 단계**이며 실기 완료 표시 금지.
+
+1. **기존 설정 보존:** `deck-core.js`에서 과거 `pages/page/controls` 단일 프로필 저장값을 `profileNames/profileId/inactiveProfiles` 방식으로 마이그레이션. 현재 활성 프로필은 기존 최상위 데이터 구조 그대로 사용하고 비활성 프로필만 별도 스냅샷 저장(활성 아이콘 중복 저장 회피). 최초 저장 변경 시 기존 localStorage JSON을 별도 `-pre-profiles-backup` 키에 복사 시도; 저장 실패는 오류 표시. 상단 프로필 메뉴에서 **전체 JSON 내보내기** 제공. 정식 원자적 디스크 저장/복원 가져오기는 아직 구현하지 않음.
+2. **폴더:** 빈 슬롯 인덱스 보존, 최대 8단계 중첩 탐색, 화면 속성창 내부 편집, 실제 키 입력과 PC 화면 공통 폴더 진입/복귀. 폴더 마지막 빈 화면 키에 뒤로가기 가상 버튼 제공, 이 자리가 사용 중이면 **비어 있는 측면 버튼**을 뒤로가기로 사용해 기존 액션을 훼손하지 않음. 폴더 내용과 현재 탐색 위치 JSON 저장·복원, D200X PNG 동기화. 기존 폴더 슬롯/페이지 값 보존.
+3. **프로필:** 상단 메뉴 생성·복제·이름 변경·삭제(마지막 하나 삭제 차단)·전환 및 기본 `profile` 액션의 '다음/특정 프로필' 선택·실행. 프로필별 페이지·폴더 경로·물리 노브/측면 버튼·고정 액션 상태 독립. 현재 키/액션 배치를 통째로 재설계하지 않음.
+4. **고정 키:** 페이지에서 우클릭 고정/해제, 다른 페이지의 **빈 슬롯에만** 상속, 로컬 페이지별 덮어쓰기가 우선. 프로필별 독립 저장 및 D200X 화면 이미지 동기화. **현재는 고정 시 원본 액션의 복사본을 보유**하므로 원본 페이지 액션과 다른 페이지 상속본 사이의 *실시간 편집 공유*·우클릭 세부 메뉴는 아직 원본 완전 일치 미검증. 고정 폴더를 다른 페이지에서 열 때의 경로 복원 버그를 수정하고 회귀 테스트 추가.
+5. **페이지:** 신규 페이지 생성은 **10페이지**에서 멈추고, 기존 10개 초과 데이터(현 마이그레이션 최대 128페이지)는 **삭제·절단하지 않음**. 버튼/노브 페이지 이동과 기존 데이터 호환 회귀 검사 필요.
+6. **자동 폴더 나가기:** Elgato 공식 [Auto Folder Exit](https://help.elgato.com/hc/en-us/articles/22589649057933-Elgato-Stream-Deck-Auto-Folder-Exit)를 재확인해 **폴더 진입 기준 타이머가 아니라 폴더 내 액션 실행 후** 자동 복귀하도록 수정. 기능 켜기/끄기와 0~60초는 독립 설정; **0초는 실행 후 즉시 나가기**. 원본의 액션별 개별 Auto Exit 오버라이드는 아직 미구현. 일부 비동기 액션은 실행 완료가 아닌 실행 요청 시점부터 타이머가 시작될 수 있어 실기/세부 보완 필요.
+7. **Smart Profile:** Elgato 공식 [Smart Profiles](https://help.elgato.com/hc/en-us/articles/360053419071-Elgato-Stream-Deck-Smart-Profiles)와 동일하게 **사용자가 켜야 작동**하도록 하고, 편집기를 최소화했을 때만 Windows 전경 프로그램 실행 경로를 읽도록 IPC 제한. 프로필별 지정된 **.exe 전체 경로와 정확히 일치**할 때 전환. UWP/권한 문제 등 경로를 읽지 못하면 기존 프로필 유지. 4초 폴링 구현, 실제 Windows 전경 감지 및 프로그램/게임별 동작 **미검증**. 프로그램에 매핑되지 않는 상태에서 기본 프로필로 자동 복귀는 미구현.
+8. **자동 검증:** 과거 단일 프로필 보존, 폴더 빈 인덱스/깊이/뒤로가기, 프로필 분리·복제·삭제·저장·복원, 고정 키 우선순위/다른 페이지 고정 폴더 진입, 0초 Auto Exit, Windows 프로필 앱 경로 비교 등의 단위 테스트 추가. 최신 [CI #43600917768](https://github.com/SoonCheol/D200X-Deck/actions/runs/43600917768) 및 [입력 모의 검증 #43600912897](https://github.com/SoonCheol/D200X-Deck/actions/runs/43600912897) **성공**. 한때 새 고정 폴더 경로 복원 단위 테스트가 실패했으나 `4b3206ed`에서 수정해 재검증 성공. **Windows GUI/실기·EXE 빌드 수행 안 함**.
+
+**다음 코드 보완 후보:** 고정 액션의 원본 페이지·상속 페이지 간 실시간 편집 공유, 폴더 개별 액션별 자동 나가기, 앱 매핑 해제/기본 프로필 복귀 정책, UI/원본 7.6.1 동작 정밀 비교. 사용자 실기 가능해지면 USB 전송·물리 키/노브·Windows 전경 앱·로컬 저장/복원을 한꺼번에 확인.
+
+## 2026-11-14 실행 테스트·밝기 보호·원본 액션 확장 (코드 단계)
+
+- **안전:** `transport.cjs`의 D200X 버튼/노브 상대 밝기를 **20~100%**로 제한하고, 원본 `brightness` 고정값(최소/낮음/중간/높음/최대)을 20/30/50/75/100%로 연결했다. **20% 실제 시인성은 장치 실측 전 미확인.** 이미 20% 미만인 기기 값을 단순 keepalive가 그대로 유지하는 기존 정책은 별개다.
+- **미리 실행:** 버튼 선택 후 `▶ 실행 테스트` / 노브 왼쪽·오른쪽·누름 테스트를 기존 물리 이벤트와 동일한 `DeckCore.previewHardwareEvent` 어댑터로 실행. **PC 편집창이 활성화되면 Ctrl+Z 등 전경 앱 대상 키가 편집기 쪽으로 갈 수 있으므로 실제 앱 결과는 실기 검사 필요.** 단축키·텍스트·파일 닫기 같은 영향 있는 동작은 사용자가 버튼을 명시적으로 눌렀을 때만 실행한다.
+- **파일 선택 UI:** 물리 버튼/노브 속성에서도 파일/폴더 선택기를 연결한다. 기존 14개 키의 클릭은 여전히 편집용이다.
+- **원본 24개 중 새로 연결한 실행 경로:** `brightness`, `media`, `hotkey`, `hotkey-switch`(실행 중 메모리 토글), `open`, `open-app`(실행만), `close`(선택한 .exe와 같은 경로만; 강제 종료 옵션), `timer`(시작/다시 누르면 취소·상태 알림), `text`(유니코드 직접 입력), `audio-play`/`audio-stop`(Electron HTMLAudio, 재생·중단·반복·오버랩 기본), `website`의 GET 모드. 이전 페이지/다음 페이지/페이지 지정/표시 및 웹사이트 기본 브라우저 실행은 기존 구현을 보존한다.
+- **부분 구현 명시:** `timer`의 사운드 알림·화면 카운트다운, `text`의 진정한 클립보드 붙여넣기 모드(현재 클립보드를 바꾸지 않고 Unicode 직접 입력), `audio-play`의 페이드·출력장치, `open-app`의 길게 누르기 옵션, `website`의 브라우저 직접 선택은 미구현. 실기 재생 호환성/Windows Unicode SendInput/C# 컴파일 여부는 아직 검증되지 않았다.
+- **아직 실행 엔진 미구현:** 원본 `sleep`, `virtual`, `multi`, `multi-switch`, `random`, `logic`, `folder`, `profile`; P1 기본 출력장치 전환/마이크 음소거, P2 다중 동작 딜레이·순환/앱별 정밀 제어. 이 항목들을 완료로 표시하지 말 것. 다음은 범용 다중 동작 엔진·안전한 구성 UI → 프로필/폴더 → 장치·Windows 오디오 제어 순서로 진행하되 먼저 근거 확인.
+- **검증 범위:** GitHub의 Windows Actions Node 구문·단위 테스트/물리 입력 모의 검증을 활용. **새 기능을 실제 Windows GUI에서 클릭하거나 실물 D200X에서 작동시킨 증거는 없음.** 마지막 EXE 시험 빌드 #43586367027은 이 코드 확장 **이전** 버전이므로 새 기능 확인에는 사용 불가. 새 EXE는 별도 승인 전까지 빌드하지 않는다.
+- 기존 24개 액션 ID·승인 레이아웃·5초 유지통신·기존 저장 프로필을 삭제/이동하지 않았다. GitHub 브랜치와 Draft PR #5 유지, main 미병합.
+
+## 2026-11-14 추가 개선 — Multi Action Switch 제목 연결
+
+- Elgato 공식 6.2 릴리스 노트의 **Link Action State Titles** 및 제목 도움말을 근거로 상태 1/2 제목 연결 체크박스를 편집기 속성 영역에 추가. 연결 시 1번 상태 제목을 공유 표시하지만 **2번 상태의 기존 개별 제목은 덮어쓰지 않아** 연결 해제 시 복원 가능. 상태별 아이콘은 계속 독립적으로 적용.
+- `deck-core.js`의 `displaySwitchAction`, `editor.js`의 상태별 설정 UI 및 저장·재읽기 단위 테스트에 반영. 실제 Elgato 7.6.1 UI/실물 D200X에서는 아직 검증하지 않음. 새 EXE/병합 없음.
+- 출처: [Elgato 6.2 Release Notes](https://help.elgato.com/hc/en-us/articles/15618534999821-Elgato-Stream-Deck-6-2-Release-Notes) · [Custom Titles](https://help.elgato.com/hc/en-us/articles/360027958532-Elgato-Stream-Deck-Custom-Titles-for-Actions).
+
+## 2026-11-14 실기 테스트 보류 중 코드 개발 진행 — Random 및 Switch 표시/복원
+
+- **사용자 제약:** 현재 Windows GUI·실물 D200X 테스트가 불가능하므로 실기 검증은 보류하고 소스/자동 CI로 개발을 계속한다. EXE 빌드는 계속 보류, 원본 24개 ID와 승인된 편집기 화면 배치는 보존한다.
+- **Random Action 1차:** 오른쪽 기본 카탈로그의 `random`을 `planAction`의 복합 실행기로 연결하고, 후보 목록 편집·오른쪽 액션 드래그 추가·정렬·삭제·각 후보 설정, 버튼/노브/미리보기 실행을 추가. 누를 때마다 `Math.random()`으로 후보 하나만 선택. 후보 없음·중첩·Delay 단계 구성은 안전하게 오류 처리. 공식 문서에 없는 가중치/반복 방지 옵션은 추가하지 않았다.
+- **Multi Action Switch 상태/이미지:** `settings.activeState` (0/1), `stateVisuals[0/1]`에 상태별 제목과 문자/파일 아이콘 저장. 현재 상태의 아이콘과 제목을 `editor.js` 편집 미리보기와 `device-sync.js` 14개 키 이미지 전송에 모두 적용. 상태별 이미지 파일은 기존과 같은 PNG 변환·크기 제한/공통 아이콘 복원 제공. 동작 시 **실행 성공 후에만** 다음 상태로 전환·저장하며, 실패/취소 시 상태 유지.
+- **호환성:** 원본 `children[]`을 유지하고 `cleanAction`으로 새 상태 필드 정규화, 알 수 없는 원본 프로필 데이터의 나머지 페이지/버튼을 변경하지 않음. 각 상태의 시각 정보와 활성 상태의 JSON 저장·마이그레이션 단위 테스트 추가.
+- **한계:** Switch의 상태 영속화는 현재 **D200X 편집기의 구현 정책**이며 Elgato 7.6.1 원본과 완전 동일하다고 검증되지 않았다. Random 모든 원본 하위 액션 지원 및 Key Logic의 실제 단일/이중/길게 누름은 미완료. 원본 상태 제목 연결 컨트롤/아이콘 선택 메뉴 완전 복제, 실제 D200X 화면 및 Windows 입력 포커스 검증은 실기 가능할 때 별도 진행.
+- **다음 단계:** Random의 지원 하위 액션 검증 및 Switch 상태별 GUI 세부 일치 보완 → 물리 hold/double 검증 가능해지면 Key Logic → 그 전에는 폴더·프로필 등 실측이 필요 없는 기본 액션 구현 진행. 단계별 CI로 코드 회귀만 확인한다.
+
+근거: [Elgato Stream Deck 4.4 릴리스 노트](https://help.elgato.com/hc/ko/articles/5162934218637-Elgato-Stream-Deck-4-4-%EB%A6%B4%EB%A6%AC%EC%8A%A4-%EB%85%B8%ED%8A%B8).
+
+## 2026-11-14 다중 동작 보완·다중 동작 스위치 1차 구현
+
+- **원본 재확인:** Elgato 공식 4.4 릴리스 노트의 Multi Action Switch는 상태 1·2의 두 동작 묶음을 **누를 때마다 번갈아 실행**한다. 공식 5.3 지연 가이드는 가상 키 눌림 시간과 **다음 동작 간 간격**을 구별하고 기본 간격 100ms를 설명한다. 정확한 7.6.1 슬라이더 범위/상태별 제목·아이콘은 GUI 추가 비교 대기.
+- **코드:** `deck-core.js`의 `multi-switch`를 공통 복합 실행기로 연결하고, `editor.js`에 **상태 1 / 상태 2 별도 탭과 하위 동작 편집**을 추가했다. 예전 `children[]`은 그대로 보존하면서 상태 1로 옮길 수 있도록 했다. 화면·물리 버튼/노브와 명시적 미리보기에서 **현재 상태의 동작이 성공하면 다음 상태로 넘어간다**. 실패/중단 시 다음 상태로 넘어가지 않는다.
+- **안전:** 같은 키의 실행 중복 차단, 하위 액션 허용 목록 사전 검사, **명시적 ■ 실행 중단** 버튼, 지연 중 취소 가능, 마지막 동작 수행 중 중단 시 성공으로 오보고하지 않도록 검사. 각 연속 일반 동작 사이 기본 100ms(명시적 Delay 앞뒤 중복 추가 없음)를 적용했다. 원본과의 실제 타이밍 일치/작동은 실기 대기.
+- **현 시점 제한:** 스위치 활성 상태는 **실행 프로세스 메모리에서만 유지되어 앱 재시작 시 상태 1로 시작**한다. 상태별 아이콘·제목 연결 및 실제 D200X 화면 표시, 모든 24개 하위 액션/앱·플러그인 지원, UI 실기/물리 키 확인은 아직 미완료. 정확한 Stream Deck 7.6.1 상태 복원 규칙은 미확정. 다른 원본 24개 액션 목록과 승인 배치 유지.
+- **검증:** `test/streamdeck-core.test.cjs`에 두 시퀀스별 순서·기존 저장 이관·중첩 거부·기본 동작 간격/명시 지연·마지막 액션 취소 테스트를 추가. GitHub CI 및 Windows 입력 모의 검증과 실제 장치 실기 결과는 구분한다. EXE 빌드/PR 병합 없음.
+
+근거: [Elgato 4.4 Multi Action Switch](https://help.elgato.com/hc/en-us/articles/5162934218637-Elgato-Stream-Deck-4-4-Release-Notes) · [Elgato Multi Action Delays](https://help.elgato.com/hc/en-us/articles/7092527123725-Elgato-Stream-Deck-Customizable-Multi-Action-Delays).
+
+## 우선순위 변경 및 실행 코드 착수 (2026-11-14 최신)
+
+- 사용자 최우선 목표는 **오른쪽 패널 기본 24개 액션 완성**, 기존 D200X 추가 액션은 뒤에서 보완, 플러그인은 기본 액션 완료 후 별도 승인. `AGENTS.md`, 로드맵, 확장 계획 최신 절 우선.
+- `deck-core.js`: 복합 액션 4종의 저장 모델 분리, 기존 `children[]` 유지, Delay·순차 실행·취소 가능한 `runComposite` 추가. `multi-switch/random/logic` 실행 자체는 여전히 미구현.
+- `editor.js/style.css`: Multi 하위 액션 목록 편집·드래그 추가·상하 이동·삭제·지연/단일 설정과 실행기 연결. **원본 동일성/실기 완료 아님**. 지원 가능한 액션만 실행하고 오류 발생 시 중단. 폴더/프로필 저장 구조는 손대지 않음.
+- 검증: GitHub Actions의 Node 검증·모의 입력 및 소스 테스트. **EXE는 보류, PR #5 미병합**. 하위 액션의 모든 옵션, 키 포커스, D200X 실물 입력 테스트는 남아 있음.
+
+## 최신 인수인계 추가 — 공식 매뉴얼·후기·Ulanzi 비교 재조사
+
+- 상세 자료 및 수정된 단계별 계획: [D200X-STREAMDECK-RESEARCH-REVIEW-20261114.md](D200X-STREAMDECK-RESEARCH-REVIEW-20261114.md). **계획/문헌 조사만 수행했고 기능 코드/EXE는 변경하지 않음.** 개발 시작 전 이 문서를 읽고 원본 7.6.1 GUI 관찰을 우선한다.
+- **다음은 단순한 다중 동작 실행기 구현이 아님.** 먼저 Multi/Multi Switch/Random/Key Logic 타입별 설정·중첩 제약·실행기/지연/취소·저장 이관 계약을 정한 다음, 원본 관찰 속성창을 기준으로 UI → 실행기를 연결한다.
+- 이번 조사에서 공식 원본 기능 차이를 추가 확인: Multi 안에 Multi 중첩 불허, 명시적 Delay(ms)와 가상 키 누름 시간/동작 간 간격 구별, 상태 1/2별 Multi Switch, Key Logic은 물리 키 눌림 의존, 폴더 자동 나가기/고정 키/Smart Profile, 페이지 최대 10개와 현 모델 128개 차이.
+- 미검증: 두 공식 문서의 기본 지연 허용 범위가 2~100ms 및 2~200ms로 불일치. 실제 7.6.1 한국어 앱 옵션 확인 전 임의 확정 금지. D200X Key Logic hold/double 구분 실측, 20% 밝기 시인성, Windows 관리자 앱 단축키 동작도 미검증.
+- Ulanzi SDK·외부 D200 구현은 HID/다이얼/프로필 구조 참고 자료일 뿐 UI 표준이 아니다. 기존 24개 액션 목록·승인 배치·사용자 설정은 보존하며 Draft PR #5 미병합, EXE 새 빌드 보류.
+
+## 최신 현황 — 2026-11-14 사용자 승인 1~6번 범위
+
+> **EXE/ZIP 신규 빌드는 사용자가 재요청할 때까지 보류.** 과거 문서의 '매 커밋 빌드' 지침보다 이 결정이 우선하며 `.github/workflows/streamdeck-clean-preview.yml`은 수동 실행 전용. 2026-11-14 이후 확장 코드는 사용자의 PC EXE에 설치되지 않았다.
+
+- **1~2 P0 핵심:** D200X 밝기(현재 알려진 장치 밝기 기반 ±1·2·5·10, 범위 제한), 확대/축소 및 Ctrl+0 초기화, 기존 음량·음소거·스크롤·실행 취소/다시 실행·창/데스크톱 전환 코드 적용. 기존 24개 액션 별도 보존.
+- **3 P0-B:** 버튼 누름과 노브 회전은 `deck-core` 공통 액션 계획 함수를 활용. 다만 완전한 동일 `type/settings` 저장 및 다중 실행 엔진은 **미완료**.
+- **4 P0-D:** C1 구형 페이지별 물리 할당 이관 버그 수정. 서로 충돌하는 레거시 페이지별 값은 `page` 범위로, 한 페이지에만 설정된 노브는 기존 `global`로 유지. GitHub [모의 입력 Actions #43585143293](https://github.com/SoonCheol/D200X-Deck/actions/runs/43585143293) 통과. 페이지 이동 한 번 후 무반응은 사용자 최신 EXE 실기 결과 별개.
+- **5 P1 일부 코드:** 화면 캡처, 클립보드 복사/붙여넣기/잘라내기, 창 최대화/복원·최소화, 모니터 간 창 이동, 탐색기 열기, 지정 파일/폴더 열기. **마이크 음소거, 출력 장치 선택 등 미구현.**
+- **6 P2 일부 코드와 안정화:** 브러시 크기·타임라인 좌/우 이동·앱별 Ctrl+± 확대 단축키(앱별 지원 여부 미확인), 설정 저장 실패 가시화, 밝기/5초 유지통신/USB 재연결 페이지 복원 모의 테스트. 다중 동작 지연/토글/순환, 앱별 정확한 매핑, 실기 10분/재연결/급회전 미완료.
+- 새로 추가한 액션은 `D200X 추가 액션`에 별도 등록. 테스트는 **Node.js 계획 함수·모의 장치 및 JavaScript 구문 검사**, Windows OS 실제 효과/기기 물리 조작과 구분한다. 최신 범위별 상세는 [D200X-BUILTIN-ACTIONS-EXPANSION.md](D200X-BUILTIN-ACTIONS-EXPANSION.md).
+- 원본 24개 보존, GitHub `codex/streamdeck-761-clean-editor`, Draft PR #5 유지·미병합. 새 실행기 빌드 지시가 없다면 자동 테스트만 수행.
+
+## 0. 새 세션 시작 시 즉시 해야 할 일
+
+1. 이 문서 및 `AGENTS.md`, `docs/D200X-STREAMDECK-ROADMAP.md`, `docs/D200X-BUILTIN-ACTIONS-EXPANSION.md`를 읽는다.
+2. GitHub 브랜치 HEAD와 최근 CI/Windows 빌드 기록을 **실제로 조회**한다. 2026-11-14 대조 시 HEAD는 `f951fb2d6b572aa2a13771e83026954a42fb7e4e`였으나 이후 변경 가능하다.
+3. 우선 P0 액션 확장과 **페이지 이동 후 물리 버튼/노브가 한 번만 작동하거나 할당이 풀리는 현상**을 회귀 과제로 추적한다.
+4. 기존 소스·기본 액션·사용자 저장 설정과 승인 UI를 보존하고, 요청한 기능만 국소 수정한다.
+5. 기능을 구현하면 관련 최소 테스트 → CI → Windows 프리뷰 Actions 빌드 결과 확인 → GitHub 문서와 커밋 기록 업데이트 → **Windows ZIP/EXE를 내려받을 수 있는 정확한 GitHub Actions 실행 링크 제공** 순서로 처리한다.
+6. 코드·CI 완료와 사용자의 **실물 D200X 검증**을 반드시 구분한다. PC 파일은 원격 GitHub 작업만으로 변경되었다고 표현하지 않는다.
+
+## 1. 제품·기기·작업 범위
+
+- **기준 UX/UI:** Elgato Stream Deck **7.6.1 (23033), 한국어 Windows**의 액션/속성창/컨트롤 흐름. 단, D200X 하드웨어 형상에 맞게 확장한다.
+- **대상:** Ulanzi D200X — 화면키 **13개 + 와이드키 1개(하드웨어 0–13)**, 별도 **물리 버튼 2개(15,16)**, **회전 노브 3개(17,18,19)**. '측면 버튼'보다 사용자에게 **물리 버튼**이라는 명칭을 사용할 것.
+- **전송 및 입력:** `app/lib/deck.js`, `app/lib/protocol.js`, `app/lib/page.js`, `app/streamdeck-editor/transport.cjs`; 새 편집기는 `app/streamdeck-editor/`에 독립 구현. 기존 Ulanzi UI/인스펙터 가져오지 않는다.
+- **사용자 용도:** 개인용 Windows 편집기. 플러그인 없이 자주 쓰는 Windows/노브 기본 기능 제공이 우선. Ulanzi 플러그인 우선 지원 아이디어는 **후속 과제**, Stream Deck 플러그인 변환기 또한 보류.
+- **프로젝트 경로 정책:** 새 로컬 프로젝트는 `E:\Codex` 하위. `E:\Codex\D200X-HomeAssistant`는 이전 HA 플러그인 관련 경로로 기록되어 있으므로 **현재 D200X-Deck의 실제 로컬 루트라고 추정하지 말 것**. 새 대화의 확장 계획서가 이를 로컬 프로젝트 경로라고 적은 부분은 작업 전 별도 확인 필요. 기존 C: 폴더 이동/삭제 임의 실행 금지.
+
+## 2. UI에서 절대로 훼손하지 말 것
+
+사용자는 편집기의 **현재 상단 레이아웃을 승인**했다.
+
+- 왼쪽 상단 14개 화면 키(와이드 키 포함), 물리 버튼 2개, 노브 3개 및 페이지 컨트롤을 스크롤 없이 유지. 왼쪽 하단은 선택한 액션의 속성창. 오른쪽은 상단 프로필/장치 및 기본 액션 검색·목록.
+- 원본 Stream Deck처럼 제목을 아이콘 위에 오버레이. **아래/가운데/위** 위치, 글꼴/크기/굵기/기울임/밑줄/색상, 가독성용 윤곽선 색/두께, 사용자 색상 팔레트 유지.
+- 아이콘 라이브러리, 이미지 파일 선택, 클립보드 붙여넣기, 간이 아이콘 제작, 실제 D200X 전송 PNG를 편집기 버튼에 표시하는 흐름 유지.
+- 페이지 추가(`+`), 삭제(`−`, 마지막 페이지 삭제 금지), 이전/다음, 페이지 표시기, 화면키·노브·물리 버튼 액션 등록 유지.
+- **전체 UI 재설계 금지.** 사용자의 구체적인 국소 변경 요청만 반영한다.
+- 검증되지 않은 가상 제스처, 특히 **길게 누르기**를 자동 생성해 UI에 넣지 않는다. D200X 실제 장치 이벤트 확인 전에는 누른 상태로 회전하기도 구현 완료로 표시하지 않는다.
+
+## 3. 하드웨어와 안정화 — 보존 최우선
+
+- D200X가 유휴 상태에서 Ulanzi 부팅 로고로 돌아가는 문제를 막기 위해 `transport.cjs`에 약 **5초 유휴 유지 명령**, 연결 실패 후 재연결, 마지막 이미지 복원, 동시 전송 억제를 구현했다. 사용자가 **'연결 안 끊김'**을 보고했다.
+- 장치가 보고한 밝기 값을 재전송하거나(알려진 경우), 밝기 임의 변경 없이 이미지 모드 관련 패킷을 보내며, 전송 도중 유지 패킷이 끼지 않도록 한다.
+- Electron 사용자 데이터 폴더에 `d200x-connection.log` 기록. USB 프로토콜/keepalive를 액션 개발 중 불필요하게 수정하지 않는다.
+- 공개 드라이버 기준 입력 인덱스 15·16(물리 버튼), 17·18·19(노브). 노브 상태 0=뗌, 1=누름, 2=좌회전, 3=우회전으로 코드에 매핑. **실제 사용자의 모든 제스처별 시험은 미완료.**
+- 실기 남은 확인: USB 장시간 유휴, 화면 깜빡임, 연결 해제/재연결 후 마지막 페이지 자동 복원, 물리 버튼 반복 눌림, 노브 빠른 연속 회전.
+
+## 4. 입력 및 액션 설정 — 실제 구현과 제약
+
+- 기존 24개 기본 키 액션은 보존. 목록에 노출되는 것과 실제 OS에서 실행되는 것은 다름. 실제로 완료된 액션만 완료라고 말한다.
+- 물리 버튼 2개: **누르기** 액션 지정. 노브 3개: **좌회전 / 우회전 / 누르기** 개별 할당, 또는 조절형, 또는 다이얼 스택.
+- 공통/페이지별 할당 선택. 노브의 조절형 대상은 기존 `page`, `volume`, `zoom`; 스택은 누름으로 대상 순환. 단순 이전/다음 액션을 노브로 직접 드래그하면 양방향 페이지 이동 조절형으로 등록하는 기존 호환 동작이 있다.
+- 기존 설정은 `localStorage`의 `d200x-streamdeck-editor-prototype-v1`를 읽고 `DeckCore.migrateState`로 정규화. **정식 원자적 profile.json 저장은 미완료**. 기존 키/설정 손실 없이 마이그레이션해야 한다.
+- **우선 해결할 사용자 버그:** 물리 버튼에 등록한 이전/다음 페이지가 한 번만 작동하거나 페이지가 바뀌며 해제된 듯 보임. 전역/페이지별 저장, down/up과 디바운스, 페이지 변환 중 이벤트 처리, 다른 페이지에서도 배정 유지 여부를 실제 입력 로그와 함께 진단한다. 이미 코드 수정은 있었으나 **실물 해결 확인 안 됨**.
+- 과거 일부 기본 액션: 이전/다음/지정 페이지와 기본 브라우저 HTTP(S) 사이트 열기 코드가 존재. Windows 음량 및 활성 앱 확대/축소는 고정 키 신호 전송 방식의 초기 코드 존재. 다른 24개 기본 액션은 UI가 먼저 만들어졌더라도 실행 엔진 구현과 구분.
+
+## 5. 마지막 사용자 요청: 플러그인 없는 기본 액션 확대
+
+핵심 원칙: **원본 24개를 삭제·대체하지 않고**, 별도 플러그인 없이 설치 즉시 쓰는 D200X 기본 기능을 추가한다. **일반 버튼과 노브는 동일한 action.type/settings 및 실행 엔진**을 사용하되 입력 방식(누름/회전)만 달리한다.
+
+계획서 원본: [D200X-BUILTIN-ACTIONS-EXPANSION.md](D200X-BUILTIN-ACTIONS-EXPANSION.md).
+
+### 후보 24개 기능 묶음(전부 독립 엔진을 의미하지 않음)
+
+1. 시스템 음량
+2. 음소거
+3. 확대·축소·원래 크기
+4. 세로/가로 스크롤
+5. 실행 취소/다시 실행
+6. 창 전환
+7. 가상 데스크톱 전환
+8. D200X 화면 밝기
+9. 기본 출력 장치 선택
+10. 마이크 음소거
+11. 창 최소화/최대화/복원
+12. 창을 다른 모니터로 이동
+13. 화면 캡처
+14. 복사/붙여넣기/잘라내기
+15. 브러시 크기
+16. 타임라인 이동
+17. 타임라인 확대·축소
+18. 탐색기 열기
+19. 폴더 바로가기
+20. 지정 파일 열기
+21. D200X 페이지 이동(**기존 엔진 재사용**)
+22. D200X 프로필 전환(**기존 엔진 재사용**)
+23. 다중 동작 중 지연(**기존 엔진 재사용**)
+24. 액션 토글/순환(**기존 기능 및 공통 엔진 재사용**)
+
+**첫 우선 8개:** 시스템 음량, 시스템 음소거, 확대·축소, 스크롤, 실행 취소/다시 실행, 창 전환, 가상 데스크톱 전환, D200X 화면 밝기.
+
+**노브 공통 조절 옵션:** 1·2·5·10 변화량, 방향 반전, 좌/우 미리보기, 기존 설정 호환. 코드/CI/Windows 빌드 반영 보고(커밋 `40d94409`, Actions run `43567585957`). 하지만 기능별 Windows 앱/D200X 실물 실행은 미검증. 새 구현 시 버튼에서도 같은 기능을 선택 가능한 스키마로 연결할 것.
+
+**주의:** Windows 화면 밝기와 **D200X 기기 밝기**는 다른 기능. D200X 밝기 조절은 기존 장치 keepalive/밝기 값과 충돌하지 않게 연결한다. 확대/축소는 활성 앱이 단축키를 받아야 하며 프로그램별로 다를 수 있다. 브러시/타임라인은 프로그램별 키맵을 설정하되 임의 셸 명령을 조합해 실행하지 말 것.
+
+### 개발 순서(문서 기준)
+
+- P0-A 노브 변화량·반전 계약의 완결성 및 저장/복원/경계값·연속 회전 검사 확인.
+- P0-B 버튼과 노브 공통 액션 모델/실행 엔진.
+- P0-C 8개 핵심 기능의 각 개별 동작과 결과 검증.
+- P0-D 페이지 이동 후 설정 소실/무반응 회귀 수정.
+- P1 출력 장치·마이크·창·파일·복사/붙여넣기.
+- P1/P2 브러시·타임라인·지연·토글 및 스택 확장.
+- 모두 구현 단계와 Windows/D200X 실기 검증 단계를 별도 체크한다.
+
+## 6. 2026-11-14 GitHub 점검 결과와 문서 정합성 경고
+
+대조한 실제 파일: `AGENTS.md`, `docs/D200X-STREAMDECK-ROADMAP.md`, `docs/D200X-BUILTIN-ACTIONS-EXPANSION.md`, `docs/ACTION-MODEL-V2.md`, `app/streamdeck-editor/deck-core.js`, `editor.js`, `main.cjs`, Windows preview workflow, PR #5 및 Actions 기록.
+
+- `40d94409bc8bbe5c8602bcee20bdf29c7f8a83c4` Windows 빌드 [43567585957](https://github.com/SoonCheol/D200X-Deck/actions/runs/43567585957): 성공, artifact `D200X-StreamDeck-Device-Sync-win-x64`.
+- 점검 시 더 최근 브랜치 HEAD `f951fb2d6b572aa2a13771e83026954a42fb7e4e`; CI [43567660377](https://github.com/SoonCheol/D200X-Deck/actions/runs/43567660377), Windows [43567656784](https://github.com/SoonCheol/D200X-Deck/actions/runs/43567656784) 성공 기록 확인. **새 세션에서 최신 HEAD 다시 조회.**
+- 계획서 `D200X-BUILTIN-ACTIONS-EXPANSION.md`의 **P0-A가 여전히 [ ]**임을 확인했다. 코드 초기 구현/CI 통과와 전체 검증 완료를 혼동하지 말고 체크 상태 및 테스트 근거를 대조 후 수정.
+- `AGENTS.md` 일부에는 당시 Windows/CICD 검증 전이라고 남아 있으나 최근 CI/Windows Actions 성공 기록이 있다. 문서 시점의 차이이며 실기 성공은 아니다.
+- `AGENTS.md`의 '현재 하드웨어와 액션 실행기는 연결되지 않음'과 구형 로드맵의 '노브는 여전히 미지원/페이지 회전만 지원' 같은 문장은 **과거 단계 기록**이다. 최신 실제 소스가 우선이며 기술 부채로 문서 정리.
+- `docs/ACTION-MODEL-V2.md`는 이전 Ulanzi Deck 계열(macOS/OBS/BLE 등)의 과거 설계 기록을 포함한다. **현재 독립 Windows Stream Deck 편집기의 구현 계약과 혼동 금지.** 기존 작업의 참고 자료로만 이용하며 파일 내용에 따라 맥용 실행기 등을 포팅하지 않는다.
+- 기존 24개가 모두 실제 실행되는 것으로 간주하지 않는다. 원본 Stream Deck 7.6.1 관찰 문서와 스크린샷을 UI 기준으로 삼되, 구현 상태는 현재 소스/CI/실기 테스트로만 판단.
+- PR #5는 검토용 Draft이며 **병합하지 않는다**.
+
+## 7. 필수 빌드 및 배포/다운로드 방식 — 이전 대화와 동일하게
+
+**사용자의 명시 요구: 앞으로 새로운 빌드가 나올 때마다 이전처럼 Windows 파일을 직접 받을 수 있는 GitHub Actions 실행 링크를 제공할 것.** 소스 ZIP이나 커밋 화면만 제공하고 EXE 배포를 생략하지 않는다.
+
+1. 브랜치 `codex/streamdeck-761-clean-editor`에 코드 푸시. 변경으로 시작하는 workflow는 `.github/workflows/streamdeck-clean-preview.yml`.
+2. CI와 **`D200X StreamDeck device-sync preview` Windows x64 빌드**를 확인. workflow는 `windows-latest`, Node 22, isolated Electron packaging, `electron-packager`로 `D200X-StreamDeck-Preview.exe`를 포함한 폴더를 만든다.
+3. 성공한 **해당 코드 커밋의** GitHub Actions 실행 페이지를 사용자에게 링크한다. 실행 페이지 아래 **Artifacts → `D200X-StreamDeck-Device-Sync-win-x64`**에서 ZIP을 받도록 안내한다. ZIP 압축을 풀고 내부 `D200X-StreamDeck-Preview.exe`를 실행하는 **폴더형 Windows 빌드**임을 알린다.
+4. **빌드 성공과 artifact 업로드까지 조회한 뒤** '다운로드 가능'이라고 보고한다. CI만 통과한 경우, 실행 중인 경우, 빌드 실패한 경우에는 'EXE 다운로드 완료'라고 쓰지 말고 실제 상태/실패 사유를 보고한다.
+5. 사용자가 직접 ZIP을 받을 수 있는 **GitHub Actions 웹 링크**가 현재 표준 제공 방식. 임의 `sandbox:` 링크를 만들거나 검증되지 않은 파일 직접 주소를 꾸미지 않는다.
+6. 링크와 함께 브랜치, 최신 커밋 SHA, CI/빌드 상태, 실기 미검증 사항을 간결하게 기재한다. 워크플로 artifact 보존은 현재 `retention-days: 14`이므로 만료 시 해당 시점의 새 빌드를 실행·확인해야 한다.
+7. 기존 `app/streamdeck-editor/transport.cjs`와 HID 재연결/유지통신, 승인 레이아웃을 훼손하지 않았는지 최소 회귀 테스트를 진행한다.
+8. **이전의 정상적인 파일 전달 흐름 그대로:** GitHub Actions 페이지 링크 → Artifacts에서 ZIP 다운로드 → 압축 해제 → 내부 EXE 실행. 별도 배포 서버, Releases, 설치 프로그램 배포 방식으로 임의 변경하지 않는다.
+
+**최근 확인된 링크(새 변경 전 기준):**
+- 2026-11-14 처음 확장 빌드: https://github.com/SoonCheol/D200X-Deck/actions/runs/43567585957
+- 점검 시 최신 빌드: https://github.com/SoonCheol/D200X-Deck/actions/runs/43567656784
+
+## 8. 소스 위치와 협업 절차
+
+| 경로 | 담당 |
+|---|---|
+| `app/streamdeck-editor/deck-core.js` | 기본 24개 액션, 페이지/노브/물리 버튼 모델, 이벤트에 따른 동작 계획 |
+| `app/streamdeck-editor/editor.js` | 승인 UI, 액션 목록·속성창·드래그 등록·하드웨어 이벤트 배포 |
+| `app/streamdeck-editor/style.css`, `index.html` | 기존 레이아웃, 물리 컨트롤 하단 슬롯 |
+| `app/streamdeck-editor/main.cjs`, `preload.cjs` | Electron과 Windows OS 실행, 제한된 IPC |
+| `app/streamdeck-editor/device-sync.js` | 화면 PNG 동기화·하드웨어 입력과 편집기 연결 |
+| `app/streamdeck-editor/transport.cjs` | HID 유지통신·연결 복원·페이지 전송 — **보호** |
+| `app/lib/deck.js` | 물리 키/노브 HID 이벤트 복호화 |
+| `test/streamdeck-core.test.cjs`, `test/streamdeck-transport.test.cjs` | 최소 회귀 검증 |
+| `docs/D200X-BUILTIN-ACTIONS-EXPANSION.md` | 추가 24개 후보 및 8개 우선 구현 단계 |
+| `docs/D200X-STREAMDECK-ROADMAP.md` | 제품 전체 개발 진행표 |
+| `AGENTS.md` | Codex 작업 시작 시 우선 적용할 규칙 |
+
+원본 Stream Deck 조사 자료는 `research/streamdeck/7.6.1/desktop/09-24-action-inspectors-observed.md`와 `research/streamdeck/7.6.1/desktop/screenshots/gui-evidence-761/`에 보존되어 있다. 이미 확보한 자료를 재분석하느라 Codex 한도를 낭비하지 않는다.
+
+개발은 작고 독립적인 작업 단위로 진행한다. GitHub에 커밋/문서 기록, 필요한 테스트와 워크플로 확인, PR #5 업데이트를 남겨 ChatGPT·Codex 어디서든 이어받을 수 있게 한다. 사용자 승인 없이 메인 브랜치 병합, 기존 중요 파일 삭제, 원본 Stream Deck 프로필 수정, 대규모 UI 교체, 플러그인 기능 구현 금지.
+
+## 9. 새 대화창/Codex에 전달할 시작 문구
+
+> **D200X 편집기 개발을 이어간다.** 먼저 `docs/D200X-COMPLETE-HANDOFF-20261114.md`, `AGENTS.md`, `docs/D200X-STREAMDECK-ROADMAP.md`, `docs/D200X-BUILTIN-ACTIONS-EXPANSION.md`를 실제로 읽고 현재 브랜치 HEAD·최근 CI/Windows 빌드를 확인한다. 기존 24개 보존, P0 8개 기능과 버튼·노브 공통 액션 실행 엔진 확장, 물리 버튼 페이지 이동 1회 후 무반응 문제를 우선한다. 승인 UI와 HID 5초 유지통신은 유지한다. 길게 누르기는 실기 검증 없이 구현하지 않는다. 모든 코드/계획은 현재 GitHub 브랜치와 PR #5에 기록하고 임의 병합하지 않는다. **매번 실제 Windows Actions 빌드 및 artifact 업로드 성공을 확인한 뒤 이전과 동일한 다운로드 안내(실행 링크 → Artifacts ZIP → 압축 해제 → EXE 실행)를 제공한다.** 실제 D200X 동작은 사용자 실기 검증 전까지 완료라고 주장하지 않는다.
+
+## 10. Codex 독립 소스 검증 추가 — 2026-11-14
+
+**새로 인수인계할 검증 결과:** [D200X-CODEX-INDEPENDENT-REVIEW-20261114.md](D200X-CODEX-INDEPENDENT-REVIEW-20261114.md).
+
+- Codex 소스 검사 8개 항목 중 변화량·반전·미리보기·코드 저장 경로·페이지 이동 계산·Windows 입력 횟수는 **구현 코드 확인**, 실제 Windows/D200X 동작은 **미검증**. 기존 24개 액션은 카탈로그와 일부 실행 경로만 구현됨.
+- **높음(C1, 새로 보고된 구형 설정 호환 버그):** `controls` 없는 구 상태에서 페이지별 물리 버튼·노브 할당을 이관해도 `scopes=global`을 유지해 일부 페이지 할당이 무시될 수 있음. Codex가 메모리상 재현했다고 보고. 이전 페이지 전환 디바운스/초기화 수정은 **이미 코드 완료**라는 기존 정정을 취소하지 말 것.
+- **중간(C2):** `localStorage` 저장 실패를 빈 `catch`로 무시하여 경고 없음.
+- **실기 미확인 위험(R1):** 빠른 노브 회전에서 비동기 PowerShell 호출 순서·지연/누락 가능성; 아직 재현된 버그 아님.
+- 위 항목은 **검토·기록만**, 이번 등록에서 소스 수정이나 새 Windows EXE 빌드 수행하지 않음. 후속 Codex는 이 결과를 확인하고 사용자 지시 범위 내에서 국소 수정, 최소 테스트, Actions/실기 상태 구분해 보고.
+
+## 11. GitHub Actions Windows 입력 모의 실행 검증 — 2026-11-14
+
+**실제 실행 로그 기록:** [D200X-CLI-TEST-REPORT.md](D200X-CLI-TEST-REPORT.md) · [Actions #43577138990](https://github.com/SoonCheol/D200X-Deck/actions/runs/43577138990).
+
+- Windows GitHub-hosted 실행기에서 기존 18개 + 신규 7개, **총 25개 테스트 직접 실행: 통과 24, 실패 1**.
+- 실패는 기존 Codex가 분석한 **C1 구형 페이지별 물리 버튼 할당 이관 버그**의 **실행 재현**이다. 2페이지 `previous` 기대 인덱스 0, 실제 1. **이전 페이지 버튼 입력/디바운스 수정이 미완료라는 뜻 아님.**
+- 성공 항목: 물리 버튼 2개 모의 누름·뗌, 노브 3개 모의 좌·우·누름·뗌, 회전 1/2/5/10·반전·경계, 스택, 신규 명시적 페이지별 저장 설정 왕복, 24개 액션 ID 존재와 미지원 실행 구분.
+- 테스트 실패 상태를 숨기지 않았고 GitHub Actions의 `D200X-input-verification-results` artifact에 로그가 있다.
+- 이 결과는 **실행된 Node.js 모델/플래너 테스트**이며 Electron UI·실제 Windows 입력 효과·실물 D200X 시험이 아님. C2/R1은 실기 미검증. 앱 기능 소스 수정·기존 PC 로컬 브랜치 변경·PR 병합 없이 테스트/워크플로/문서만 추가.
+
+
+## 12. 실행 중인 편집기의 실제 GUI 검증 — 2026-11-14
+
+상세 기록: [D200X-CLI-TEST-REPORT.md의 실제 GUI 검증 절](D200X-CLI-TEST-REPORT.md#실제-실행-중인-windows-편집기-gui-검증--2026-11-14). Computer Use로 이미 실행 중이던 `E:\imsi\D200X-StreamDeck-Device-Sync-win-x64\D200X-StreamDeck-Preview.exe` 창을 조작했다. 이 절은 앞의 GitHub Actions Node 모의 입력과 **별도 증거**다.
+
+| 기능 | 실제 GUI 조작 | 기대 | 관찰 | 판정 | 증거 |
+|---|---|---|---|---|---|
+| 페이지 컨트롤 반복 이동 | 1→2→3→2→1 클릭 | 매번 이동 | 숫자·버튼 구성 매번 갱신 | **통과** | Computer Use 화면 캡처 관찰, 저장소 첨부 없음 |
+| 페이지 액션 물리 입력 반복 | 물리 버튼 2에 이전 페이지를 임시 지정, 다른 페이지 표시 확인 후 원래 다음 페이지 복원; 화면 키 클릭 확인 | 실제 입력마다 이동 | 할당 표시는 유지. 화면 키 클릭은 편집 선택. 물리 입력 반복은 수행하지 않음 | **미실시** | 할당 화면 관찰, HID 입력 증거 없음 |
+| 버튼 지정·속성 | 물리 버튼 페이지 액션 교체·복원; 멀티미디어 음소거→음량 키우기, 버튼 선택 전환 후 확인·복원 | 선택 후에도 값 유지 | 값 유지 확인 | **통과** | Computer Use 화면 캡처 관찰, 저장소 첨부 없음 |
+| 노브 좌·우 별도 액션 지정 | 기존 좌·우 빈 칸 확인, 새 할당은 하지 않음 | 서로 다른 액션 표시 | 결과 관찰 없음 | **미실시** | 초기 빈 칸 관찰, 할당 증거 없음 |
+| 노브 단계량·반전 | 조절형으로 잠시 전환해 1·2·5·10 및 반전 선택·복원 | 단계량/부호 미리보기 변화 | 네 값과 좌·우 부호 변화 확인 | **통과** (GUI) | Computer Use 화면 캡처 관찰, 저장소 첨부 없음 |
+| 페이지 간 설정 유지 | 임시 버튼 할당, 노브 2·반전 켜짐 상태로 1→2→1 후 다시 선택·복원 | 공통 설정 유지 | 두 설정의 표시 유지 | **통과** (GUI) | Computer Use 화면 캡처 관찰, 저장소 첨부 없음 |
+| 기존 24개 목록 | 액션 목록을 위·아래 스크롤 | 24개 표시 | 범주별 2+4+4+8+6=24개 확인 | **통과** (목록만) | Computer Use 화면 캡처 관찰, 저장소 첨부 없음 |
+| 재실행 복원 | 실행 중 앱의 종료·재실행 생략 | 재실행 뒤 값 복원 | 관찰 없음 | **미실시** | 없음 |
+
+**GUI 집계: 통과 5 / 실패 0 / 미실시 3.** 화면에서 프로그램 오류는 관찰되지 않았다. 물리 버튼의 '한 번만 작동' 회귀, 실제 Windows 음량·확대/축소 효과, D200X 실물 입력·화면은 여전히 **미검증**이다. 구형 페이지별 할당 마이그레이션 C1은 앞 절의 Node 실행 실패로 확인된 별개 문제이며 이번 GUI에서 실패를 새로 재현했다고 쓰지 않는다. 변경한 버튼·노브 값과 현재 페이지·선택 버튼은 테스트 전 상태로 복원했다. 새 빌드·소스 변경·PR 병합은 하지 않았다.
+
+
+## 13. 새 채팅 인수인계 재확인 — 2026-11-14 (GitHub 실조회)
+
+- 연결된 GitHub PR #5 메타데이터에서 작업 브랜치 `codex/streamdeck-761-clean-editor`의 확인 시점 HEAD는 `a1916abbc781e68b3b31c3e71d0d9f1c99c27744`, Draft/open, 미병합이었다.
+- HEAD 커밋 제목: `fix(ui): deleting inherited pinned key explicitly unpins it rather than silently doing nothing`. 변경 파일은 `app/streamdeck-editor/editor.js`. **마지막 확인된 작업은 상속 고정 키 삭제 시 무반응 처리 개선**이다. GitHub Actions CI run #43601287933 (run_number 312)은 해당 SHA에 대해 `completed/success`를 반환했다.
+- `AGENTS.md`, 본 인수인계서, `deck-core.js`, `editor.js`, 로드맵, 기본 액션 확장 문서를 조회했다. 원본 24개와 D200X 확장 액션 목록, 프로필·폴더·고정 키 관련 코드가 존재하지만 Windows GUI/D200X 실기 검증과 전체 기능 완성을 뜻하지 않는다.
+- **정확한 다음 중단점:** 마지막 고정 키 삭제 수정의 회귀 테스트 및 실제 GUI 확인, 고정 액션 원본/상속 페이지 간 실시간 편집 공유와 우클릭 세부 동작 일치 여부가 남는다. 기존 페이지 이동 코드를 초기 미구현으로 취급하지 말며, 실물 반복 입력 결과는 별도 대기한다.
+- **조회 한계:** GitHub 저장소 전체에 대한 최근 커밋 검색은 다른 브랜치까지 섞였다. 연결된 도구에서 대상 HEAD의 부모 커밋 목록이 제공되지 않아 **대상 브랜치의 직전 4개 커밋 순서와 각각의 CI는 이번 세션에서 검증하지 못했다**. 임의로 5개를 작성하지 않는다.
+- 이번 작업은 상태 확인 및 본 문서 업데이트에만 한정. 기능 코드 수정·새 Windows EXE 빌드·PR 병합·D200X 실기 테스트 없음. 다음 작업도 핵심 단위 1개만 수정→검증→인수인계 갱신→푸시 후 멈춘다.
+
+
+## 오른쪽 액션 카탈로그 UX 정리 — 2026-11-15 (코드 단계)
+
+- **사용자 지시:** 기존 문자 아이콘을 실제 아이콘으로 교체하고 라인형·컬러형·버튼형 테마, 액션별 이미지 설정, 기본 액션 용도별 재분류, 단축키 안내를 추가.
+- **실제 소스:** `app/streamdeck-editor/action-panel-icons.js`에 외부 네트워크 의존 없는 42개 고유 SVG 아이콘과 7개 용도 그룹, 3가지 테마(라인/컬러/버튼) 정의. `editor.js`는 원래 42개 액션 ID/레이블/동작 계약을 유지하면서 우측 목록만 재배열하고, 각 행의 별도 메뉴(이미지 선택/기본 아이콘) 및 전체 테마/개별 초기화 UI를 제공. `style.css`, `index.html`도 해당 패널 범위에서 연결.
+- **저장 안전:** 액션 목록의 테마/개별 이미지는 별도 `localStorage` 키 `d200x-action-panel-appearance-v1`에 보관. 기존 프로필/버튼/노브/화면 키 아이콘 및 D200X 전송 PNG 저장 형식은 변경하지 않음. 개별 이미지 파일은 PNG/JPEG/WebP/GIF 최대 140KB(선택 화면 기준)이고, SVG 외부 파일은 업로드하지 않음.
+- **단축키 안내:** Windows 고정 단축키와 앱별 단축키는 오른쪽 목록에 텍스트로만 표시. 실행 엔진/기존 설정은 변경하지 않고, 앱별 키맵과 실제 Windows/D200X 동작은 추후 실기 확인.
+- **검증 범위:** 기존 카탈로그 42개 ID 및 새 그룹 42개가 일대일 대응(누락·중복 0), SVG 42개 ID 중복 0으로 GitHub 소스 수준 대조. 실제 GUI 시각·클릭·업로드 저장/복원 및 실물 D200X 시험은 **미검증**. 새 Windows EXE/ZIP은 사용자 별도 요청 전까지 빌드하지 않음. PR #5 병합 금지.
+
+
+## 2026-11-15 자동 Windows EXE 빌드 정책 (최신 사용자 승인)
+
+- 사용자 지시로 `.github/workflows/streamdeck-clean-preview.yml`의 기존 수동 전용 `workflow_dispatch`를 유지하면서, `codex/streamdeck-761-clean-editor`의 편집기 코드(`app/streamdeck-editor/**`, `app/lib/**`), 앱 의존성(`app/package.json`, `app/package-lock.json`) 또는 워크플로 파일 변경 시 `push` 자동 실행을 추가.
+- 문서/로드맵만 변경한 커밋은 Windows EXE 자동 패키징에서 제외. `main`에 PR #5를 병합하지 않음.
+- 빌드 산출물/만료/다운로드: 기존 `D200X-StreamDeck-Device-Sync-win-x64` ZIP, 14일 보존, GitHub Actions 성공 실행 페이지의 Artifacts에서 다운로드. EXE 빌드와 실제 Windows GUI 및 실물 D200X 기능 검증을 혼동 금지.
+- 과거의 “EXE는 요청 시에만 수동 실행” 지침보다 위 최신 승인 정책 우선.
+
+
+## 2026-11-15 기본 액션 미완성 옵션 보완 — Windows 자동 빌드 확인 (최신)
+
+- **사용자 명시 요청:** 앞서 구분한 미완성 기본 액션의 세부 옵션을 구현. `Virtual Stream Deck`은 **항목만 표시하고 비활성화** 유지. 오직 `codex/streamdeck-761-clean-editor` 개발 브랜치에서 작업, PR #5 및 `main` 미병합.
+- **실제 변경 사항:** `editor.js`, `deck-core.js`, `main.cjs`, `preload.cjs`, `device-sync.js`, `test/streamdeck-core.test.cjs` 등.
+  1. Soundboard: 기존 재생·정지·반복에 더해 페이드 인/아웃 및 1~5초 지속시간, Windows 브라우저 `HTMLMediaElement.setSinkId` 지원 시 특정 출력 장치로 재생. 출력 장치는 `navigator.mediaDevices.enumerateDevices`로 조회. 지원하지 않거나 접근 불가한 출력 장치에는 오류 표시. **실제 장치 라우팅/페이드 청감 시험 없음.**
+  2. Timer: 기존 시작·취소·완료 음 외에 남은 시간 키 제목 표시(편집기 약 1초 단위, 장치 화면 동기화는 약 5초 주기). **실물 표시 갱신 성능은 미검증.**
+  3. Open Application: `hold=close/force`에 대한 약 650ms 길게 누르기 판정과 기존 경로와 일치하는 프로세스만 종료하는 브리지 연결. 실행 중 창 앞으로 가져오기는 선택한 `.exe` 경로의 창이 확인되면 Win32 전경 전환 시도, 없으면 정상 실행. 입력 중 페이지·프로필·키 재할당이 바뀌면 과거 종료 동작 차단. **길게 누르기 시간 및 Windows 포커스 규칙은 원본 관찰/실기 미확정.**
+  4. Website: 기본 브라우저/GET 외에 사용자가 선택한 `.exe` 브라우저에 HTTP(S) URL 전달. 커스텀 프로토콜·다른 URI는 아직 지원하지 않음.
+  5. Text: UTF-16 Unicode 직접 입력 이외에 지정 텍스트를 Windows 클립보드에 기록하고 Ctrl+V, 필요 시 Enter 실행. **기존 클립보드 내용은 의도적으로 변경되며 자동 복구하지 않음.**
+  6. Hotkey: Windows 기본 복사·붙여넣기·저장·창 전환 등 프리셋을 추가. 기존 직접 지정 키 유지. 앱별 동적 명령 검색/원본 7.6.1 전체 프리셋 구성은 재현하지 않음.
+  7. Multi Action / Multi Action Switch / Random / Key Logic: 지원하는 단일 액션의 하위 실행 종류 확대(오디오, 닫기, 타이머, 단축키 전환, Windows 미디어·시스템 등), 취소 시 지연 중단, 액션 간 간격 2~200ms 설정. 원본 공식 매뉴얼에 따라 복합 액션 자체의 중첩은 계속 금지. 타이머 하위 액션은 별도 알림을 예약하며 주 버튼의 타이머 카운트다운과 동일한 화면 기능으로 취급하지 않음. Key Logic의 double/hold 입력 실기 판정 미확정.
+  8. 페이지 표시기는 화면 정보 표시 전용. `Virtual Stream Deck`은 드래그/클릭 배치 불가, 흐리게 표시, 웹서버 기반 구현도 추후 별도 요청 시 검토.
+- **저장 안전:** 기존 24개 액션 ID, 프로필 저장 모델, 버튼·노브 할당, 개별 아이콘 우선 순위 보존. 사운드 파일 및 사용자 설정 파일 직접 수정·삭제 없음.
+- **검증:** 처음 Windows 프리뷰/입력 검증이 실패한 원인은 `planAction()` 확장 결과를 반영하지 않은 기존 2개 단위 테스트의 정확 일치 예상값. 실제 로그 확인 후 테스트를 새 계약으로 갱신. 최종 앱 코드 커밋 **`821a320791bb8d2869a11e7c834f716c64622d77`**에서:
+  - CI **#43622207328: success**
+  - D200X input execution verification **#43622202465: success**
+  - Windows preview EXE **#43622202463: success**, Artifact **`D200X-StreamDeck-Device-Sync-win-x64`**, artifact ID **14124427716**, ZIP 크기 163,906,311 bytes, 보존 14일. [빌드 실행 페이지](https://github.com/SoonCheol/D200X-Deck/actions/runs/43622202463).
+- **판정 주의:** 위 success는 Node/Windows CI 및 EXE 패키징 증거다. 사용자의 실제 Windows GUI, 물리 D200X, 하드웨어 화면 갱신, 사용 중 오디오 출력/브라우저/전경 제어의 **실기 성공 증거는 없다**. 이전 절의 오래된 '미구현/빌드 보류' 설명은 시간순 기록이며 이 절의 새로운 코드 상태로 최신화하되 완료/실기 검증으로 오인하지 말 것. 미지원 커스텀 URI, 원본 앱별 프리셋 전체, 선택형 오디오 장치의 실제 호환성은 별도 보완 대상.
+
+
+## 2026-11-15 Stream Deck 아이콘팩 가져오기 및 라이브러리 등록 (최신)
+
+- **요청:** 사용자가 첨부한 `com.cliftonharvey.simplegraytones.streamDeckIconPack` 분석 후 D200X 편집기의 기존 `Icon Library - Stream Deck`에 등록 및 범용 팩 가져오기 연결. `main`, PR #5는 수정·병합하지 않음.
+- **원본 팩 실제 검사:** ZIP 안의 `com.cliftonharvey.simplegraytones.sdIconPack/manifest.json`, `icons.json`, `icons/*.png`, `license.txt` 열람. 이름 `Simple Gray Tones`, 버전 `1.0.1`, 제작자 `Rob Clifton-Harvey`, MIT 라이선스, 144×144 RGB 단색 PNG 다섯 개(Black #000000, Gray Dark #232323, Gray #444444, Gray Light #808080, White #FFFFFF). 원본은 저장소에 배포하지 않고 확인된 색상 픽셀을 캔버스에서 재생성한 작은 기본 샘플을 `sample-icon-pack.js`에 포함.
+- **구현:** `icon-pack.cjs`에서 JSZip 기반 `.streamDeckIconPack` ZIP 읽기, `manifest.json`/`icons.json` 탐색, 이미지 유형·매직 바이트·경로 검증, 압축·전체 해제 크기·개수 제한. Electron `main.cjs`의 사용자 클릭 기반 파일 선택과 `userData/streamdeck-icon-packs-v1.json` 등록(중복 팩 ID 재등록, 임시 파일+rename), `preload.cjs` 브리지. 기존 `index.html` 아이콘 라이브러리에 '＋ 팩 가져오기' 버튼; `editor.js`에서 설치 팩 검색·목록·아이콘 적용(196px PNG 변환 후 기존 개별 버튼 `icon.kind=file` 저장). `style.css`는 라이브러리 내부 최소 스타일만 수정. 프로필/페이지/액션 실행 계약은 변경하지 않음.
+- **검증:** `test/streamdeck-icon-pack.test.cjs`에서 ZIP 읽기, 아이콘 데이터 추출, 경로 탈출 차단, 등록·재등록·재실행 후 목록 조회를 단위 검증. Windows workflow에서 `node --check` 및 해당 테스트 실행. 최신 앱 소스 SHA **`5a6fec5aeb064e28725276f18b24531116c0a387`**, CI #43627356979 **success**, Windows preview #43627351604 **success**, ZIP Artifact **`D200X-StreamDeck-Device-Sync-win-x64`** (ID 14126951152, 163909908 bytes, 14일 보존). [빌드 실행 페이지](https://github.com/SoonCheol/D200X-Deck/actions/runs/43627351604).
+- **한계:** Windows GUI에서 실제 팩 파일 선택·목록 표시·버튼 적용 및 물리 D200X에 출력되는 이미지는 아직 사용자 실기 검증 전. 대용량 SVG, 서명 검증, 팩 삭제·수정·제작 기능은 이번 범위 밖. ZIP 가져오기 지원은 현재 PNG/JPEG/WebP/GIF 파일 기반 팩, 제한 20MB·400 아이콘·32팩. 사용자가 받은 다른 팩 구조와 차이는 실제 파일별 확인 필요.
+
+## 2026-11-15 아이콘 라이브러리 펼침/접힘 버그 수정
+
+- 사용자 Windows GUI 실기 제보: 아이콘 그룹이 모두 펼쳐져 보이고 제목을 눌러도 접히지 않음.
+- 원인: `editor.js`의 `grid.hidden` 토글은 존재했으나 `style.css`의 `.icon-grid{display:grid}`가 `hidden` 표시 속성을 CSS 우선순위로 덮어씀.
+- 최소 수정: `.icon-grid[hidden]{display:none}` 추가. 액션·버튼 이미지·팩 데이터·프로필 저장 코드는 변경하지 않음.
+- 수정 SHA: `ecc6ac0e0d9856acdbbe9720d3f662cef89981a2` (브랜치 `codex/streamdeck-761-clean-editor`). CSS 동작 원인 확인 및 소스 수정 완료; 사용자 Windows GUI에서 실제 수정 확인은 새 EXE 테스트 대기.
+
+
+## 2026-11-15 아이콘팩 제거 기능 및 기본 팩 보호
+
+- 사용자 추가 요청: 외부에서 설치한 아이콘팩은 라이브러리에서 제거 가능해야 하며 기본 내장 아이콘팩은 제거 불가.
+- 변경: `icon-pack.cjs`에 `removePack()` 추가. 기본 샘플 ID `bundled-simple-gray-tones-1.0.1` 및 `source='bundled'` 삭제 거부. 등록 파일(`userData/streamdeck-icon-packs-v1.json`)에서 선택된 팩만 제거하며 버튼/프로필 데이터에는 영향 없음.
+- `main.cjs`/`preload.cjs`에 삭제 IPC 연결. `editor.js`의 사용자가 설치한 팩 제목에만 **삭제** 버튼 표시, 확인 대화상자 거쳐 제거 및 목록 갱신. 기본 샘플과 임시 기본 그룹에는 삭제 버튼 없음. 최소 CSS 적용.
+- 단위 테스트: 여러 팩 중 선택 제거·기본팩 거부·중복 제거 확인을 `test/streamdeck-icon-pack.test.cjs`에 추가.
+- 최신 기능 커밋: `180cca0266c0777eec5b0511f361474b113c2609` (Windows GUI 실기 확인 전). **이전 사용자의 작은 팩도 불러오지 못한다는 문제는 별개의 미해결 건이며, 제거 기능 구현으로 해결됐다고 주장하지 않는다.**
+
+
+## 2026-11-15 — Fluent UI Filled/Regular 기본 아이콘팩으로 전면 교체 (최신)
+
+- **사용자 지시:** Fluent UI Filled와 Regular **두 팩만 기본 아이콘으로 내장**하고 기존 임시 Elgato 문자 아이콘 그룹 및 Simple Gray Tones 내장 샘플을 모두 제거. 사용자가 직접 설치한 팩은 별도 저장 데이터로 남겨 두며, 임의 삭제하지 않음.
+- **원본:** `czottmann/streamdeck-iconpack-fluentui-system-icons` commit **`77ab5fdef0cb76f4a2bf8bfa84a61af9b12c0006`**에 고정. `fluentui-system-icons-filled.sdIconPack`과 `fluentui-system-icons-regular.sdIconPack` 각각 `icons.json` 기준 **1,914개**, 총 **3,828개 PNG**. MIT 라이선스는 Carlo Zottmann의 `LICENSE.md` 및 Microsoft의 MIT 저작권 고지.
+- **배포 구조:** GitHub 소스에는 대용량 PNG 복사본을 직접 커밋하지 않는다. `app/streamdeck-editor/build-fluent-icons.cjs`가 GitHub Actions Windows EXE 빌드 중 고정 업스트림 소스 ZIP에서 `manifest.json`, `icons.json`, 각 PNG를 검증·추출해 `builtin-iconpacks.json` 생성 및 `fluentui-LICENSE.md` 저장. 원본 Microsoft MIT 라이선스는 `fluentui-Microsoft-LICENSE.md`로 포함. **완성된 EXE 패키지에는 오프라인 이미지 전체가 내장**된다. 빌드 시에는 GitHub 다운로드가 필요하지만 앱 실행·아이콘 사용에는 네트워크 불필요.
+- **코드:** `main.cjs`는 패키지의 내장 JSON 두 팩을 로드해 기존 사용자가 설치한 아이콘팩 목록과 합쳐 반환. `editor.js`의 모든 `ICON_SETS` 가짜 그룹 삭제, `index.html`의 `sample-icon-pack.js` 참조 삭제, 샘플 JS 파일 자체 삭제. 기본 팩에 삭제 버튼 없음. 목록은 84개씩 점진 표시(더 보기)·전체 검색 가능, 펼침 상태는 더 보기/검색 동안 유지. `style.css`에는 최소한의 버튼 스타일.
+- **기존 사용자 요구 통합:** 사용자가 설치한 팩은 삭제 전에 적용 버튼 수와 **기본 아이콘으로 초기화** 경고/확인. 아이콘을 적용할 때 `packId`를 저장하고 `deck-core.js`의 state/profile 마이그레이션 중 보존. 제거 후 현재/비활성 프로필·폴더·고정 키·노브 등 상태 안에서 해당 `packId`가 붙은 아이콘만 삭제하여 각 액션의 기본 아트워크/기호를 보여 줌. **과거 버전에서 적용한 출처 정보가 없는 PNG는 정확한 팩 추적 불가**, 자동 삭제하지 않음. 사용자의 프로필·액션·등록된 사용자 팩 파일 자체는 무차별 삭제하지 않음.
+- **검증 주의:** GitHub Actions CI 및 Windows EXE 패키징 결과와 사용자 Windows GUI 및 D200X 실기 확인을 구분할 것. 기본 팩 이미지의 적용·검색·삭제 경고/복구는 사용자 실제 PC에서 추가 확인 필요. 기존 임포트의 400개/20MB 제한은 별도 미해결이며 **내장 팩은 별도 경로로 로드**한다.
+
+
+### Fluent UI 기본 팩 최신 검증 및 Windows 배포 (2026-11-15)
+
+- **최신 실제 코드 SHA:** `43363a584cef33ba83849418ede3dd7815c5c694`; 이 커밋에는 두 기본 팩 이외의 임시 문자 그룹·Simple Gray Tones 샘플 삭제, 기본 팩 삭제 보호, 아이콘 검색/84개씩 펼치기, 사용자 팩 삭제 전 경고/아이콘 출처 복구 로직이 포함됨.
+- **빌드 오류 수정:** 초기 패키징 시 `Invoke-WebRequest` 뒤 `$LASTEXITCODE`가 미설정(`$null`)인데 `if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }`로 조기 종료하여 데이터 생성 단계를 건너뛰는 문제를 수정. 프리뷰 조립 단계에서 JSON/라이선스 강제 복사·검사 추가. 패키지 내부는 Windows 경로를 사용하는 `app.asar`이며, ASAR에 `\streamdeck-editor\builtin-iconpacks.json` 항목이 존재하는지 확인함.
+- **실제 생성 로그:** Filled **1914**, Regular **1914** 아이콘. 내장 JSON **10,326,954 bytes (9.85 MiB)**, 생성/스테이징 크기 동일. ASAR에 `builtin-iconpacks.json` 경로 존재 검증 성공. 고정 입력 SHA-256: `2cbb28bed64c711ae41968c682582933227e897fef11b720ea304ac29a4723a5`.
+- **최종 Actions:** CI [#43633125464](https://github.com/SoonCheol/D200X-Deck/actions/runs/43633125464) **success**. Windows EXE [#43633121041](https://github.com/SoonCheol/D200X-Deck/actions/runs/43633121041) **success**. Artifact `D200X-StreamDeck-Device-Sync-win-x64`, ID **14128044954**, ZIP 크기 **170,312,753 bytes** (14일 보존). 이전 버전보다 용량이 커져 실제 이미지 번들이 들어갔다는 정황과 ASAR 항목 검사 일치.
+- **검증 범위:** Node CI, Windows 패키징 및 ASAR 내 데이터 경로·개수 확인만 완료. Windows GUI에서 3,828개 라이브러리 표시, 아이콘 선택, 삭제 확인/기본 복구, 실물 D200X 화면은 사용자 실기 확인 전. 사용자가 이미 가져온 팩과 기존 프로필은 자동 삭제하지 않음. 앞서 보고된 외부 팩 가져오기 실패는 이 교체만으로 해결됐다고 간주하지 말 것.
+
+
+## 2026-11-15 — 모든 파일/폴더 불러오기에서 마지막 사용 폴더 기억
+
+- **사용자 실기 확인:** 최근 EXE의 외부 아이콘팩 등록은 정상 동작함. 추가 요청: 가져오기/탐색기 창에서 마지막으로 사용한 폴더가 다음 불러오기 시 초기 폴더여야 하며, 모든 불러오기 기능에 동일하게 적용.
+- **구현:** `main.cjs`에 공용 `openRememberedPicker()`를 도입. 사용자 선택이 완료될 때에만 `userData/last-picker-folder.json`에 마지막 폴더를 저장(원자적 임시 파일 + rename), 다음 `showOpenDialog`의 `defaultPath`에 사용. 저장 폴더가 없어졌으면 Windows 기본값으로 열고, 취소 시 위치는 보존. 프로필/액션 데이터와 별도 파일.
+- 연결 범위: 아이콘팩 가져오기, 기존 `choosePath` 파일·폴더·프로그램 선택, 액션목록 아이콘 변경, 버튼 커스텀 아이콘, 상태별 아이콘, 전체 프로필·설정 JSON 가져오기. 이미지는 140KB/5MB 제한 유지, 프로필 JSON 20MB 제한 및 기존 복원 확인 절차 유지. 브라우저 폴백의 순수 HTML `input[type=file]`은 브라우저 보안 제한상 시작 폴더를 임의 설정할 수 없어 EXE에서만 공용 네이티브 대화상자를 사용한다.
+- `preload.cjs`에서 검증된 `chooseImportFile(kind)`만 노출. 파일 선택은 사용자 동작에만 반응, 경로는 renderer에 전달하지 않음(데이터 URI / JSON 텍스트 사용). 취소해도 기존 입력/설정은 변경하지 않음.
+- **실기 미검증:** 실제 Windows 열기 대화상자가 마지막 폴더를 정확히 복원하는지 및 모든 선택기 정상 사용은 새 EXE 실기 확인 필요. Windows CI/자동 빌드 결과를 확인 후 별도 기록.
+
+
+## 2026-11-15 — 첫 플러그인 Home Assistant 토글 (초기 코드 단계)
+
+- **사용자 지시:** 기본 액션 개발에서 플러그인 개발로 우선순위 전환. Home Assistant 연결을 첫 번째 플러그인으로 구현한다. 기존 Stream Deck 24개, D200X 확장 18개, 프로필/버튼/노브/화면키 설정과 승인 레이아웃 보존. 개발 브랜치 `codex/streamdeck-761-clean-editor`만 사용, PR #5 병합 금지.
+- **구조:** `app/streamdeck-editor/ha-client.cjs`를 별도 REST 클라이언트로 추가. `GET /api/` 연결 검사, `GET /api/states` 엔티티 목록, `POST /api/services/{domain}/toggle` 실행. 1차 허용 도메인은 `light`, `switch`, `fan`, `input_boolean`. 실제 제어 서비스가 미지원인 개별 엔티티는 HA HTTP 오류로 보고하며 자동 대체하지 않는다. Home Assistant 공식 Bearer 토큰 인증은 필요하며, 이전 모바일 웹 기능의 '인증 없음' 결정은 HA API 인증 제거를 뜻하지 않는다.
+- **연결 보안:** Windows Electron `safeStorage`가 암호화 저장을 지원할 때만 토큰을 `userData/home-assistant-connection-v1.json`에 암호화하여 저장. 서버 URL과 토큰은 프로필 및 전체 설정 JSON에 포함하지 않음. 서버 설정 테스트 성공 시 저장. Electron IPC에서 편집기 renderer 발신자만 허용, 액션에서는 엔티티 ID만 전달. 토큰을 console/log에 기록하지 않음.
+- **UI:** 오른쪽의 기존 비활성 `플러그인` 탭 활성화. 플러그인 탭의 HA 연결 설정(서버 URL/장기 토큰)과 'HA 장치 켜기/끄기' 액션을 제공. 화면 키 또는 물리 버튼/노브의 개별 동작 슬롯에 놓은 후 `entityId`를 직접 입력하거나 HA 엔티티 목록에서 검색·선택. 토글 실행 결과/HTTP 오류는 상태 메시지로 보고. 기본 42개 액션 아이콘·기능은 보존하고 HA 아이콘 1개를 별도 그룹으로 추가.
+- **코드 파일:** `main.cjs`, `preload.cjs`, `deck-core.js`, `editor.js`, `action-panel-icons.js`, `ha-client.cjs`; `test/streamdeck-ha.test.cjs` 및 `app/test/action-panel-icons.test.js` 수정, 프리뷰 워크플로에 HA 단위 시험 추가.
+- **검증 상태:** 기능 코드는 GitHub에 반영. 첫 전체 CI는 기존 42개 아이콘만 가정하던 테스트의 `43 !== 42` 실패를 확인하였으며, 기존 42개 보존 + HA 1개를 명시하는 테스트로 수정했다. **이 후속 커밋의 CI/Windows EXE 결과는 별도로 확인해야 하며 현재 성공으로 단정하지 않는다.** 사용자의 실제 HA 로그인, 엔티티 조회, Windows GUI, D200X USB/노브 실기 테스트는 아직 미실시.
+- **다음 단계 후보:** 실제 Windows EXE의 HA 연결과 버튼/노브 토글 실기 확인 → ON/OFF 상태별 표시 및 WebSocket 상태 구독 → 엔티티 목록 전용 검색 UI·서비스별 상세 옵션. 사용자가 명시하지 않은 자동화/그룹 액션 확장은 보류.
+
+### HA 플러그인 액션 ID 호환성 수정 및 CI 재확인
+
+- 첫 HA 변경 과정에서 `D200X_ACTION_IDS`에 HA를 섞으면서 기존 정확 일치 회귀 테스트가 실패했다. **해결:** `deck-core.js`에 독립 `PLUGIN_ACTION_IDS=['ha-toggle']`를 정의하고 `validId`에만 추가. 기존 원본 24개 및 D200X 18개 배열은 변경 전 그대로 유지. 수정 커밋 `69d1398e15a837eb178e975651cfb47faf3f9747`.
+- 카탈로그는 기존 42개 + 새 플러그인 1개(총 43개)로 검증하도록 `app/test/action-panel-icons.test.js` 수정. 수정 후 전체 CI #43635777418 성공. 실제 EXE/실기 판정 아님.
+- 이후 코드 커밋 SHA `69d1398e`에 대한 새 CI, 입력 검증, Windows 프리뷰는 별도 Actions 결과 확인 대기. 기존 실패를 숨기지 않고 새 실행 성공 시에만 성공으로 갱신한다.
+
+
+### HA 첫 Windows EXE 및 CI 검증 결과 (2026-11-15)
+
+- **기능 코드 SHA:** `69d1398e15a837eb178e975651cfb47faf3f9747`; 원본 24개 및 D200X 확장 18개 ID를 그대로 보존하고 HA 플러그인 1개만 추가.
+- **GitHub Actions 실행 결과:** CI [#43635892364](https://github.com/SoonCheol/D200X-Deck/actions/runs/43635892364) success, D200X input execution verification [#43635886172](https://github.com/SoonCheol/D200X-Deck/actions/runs/43635886172) success, Windows preview [#43635886158](https://github.com/SoonCheol/D200X-Deck/actions/runs/43635886158) **preview 작업 success / Artifact 생성 확인**.
+- Windows ZIP Artifact: `D200X-StreamDeck-Device-Sync-win-x64`, ID `14129968068`, 크기 `170316974` bytes. 새 코드에는 HA 통신/설정/플러그인 탭/토글 실행까지 포함됨.
+- 후속 테스트 전용 커밋 `80342c2570b06c5a1485148d942b49a015874073`: 프로필/노브에 넣은 HA 액션의 JSON 복원 및 실행 플래너 계약 회귀 테스트 추가. 이 테스트의 Actions 실행 결과는 별도 확인 필요.
+- **실기 상태:** HA 서버 설정 저장/불러오기, 엔티티 목록, 실제 스위치 서비스 호출 및 ON/OFF 아이콘 동기화는 사용자 Windows/D200X 실기 미검증. ON/OFF 상태별 아이콘 자동 변경 및 WebSocket 구독은 아직 구현하지 않음. 개발 브랜치만 수정, PR #5 미병합.
+
+
+## 2026-11-15 — 기존 Stream Deck SDK 플러그인 호스트 1차 구현 (cgiesche HA 3.8.4 대상)
+
+### 사용자 최신 결정
+- 앞서 자체 REST 방식으로 만든 `ha-toggle`은 실제 Elgato 플러그인을 재사용하는 것과 **다르다**. 사용자 지시에 따라 기존 `cgiesche/streamdeck-homeassistant` **공개 릴리스 3.8.4**를 첫 호환성 대상으로 선정하여 Stream Deck SDK 방식으로 플러그인 호스트를 구현한다.
+- 마켓플레이스 구축은 이 기존 플러그인의 실제 설치/등록/실행이 검증된 후 진행한다. 공개 마켓이나 NAS/GitHub Pages 스토어는 이번 작업 범위 밖. 승인된 기존 화면 레이아웃, 24개 기본 액션, D200X 18개, 프로필, 페이지/폴더/버튼/노브 설정은 보존하고 새 SDK 액션 `sd-plugin`을 별도 ID로 추가한다.
+
+### 원본 근거
+- 실제 GitHub Releases API에서 `3.8.4` 릴리스 파일 `de.perdoctus.streamdeck.homeassistant.streamDeckPlugin` (1,497,023 bytes) 존재 확인: https://github.com/cgiesche/streamdeck-homeassistant/releases/tag/3.8.4.
+- 동일 릴리스 태그의 `public/manifest.json`을 실제 읽음. `UUID=de.perdoctus.streamdeck.homeassistant`, `SDKVersion=3`, `CodePath=plugin.html`, 속성 편집기 `pi.html`, `Entity (generic)` / `Entity (custom icons)` 2개 액션 UUID, `Controllers=[Keypad,Encoder]` (generic), 후자 2상태.
+- 원본 `src/modules/common/streamdeck.js` 실제 읽음. 플러그인은 `connectElgatoStreamDeckSocket(port,uuid,registerEvent,info,actionInfo)` 호출로 `ws://localhost:port` 접속, `registerPlugin` 또는 `registerPropertyInspector`로 등록. `willAppear/willDisappear`, `keyDown/keyUp`, `dialRotate`, `didReceiveSettings`, `didReceiveGlobalSettings`, `setImage/setTitle/setState` 등 SDK 이벤트 교환.
+- 공식 SDK: https://docs.elgato.com/streamdeck/sdk/references/websocket/plugin/ 및 https://docs.elgato.com/streamdeck/sdk/references/websocket/ui/ .
+- GitHub connector는 바이너리 Release 다운로드를 제공하지 않고 이번 작업 환경에서 실물 `.streamDeckPlugin` ZIP을 입수·내부 실물 검사하지 못함. **릴리스 태그의 소스 manifest를 확인한 것과 배포 바이너리 압축을 직접 테스트한 것은 다르다.**
+
+### 실제 구현
+- `app/streamdeck-editor/sd-plugin-host.cjs`: 사용자 요청으로 로컬 파일 선택한 `.streamDeckPlugin`/ZIP에서 `*.sdPlugin/manifest.json` 확인 후 안전한 파일만 `userData/streamdeck-sdk-plugins/<UUID>.sdPlugin`에 설치. 덮어쓰기 거부, 압축 경로 탈출/심볼릭 링크/대용량 제한, SDK3 HTML `CodePath`만 1차 지원. Node/native 바이너리 CodePath 실행 및 임의 마켓 자동 다운로드는 미지원.
+- Windows Electron 안에서 `ws` WebSocket 서버, 플러그인 `plugin.html`의 비표시 BrowserWindow, 속성 편집기 `pi.html` 별도 BrowserWindow. `registerPlugin`/`registerPropertyInspector`, `willAppear`/`willDisappear`, `keyDown`/`keyUp`, 노브 `dialDown`/`dialUp`/`dialRotate`, 플러그인 설정과 전역 설정 조회·갱신, PI 메시지 전달, `setImage/setTitle/setState`, 디버그 통지의 기본 경로 구현. 전역 설정은 Electron `safeStorage` 암호화 파일로 저장, 기존 프로필 JSON으로 인증 토큰 유출하지 않음.
+- `main.cjs` / `preload.cjs`에 제한된 IPC로 설치·조회·현재 페이지 동기화·실행·PI 열기 연결. 기존 마지막 사용한 폴더 기억 선택기 재사용.
+- `deck-core.js`에 기존 24 + 18 배열을 그대로 둔 채 `PLUGIN_ACTION_IDS`에 `sd-plugin`만 추가. `editor.js` 플러그인 탭에서 `+ Stream Deck 플러그인 설치`, 설치된 플러그인 액션 목록/드래그/할당, 화면키·노브 실행, 플러그인 원본 속성 편집기 실행, `setImage/setTitle` 화면 상태 반영. 프로필 저장에는 `pluginUUID/actionUUID/pluginSettings`만 추가되며 구 프로필 필드는 변경하지 않음. 기존 직접 REST `ha-toggle`도 임의 제거하지 않음.
+- `.github/workflows/streamdeck-clean-preview.yml`에서 Windows 프리뷰 staging에 `ws 8.22.1`을 포함하고 SDK 호스트 검사/테스트 추가. `test/streamdeck-sdk-host.test.cjs`에 임시 ZIP으로 구조·경로 안전성 검증 추가.
+
+### 검증 상태 및 주의사항
+- 초기 Preview 시 새 테스트 파일 추가 전 경로 누락, 이후 테스트 내부 잘못된 `await` 문법으로 실패. 수정 커밋 `22a310b25427490dca040116f2d9444bd6346c1e` 이후 CI 통과 확인 필요.
+- `sd-plugin-host.cjs`의 SDK 네비게이션 제한/비동기 메시지 오류 처리 후 코드 SHA `745a7392424a39a064634ff18f65a578a03446a6`. 이 SHA에 대한 **CI 및 Windows Preview 최신 결과 확인 필요**. 이전 실패를 성공으로 보고하지 않는다.
+- **실제 Windows에서 `cgiesche` 플러그인 설치·WebSocket 접속·PI HA 설정·실시간 상태·D200X 버튼·노브 제어는 모두 미검증.** HTML 기반 SDK3의 최소 실행 계약 구현이며 모든 Stream Deck SDK 플러그인 호환·원본 Stream Deck UI 완전 동일을 주장하지 않는다. 화면 내 원본 PI 임베딩 대신 별도 설정창으로 일단 열도록 구현(원본과의 UI 차이).
+- 우선 다음 실기 단계: 공식 3.8.4 ZIP을 사용자 Windows에서 내려받아 새 프리뷰 EXE의 플러그인 탭→설치→액션 선택→원본 속성 편집기에서 HA 서버 설정→D200X 버튼으로 ON/OFF 및 상태 이미지 관찰. 실제 실패 로그를 기반으로 필요한 최소 SDK 이벤트/설정 보정만 할 것.
+
+
+### 기존 SDK 플러그인 호스트 1차 Windows 빌드 확인 — 2026-11-15
+
+- **최종 앱 소스 SHA:** `78af770701893a09a78a664b79ef46e1eb038928`. 이 단계에서 `manifest.States[].Image`의 ON/OFF 기본 아이콘 참조를 읽는 경로, 노브 Encoder 좌표 변환, 압축의 예상 해제 크기 사전 검사 추가.
+- **실제 성공:** CI [#43638881856](https://github.com/SoonCheol/D200X-Deck/actions/runs/43638881856) success; Windows 프리뷰 [#43638877662](https://github.com/SoonCheol/D200X-Deck/actions/runs/43638877662) success. ZIP Artifact `D200X-StreamDeck-Device-Sync-win-x64`, artifact ID `14130634333`, 크기 `170358711` bytes, 확인 시 expired=false.
+- **주의:** 첫 Windows CI가 실패한 이유는 테스트 파일 누락 → 임시 ZIP 테스트의 잘못된 await 문법 → 새 SDK 액션 ID 정확 일치 테스트 → 모의 PNG Base64 기대 문자열 오타로 각각 확인되고 수정됨. 최종 자동 CI와 Windows 패키징 결과는 성공이지만, **이것은 실제 공개 HA 3.8.4 배포 ZIP의 수동 설치·HA 네트워크 연결·원본 HTML PI 기능·실기 상태 동기화 성공을 증명하지 않음**.
+- 사용자 실기 1차 절차: https://github.com/cgiesche/streamdeck-homeassistant/releases/tag/3.8.4 에서 `de.perdoctus.streamdeck.homeassistant.streamDeckPlugin` 다운로드 → 최신 Windows 프리뷰 압축 해제·EXE 실행 → 오른쪽 플러그인 탭의 `＋ Stream Deck 플러그인 설치` → 파일 선택 → 설치 목록에서 `Entity (generic)`을 화면 키에 할당 → 해당 키를 선택해 `설정 열기`(원본 `pi.html` 별도창) → HA URL 및 장기 토큰/엔티티 설정 → 실제 화면키 실행. 문제가 있으면 정확한 오류 메시지/증상 기록.
+- 최신 작업 범위에서는 `main`, PR #5, 기존 사용자 저장 프로필의 실제 PC 파일을 직접 변경하지 않았다. Marketplace 구축은 이 HA 플러그인의 실기 호환성 확인 후.
+
+
+### HA 원본 설정창에서 엔티티 저장 후 실제 토글 미작동 제보 및 수정 (2026-11-15)
+
+- 사용자 실제 Windows 화면: 원본 `cgiesche` PI가 실행되고 녹색 HA 연결 표시, `거실등 1` 엔티티 및 `switch.toggle` 서비스 선택 가능. `Service Data JSON`의 `{"option":"value"}`는 upstream `src/components/ServiceCallConfiguration.vue`의 **placeholder**, 실제 입력 데이터 아님.
+- 사용자가 실제 버튼에서 작동하지 않는다고 보고. 원인 후보를 GitHub 코드에서 직접 확인: `sd-plugin-host.cjs` `setSettings` 처리 시 PI 소켓에서 들어온 메시지는 `inst=null`인데 `this.send(inst?.ws,...)`로 전송하여 실행 중 플러그인으로 `didReceiveSettings`가 전달되지 않음. 원본 upstream `src/components/PluginComponent.vue` 190행에 `didReceiveSettings` 수신 처리 존재.
+- **최소 코드 수정:** 전송 대상 `inst?.ws`를 `this.instances.get(uuid)?.ws`로 변경 (커밋 `da437a5c199daad727d201f44714322bc3a50947`). 단위 테스트는 `test/streamdeck-sdk-host.test.cjs`에 PI → 플러그인·PI 양쪽 통지 확인 추가 (커밋 `51cccf869892ed126d5a46b9dd910084dbda1cad`).
+- 실제 사용자 재시험 전이므로 **문제 해결 실기 확인 없음**. CI/Windows 프리뷰 결과 확인 후 링크를 제공하고, 최신 빌드에서 기존 설정창의 Save configuration 다시 누른 뒤 물리 키 확인. HA URL/토큰을 채팅에 노출하지 않는다. 변경은 개발 브랜치 한정, main/PR #5 그대로.
+
+
+### HA 버튼·아이콘팩 아이콘이 편집기/실기에서 적용되지 않는 문제 (2026-11-15)
+
+- 사용자 스크린샷: `Home Assistant (3.8.4.66)`의 Entity (generic) / Entity (custom icons) 두 액션, 편집기와 실물 모두 거실등1에 토글 스위치 모양, 옆 버튼에는 HA 로고가 나타남. 사용자: 아이콘팩은 등록됐으나 버튼 변경 이미지가 편집기와 실기에 반영되지 않음.
+- 원인 1: `editor.js`의 `displayItem`에서 플러그인 런타임 `sdkVisuals.image`가 `item.icon`에 있는 사용자 지정 PNG 또는 글리프를 무조건 덮어씀. 수정: 사용자 아이콘이 있으면 우선 보존하고, 지정 아이콘이 없을 때만 플러그인 동적 이미지를 사용.
+- 원인 2: `displayItem(item)`이 `DeckCore.visibleActions(state).findIndex(x=>x===item)`로 슬롯을 찾으나 D200X 장치 전송 과정 `device-sync.js`가 아이템을 JSON 복제하므로 객체 동일성 검색에 실패. 수정: `displayItem(item,index)`에 명시적 슬롯 인덱스를 전달, 편집기 렌더와 `window.getD200XDisplayItem(item,index)`가 동일한 컨텍스트로 플러그인 이미지를 검색.
+- 기능 코드 커밋 `f25bf70f7035ed8dcfc487ffd7f9b4f4c4eb39bf`. `test/streamdeck-sdk-visual.test.cjs`에서 클론 아이템 동적 이미지, 사용자 선택 팩 우선순위 확인; Windows 프리뷰 workflow에도 테스트 추가 (최신 변경 `2b3b4c94210a4c787a1b87c364ffcec0fb7ea1e4`).
+- CI #43642035160 success 확인. Windows preview #43642030211 최종 결과 및 artifact 확인 후 반영. **실제 하드웨어/원본 플러그인 상태 변경/아이콘 적용은 새 EXE 사용자 실기 확인 전**. 기존 플러그인 PI의 Icon Source=Plugin 설정은 플러그인 자체 아이콘을 선호한다는 뜻이며 D200X 편집기의 수동 아이콘팩 적용 정책과 별개.
+
+
+### 2026-11-15 — HA 플러그인 OFF/ON 아이콘·설정 모달·플러그인 탭 UI 수정
+
+사용자 요청 및 실제 스크린샷:
+- HA `Entity (custom icons)` 액션의 사용자 지정 **OFF/ON 2개 아이콘을 각각 저장**하는 조작이 없었다.
+- 오른쪽 플러그인 탭 상단의 `액션 아이콘` 테마/개별 초기화 줄은 불필요. **해당 탭에서는 없애고 `＋ 플러그인 추가`를 같은 자리에 배치**. 키 탭에서는 기존 테마 줄 유지.
+- `원본 속성 편집기 → 설정 열기` 버튼이 흰색 기본 버튼이었으며 원본 PI 창이 다른 모니터에 떠 불편. **부모 편집기 위에 중앙 정렬된 모달 창**으로 변경하고 어두운 버튼 스타일 적용.
+
+구현:
+- `editor.js`의 `sd-plugin` 속성에 OFF 및 ON 각 `라이브러리/파일/초기화` 버튼과 미리보기 추가. `settings.sdkStateIcons.off/on={kind:'file',value:PNG data URL,packId?:...}`를 기존 액션 데이터에 추가해 프로필에 개별 저장. `displayItem(item,index)`이 SDK `setState(0/1)`로 받은 실제 상태에 따라 OFF/ON 아이콘을 최우선 표시(이전 일반 수동 아이콘, 다음 플러그인 동적 이미지 순). 편집기/실기 동기화는 공통 렌더러를 사용.
+- 아이콘 라이브러리 `openIconLibrary(item,stateKey)`를 확장해 해당 상태의 그림에 저장되게 하며 상태 선택 정보는 라이브러리 종료 시 초기화. 등록된 아이콘팩 삭제 시 기존 액션 하위 상태 이미지도 탐색/초기화하도록 기존 재귀 탐색 `visitIconReferences`가 상태 이미지 경로를 순회.
+- `bindActionAppearance`는 기존 `액션 아이콘` UI 유지, `plugin-install-toolbar` 신규 설치 버튼을 생성. `updatePluginToolbar()`가 탭 선택에 따라 둘 중 하나만 표시. 기존 우측 플러그인 목록 내부 중복 설치 버튼 제거. 기존 `Home Assistant 연결 설정` 자체 REST 항목은 보존.
+- `main.cjs`에서 원본 편집기 BrowserWindow getter를 SDK 호스트에 전달, `sd-plugin-host.cjs`에서 `parent` + `modal:true` + 같은 모니터 workArea 내 부모 중앙 위치, `show:false` 후 PI 로딩·SDK 연결 완료 시 `show();focus()`. 다른 모니터에 생성되는 현상을 방지하도록 설계. 이미 열린 PI는 기존 창 포커스.
+- `style.css`에서 플러그인 설치 버튼, OFF/ON 미리보기, `설정 열기` 버튼을 다크 스타일로 지정하고 탭 툴바 `[hidden]` 스타일 우선 처리.
+- `test/streamdeck-sdk-visual.test.cjs`에 ON/OFF 별도 아이콘 우선순위와 공통 아이콘 fallback 확인 추가. Windows Preview 자동 테스트에 기존부터 포함됨.
+- 개발 커밋: `dcc2f5fe580840966fad14da95a3b47a66200946` (UI), `9ed0dffa445010edc4bcaea06192581a8cd707dd` (parent getter), `a9a46796be95fe11e8f0be7be40a33456b6298fd` (modal), `c33d8389e4ed1e03e1eb551578ff7d6b431b0d78` (CSS), `8357c5020bacf5b70bca2faa62901a32c05dad38` (tests).
+- **자동 CI/Windows preview 최종 결과와 사용자 실제 UI·실물 버튼 반영은 확인 필요.** 특히 플러그인 SDK가 실제 setState를 보내야 ON/OFF 그림이 자동 전환됨. 기존 사용자 프로필/기타 액션/메인 브랜치는 건드리지 않음.
+
+## 2026-11-15 — 프로필·아이콘·폴더 UI 연속 개선 (코드 수준)
+
+브랜치: `codex/streamdeck-761-clean-editor`, `main`은 수정하지 않음. 기본 24개 액션, D200X 추가 18개 액션, 기존 프로필 데이터와 HA SDK 플러그인 실행 경로 보존.
+
+- **중복 HA 액션 목록 정리**: 독립 REST `ha-toggle` 및 원본 SDK `Entity (generic)`는 **새로 할당하는 목록에서만 숨김**. 기존 할당/설정/실행 코드는 유지. `Entity (custom icons)`를 `Home Assistant 장치 제어`로 표시. 커밋 `591bc092`.
+- **프로필 관리 UI**: 프로필 이름 선택은 전환 용도, 각 프로필 행의 ⚙에서 이름 변경/복제/삭제/프로그램 연결/Smart Profile 활성화. 맨 아래 `＋ 새 프로필`, `전체 프로필 관리` 안에 전체 JSON 가져오기·내보내기. Electron 미지원 `prompt()` 대신 `<dialog>` 입력창 사용. 비활성 프로필을 선택하지 않고도 올바른 프로필을 복제하도록 `createProfile(...,sourceId)` 추가. 복제 중 원본 ID가 새 ID를 덮어쓰지 않도록 회귀 수정 `74188af3`, 테스트 `c3189a71`.
+- **Smart Profile**: `profileNames[].smartEnabled`로 각 프로필별 ON/OFF, 기존 `appPath` 유지. 호환용 `smartProfilesEnabled` 전역은 활성 프로필 존재 여부로 관리. 프로그램 감지는 기존대로 **편집기를 최소화했을 때만 4초 간격**. 활성 스마트 프로필에서 미등록 프로그램으로 이동하면 기본 프로필로 복귀 시도. Windows 전경 EXE 실기 검증 필요.
+- **아이콘 자동 채움**: 팩의 이미지 원본 `filename` 메타데이터 보존. 라이브러리에서 `_off` 또는 `_on` 접미사를 가진 항목을 선택하면 같은 팩의 상보 이름을 검색해 OFF/ON 슬롯을 **선택 시점에만** 채움. 짝 없거나 구분 없는 이름은 같은 PNG 양쪽 등록. 일반 파일 선택에서는 보안상 선택된 파일만 읽어 **동일 이미지 양쪽 등록**. 나중에 한 슬롯만 개별 수정 가능하며 HA 상태 판정·토글 실행 로직 변경 없음. 기존 등록 팩에 `filename` 필드가 없다면 `icon.name`으로 대체 검색하므로, 아이콘 이름이 원래 파일명과 다르면 팩 재등록 필요.
+- **중복 실행 방지**: `main.cjs`의 Electron `app.requestSingleInstanceLock()`. 두 번째 실행은 기존 창 복원·전면 활성화, 신규 창/장치 세션 중복 방지.
+- **폴더별 다중 페이지**: 기존 `folder.children[]`을 1페이지로 보존하고 추가 2~10페이지를 `folder.pages[]`, 현재 인덱스는 `pageIndex`에 저장. 폴더 안에서 페이지 이동 버튼·추가·삭제, 페이지에 중첩 폴더 생성 가능. 부모 프로필 기본 페이지와 독립. `planHardwareEvent`의 페이지·노브 조절도 현재 폴더 기준, SDK 컨텍스트는 폴더 페이지 인덱스를 포함. 새 코어 테스트 추가.
+- **우클릭 메뉴**: 기존 액션 → 폴더로 묶기(기존 액션은 첫 자식 버튼), Key Logic 단일 동작으로 변환, `D200X-action.json` 단일 액션 가져오기·내보내기 연결. 미구현 배경 메뉴는 제거. 안전하지 않은/미구현 기타 메뉴는 비활성화. 전체 프로필 JSON 형식과 액션 JSON 형식을 구별하여 검사.
+- **버튼 눌림 시각 피드백**: D200X 물리 키 입력을 받으면 장치 전송 PNG에 90% 축소된 순간 화면을 적용, 뗀 다음 기존 크기로 복귀하도록 코드 추가. **USB 전송 대기시간으로 실제 짧은 누름이 얼마나 보이는지는 실물 시험 필요**. HA ON/OFF 상태 변경 판정과 독립.
+- **작업 검증 주의**: 자동 Node 검사와 Windows EXE 패키징의 성공은 실제 UI 작동 증명이 아니다. 특히 새 프로필 ⚙ 팝업, 하위 폴더 2페이지 이동과 액션 실행, 아이콘 이름 자동 쌍 연결, USB 눌림 애니메이션은 Windows 실기 점검 필요. 각 최신 CI/Windows workflow 최종 성공 및 artifact ID는 실행 결과로 재확인할 것. 비활성 메뉴를 구현 완료라고 표시하지 말 것.
+
+핵심 파일: `app/streamdeck-editor/{editor.js,deck-core.js,main.cjs,device-sync.js,icon-pack.cjs,style.css}`, `test/streamdeck-core.test.cjs`.
+
+
+
+## 2026-11-15 — D200X 가로 화면 3종 순환 + 속성창 정렬
+
+- 원본 D200X 공식 설명서 페이지 4 영문 그림에서 `Dial Time`, `Date, Time & Weekday`, `CPU+RAM+GPU`, `Knobs` 옵션의 존재를 확인. 원본 `Knobs` 예시에서는 가로 화면에 CCT, Brightness, Volume가 보이고, 노브 속성창 `Title: Volume`가 보임. **제목 수정에 따라 가로 화면 이름이 즉시 변경되는지는 공식 이미지만으로 입증할 수 없으며 직접 Ulanzi Studio A/B 시험 또는 원본 로직 분석 필요**. 그래서 노브 정보 옵션은 아직 선택 가능하게 만들지 않음.
+- 사용자 확정 기본 모드: 1) 아날로그+디지털 시계, 2) 날짜·시간·요일, 3) CPU/RAM/GPU 한 화면. **13번 가로 슬롯이 비어 있고 최상위 프로필 페이지일 때** 전용 위젯을 기본 표시하며 하드웨어 해당 키를 누를 때마다 순환. 다른 액션이 기존에 등록되었으면 덮어쓰지 않고 원래 액션 유지. 하위 폴더의 뒤로가기 슬롯도 보존.
+- 가로 빈 슬롯을 편집기에서 클릭하면 `가로 화면 표시 설정` 속성창에서 3개 체크박스·HTML 드래그 재정렬·기본 순서 복원 제공. 최소 1개 선택 유지; 설정은 프로필별 `wideDisplay`에 저장 및 백업/마이그레이션/프로필 전환에 포함.
+- 장치 출력: 프로젝트의 기존 `app/lib/page.js` `SmallViewMode`(clock:1, stats:0, blank:2) + `app/lib/deck.js` CLOCK 0x06 프로토콜을 사용. 시계/통계는 펌웨어 네이티브 모드를 선택하고, 날짜·시간·요일은 `device-sync.js`의 392×196 PNG로 출력하며 60초 간격 갱신. 별도 `transport.cjs`가 현재 모드를 기억해 전송 중 keepalive와 충돌하지 않도록 조정. 편집기 시계/통계 화면은 네이티브 기기와 완전히 동일한 이미지가 아닌 별도 프리뷰.
+- CPU 사용량/메모리 값은 기존 `app/lib/sysstats.js`; Windows GPU는 GPU Engine 성능 카운터 기반의 3D 엔진 합계를 5초 간격으로 읽는 시도를 추가. **한국어 Windows 성능 카운터 경로와 RX 7800 XT 실제 GPU 사용률은 검증 전**. 카운터가 없으면 마지막 값(초기 0)을 유지하므로 사용자가 실제 수치 확인 필요.
+- 코드: `deck-core.js`, `editor.js`, `device-sync.js`, `transport.cjs`, `main.cjs`, `preload.cjs`, `sysstats.js`, `style.css`; `test/streamdeck-core.test.cjs`와 `test/streamdeck-transport.test.cjs`에 표시 순서·프로필 보존·전송 모드 테스트. CI 최초 GPU 테스트 실패 후 비Windows 기본 GPU 테스트 호환성 수정 `a42c0319` 및 CI 성공.
+- 주의: 자동 CI와 Windows ZIP 패키징은 하드웨어 실기 검증이 아님. 특히 가로 키가 실제 물리 입력 index13을 송신하는지, 시계와 통계 전환 시 펌웨어 모습, 날짜·요일 PNG가 가로 슬롯에 반영되는지, Windows GPU 3D 성능 카운터 값, 버튼 누를 때 순환은 새 Windows EXE 실기 확인해야 함.
+
+
+## 새 대화 인수인계 — 노브 정보 모드 미완료 (2026-11-15)
+
+**중요: 진행 중인 변경을 완료 또는 빌드 성공으로 말하지 말 것.**
+
+- 사용자는 가로로 긴 D200X 13번 LCD 버튼 표시 모드를 **아날로그+디지털 시계 → 날짜·시간·요일 → CPU+RAM+GPU**의 3종으로 시작하기를 원함. 체크박스로 모드 포함 여부 설정, 속성창에서 항목을 끌어서 순서 변경. 이 3종 기능은 코드 반영, CI와 Windows 프리뷰 성공(기준 코드 `a42c0319`; Windows 프리뷰 #43654756026, ZIP artifact 14136988517). 실제 Ulanzi D200X 실기 사용·표시·GPU 수치 검증은 아직 안 됨.
+- 추가로 사용자가 **노브 정보(Knobs)를 체크해서 가로 화면에 실제 무엇이 표시되는지 볼 수 있어야 한다**고 명시. 이전에 원본의 제목 연동 여부가 확실하지 않다는 이유로 옵션에서 누락한 것은 잘못; 노브 정보는 추가해 검증해야 함.
+- 현재 **마지막 기능 커밋 `9eb5fe113efa10ff8c057ad874140873cb5c4c60`**은 `app/streamdeck-editor/deck-core.js`의 `WIDE_CHOICES`에 `knobs`를 추가하고, 기본 enabled 목록은 기존 3종으로 유지한 단계뿐. `editor.js`의 `WIDE_LABELS` 및 `device-sync.js` 노브 정보 화면 렌더러는 **미구현**. 따라서 네 번째 항목을 지금 실행하면 표시명이 `undefined`이고, 기본 날짜/시간 화면과 혼동될 수 있음. 절대 완료라고 하지 말 것.
+- 확인한 최신 GitHub Actions: 이 불완전한 `9eb5fe11` 커밋 CI #43656521498 success지만 **D200X input execution verification #43656517886 failure, Windows preview #43656517835 failure**. 먼저 실패 원인 로그 확인, 미완성 UI/표시 기능 구현 후 재빌드·artifact 검증 필요. 현재 마지막 *성공한* Windows 빌드는 이전 3모드 버전 #43654756026이며 노브 정보가 들어 있지 않음.
+- 구현해야 할 것: (1) `editor.js` 가로 모드 이름 `knobs:'노브 정보'` 추가, 네 번째 체크박스/드래그로 선택 가능하지만 기본은 체크 해제; (2) 현재 프로필의 노브1~3 설정에서 `DeckCore.controlBinding(state,16..18)`를 통해 **사용자가 설정한 제목을 우선, 제목 없을 땐 노브에 설정된 기능/조절 대상 이름으로 대체**해 가로 화면에 3칸 표시; (3) `device-sync.js`에서는 `knobs` 화면을 사용자 지정 392×196 PNG로 렌더하고 `getD200XWideMode`가 `blank`를 반환하게 하여 시계/통계 내장 표시와 충돌하지 않게 처리; (4) 노브 설정을 바꿀 때 가로 화면도 동기화, 기존 프로필·액션·폴더·노브 구동 보존; (5) CI + Windows preview + artifact 검사. 실제 원본 Ulanzi Studio의 노브 제목 연동 동작은 사용자의 기기에서 아직 검증되지 않았으므로 **원본과 동일하다고 주장하지 말 것**.
+- 관련 소스: `app/streamdeck-editor/{deck-core.js,editor.js,device-sync.js,transport.cjs,main.cjs,preload.cjs,style.css}`, `app/lib/{deck.js,page.js,sysstats.js}`, `test/streamdeck-core.test.cjs`, `test/streamdeck-transport.test.cjs`.
+- 저장소 `SoonCheol/D200X-Deck`; **유일한 개발 브랜치 `codex/streamdeck-761-clean-editor`**. `main` 수정/병합 금지. 사용자 지시 없이 외부 프로젝트 이동/기존 프로필 삭제 금지. Windows GitHub Actions EXE 제공과 커밋/성공 여부 정확히 보고. 인수인계 완료 시 이 문서를 갱신.
+
+
+
+### 2026-11-15 — 가로 화면 노브 정보 및 순환 UI 수정 (후속 구현)
+
+- 기준 개발 브랜치: `codex/streamdeck-761-clean-editor`. 기존 프로필·폴더·페이지·14개 화면 키·노브 바인딩 및 24개 원본 기본 액션의 저장 스키마는 변경하지 않음. `main`/PR #5 미수정·미병합.
+- 기존 Windows Preview #43656517835, 입력 검증 #43656517886 실패를 실제 Actions 로그로 확인: `test/streamdeck-core.test.cjs:985`의 모드 순서 기대값이 3개인 채로 `knobs` 4번째 항목이 추가돼 `deepStrictEqual` 실패. 빌드 자체의 패키징 오류가 아니었음.
+- `editor.js`: `knobs:'노브 정보'` 명칭, 속성창의 네 번째 체크박스/순서 변경 연결. 기본 체크는 시계/날짜/사용량 3개이며 노브 정보는 체크 해제. `DeckCore.controlBinding(state,16..18)`로 현재 프로필의 3개 노브에 설정된 액션 제목을 우선하며, 없으면 조절 대상 또는 액션 이름으로 대체. 편집기 가로 버튼 클릭은 현재 모드를 다음 체크 항목으로 순환하고 해당 속성창을 선택. 물리 입력의 기존 index13 누름 순환 코드 보존.
+- `device-sync.js`: 392×196 사용자 지정 PNG에 노브 1~3의 제목과 기능을 3열로 그림. 기존 `clock`, `datetime`, `stats` 분기와 장치 내장 모드 경로 유지. 노브 모드의 기기 내장 표시 모드는 `blank`로 두어 PNG 표시 충돌 방지.
+- 속성창 드래그 UI: `☰` 손잡이에만 `draggable` 및 손 모양 커서. 체크박스/항목명/나머지 행은 일반 커서. 기존 체크 및 순서 저장 동작 보존.
+- `test/streamdeck-core.test.cjs`: 전체 순서 4개, 기본 활성 3개, 네 번째 체크 시 순환, 프로필 분리 및 복원 회귀 검증 수정. 새 CI #43657256117 및 입력 실행 검증 #43657251385는 성공.
+- 구현 커밋: `8ff14c6e` (속성/순환/노브 정보), `e438bacb` (PNG), `db7aa219` (손잡이 커서), `f4d64bbe` (테스트), `12757e83` (새 테스트 포함 최종 Preview 트리거).
+- **중요:** 원본 Ulanzi Studio의 노브 제목 반영은 아직 실물 비교 미완료. 사용자 Windows GUI/물리 버튼의 순환·USB PNG 화면은 새 EXE 실기 검증 전. CI 성공은 실물 검증을 뜻하지 않음. 최신 Windows Preview 작업: https://github.com/SoonCheol/D200X-Deck/actions/runs/43657350031 (결과 및 Artifact는 실행 종료 후 별도 확인).
+
+- **최종 Windows Preview 확인:** [#43657350031](https://github.com/SoonCheol/D200X-Deck/actions/runs/43657350031) success (source `12757e830b6940a493681c214f1e96fe83ac68ae`); Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43657350031/artifacts/14138985954), ID `14138985954`, 170,368,881 bytes, 확인 시 `expired=false`. 포장/업로드 성공이며 Windows 실제 GUI·물리 D200X 시험 완료를 뜻하지 않음.
+
+
+### 2026-11-15 — 사용자 실기 회귀 제보: 가로 화면 순환 안 됨
+
+- 사용자 실제 증상: **가로 화면 모드를 하나만 체크하면 해당 화면은 표시되지만, 여러 개 체크 후 버튼을 눌러도 순환되지 않음**. 이전 CI 및 EXE 패키징 성공을 실물 순환 성공으로 해석하지 말 것.
+- 기존 코드 조사: `editor.js`의 하드웨어 입력 순환은 `kind=1, index=13, pressed=true`에만 반응. `deck-core.js`는 일반 액션 슬롯 14를 미사용으로 유지. 외부 OpenDeck D200X 구현 문헌에서는 13번 와이드 LCD 버튼과 14번 비활성 오른쪽 셀을 별도로 기술하며 물리키로서 가로 버튼 누름은 지원한다고 설명함(https://github.com/kastro5/opendeck-ulanzi-d200).
+- 안전한 보완: `deck-core.js`에 `isWideDisplayPress()` 추가. 원래 13번 또는 14번 입력을 **오직 가로 가상 화면 순환일 때만** 받되, 기존 `physicalSlot()`에서 14번에 일반 액션을 할당하지 않는 규칙은 그대로 유지. `editor.js`의 물리 버튼/편집기 이미지 버튼/속성창의 새 `다음 화면 표시 ▶` 모두 같은 `advanceWideDisplay()` 함수를 호출해 현재 프로필의 선택된 모드 순환·저장·전송을 진행.
+- 변경 커밋: `a8f66498` (와이드 슬롯 보완), `0df4df60` (공통 순환 및 속성창 수동 전환), `70fd4c57` (index 13/14 격리 테스트). 기존 24개 액션, 프로필, 노브 기능, USB 전송 스키마 변경하지 않음.
+- CI/입력 검증: `a8f66498` 및 `0df4df60`의 CI·입력 모의 검증 성공, `70fd4c57` 추가 회귀 테스트와 Windows Preview 최종 상태 확인 필요. Windows Preview https://github.com/SoonCheol/D200X-Deck/actions/runs/43658108140 .
+- **남은 핵심 검증:** 실제 D200X 와이드 키 누름이 index=13/14 중 어느 값으로 오는지는 이 세션에서 USB 실측하지 못함. 새 EXE에서 편집기 속성창의 `다음 화면 표시 ▶`로 순환되는지 먼저 확인하고, 별도로 실물 가로 키를 눌러 관찰. 속성창 수동 전환은 되고 물리키만 안 되면 USB 원본 이벤트 캡처 후 해당 입력 조건만 수정; 임의로 15/16번 물리 버튼의 기존 할당을 바꾸지 말 것.
+
+- **추가 보완 빌드 검증 완료:** Windows Preview [#43658108140](https://github.com/SoonCheol/D200X-Deck/actions/runs/43658108140) `success` (소스 `0df4df60b8c0df38ffa35471a8d17166912f4425`), Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43658108140/artifacts/14138698965) ID `14138698965`, 170,369,093 bytes, 조회 시 만료되지 않음. 추가 테스트 커밋 `70fd4c57`의 입력 검증 #43658121717 성공. 실기 재시험 필요.
+
+
+### 2026-11-15 — 실제 사용자 사진: Knobs PNG 위 CPU/RAM/GPU 겹침, 순환 불가
+
+- **새 실제 증거:** 사용자 D200X LCD 사진 `20261115_140716.jpg`에 노브1/2/3 이름 및 기능명과 CPU/RAM/GPU + 0% 텍스트가 동시에 겹쳐 표시됨. 하나만 체크하면 그 항목은 화면에 나타나지만, 여러 개 체크한 상태에서 가로 키 눌림 순환 불가. 이전 성공한 EXE 빌드가 실물 표시 성공을 의미하지 않음.
+- **교차 확인:** 프로젝트의 `device-sync.js`는 Knobs/날짜용 PNG를 `blank`(SmallViewMode=2) 이미지로 송신하나, 시계/통계는 펌웨어 네이티브 모드로 전환. 외부 독립 D200 프로토콜 자료 [marcelobrake/ulanzi-linux](https://github.com/marcelobrake/ulanzi-linux/blob/main/docs/protocol.md)는 네이티브 통계 ↔ 사용자 PNG 혼합 시 이전 CPU/RAM/GPU 표기가 남는 펌웨어 사례를 기록하며 네이티브 캐시 비움 후 BACKGROUND 모드 유지 방식을 설명. 사용자 기기의 정확한 펌웨어 원인까지 입증한 것은 아님.
+- **변경한 코드:** `app/streamdeck-editor/transport.cjs`에서 통계/시계→PNG 모드로 진입할 때 0/1 모드의 값 필드를 빈 값으로 전송해 이전 네이티브 표시값 정리, 페이지 ZIP 완료 후 이미지 모드(2) 명령 재전송, 이미지 모드의 주기적 keepalive에서도 이미지 모드 복구. 기존 밝기 값이나 시계/통계 네이티브 모드 업데이트는 보존.
+- `deck-core.js`의 가로 버튼 입력은 LCD 13(미사용 오른쪽 14 포함) 및 pressed/state를 기준으로 판단하며, 첫 바이트 firmware internal state에 대해 `kind===1` 고정을 제거. 기존 일반 액션 슬롯 매핑 변경하지 않음. `device-sync.js`에 가로 버튼 index/kind/state 진단 로그와 미처리 시 메시지 추가.
+- `device-sync.js` 3열 노브 화면은 `ctx.fillText(...,maxWidth=112)`로 각 열을 넘지 않도록 축소. 원본 액션 제목·기능 내용이나 프로필 JSON은 변경하지 않음.
+- **회귀 테스트:** `test/streamdeck-transport.test.cjs`에서 통계→PNG 전환의 네이티브 캐시 비움/ZIP 전송/후속 이미지 모드 순서, 이미지 모드 내 추가 전송 시 비움 반복 방지, 기존 밝기/재연결을 확인. `test/streamdeck-core.test.cjs`에서 kind=0인 가로 눌림 처리와 17~19 노브 격리 추가.
+- 코드 커밋: `8858817c`(입력), `a8bbb453`(노브 영역), `4d353159`(모드/캐시), `f9437b7b`(입력 시험), `2dd05d7d`(전송 시험), `d72b7722`(진단 및 최종 EXE 트리거). 중간 윈도 빌드의 옛 테스트 실패는 실제 오류와 분리; **최종 Windows Preview** [#43680236607](https://github.com/SoonCheol/D200X-Deck/actions/runs/43680236607) 및 CI [#43680240182](https://github.com/SoonCheol/D200X-Deck/actions/runs/43680240182) 결과를 별도로 확인해야 함.
+- **실기 남음:** 수정 후 물리 버튼 순환/중첩 제거/노브 글자 크기를 사용자 장치에서 다시 확인 필요. 원본 Studio 동일성 주장하지 않음. `main` 변경/PR 병합/기존 프로필 삭제 없음.
+
+- **최종 검증 (2026-11-15):** 변경 후 밝기·대기중·절전 관련 테스트 기준값 수정 커밋 `8291c530` 및 `b904a145`; 최종 Preview 트리거 `8dcc5ee10316ea2729025f6983af1db39ee03c00`. 해당 커밋 CI [#43680502705](https://github.com/SoonCheol/D200X-Deck/actions/runs/43680502705) 및 Windows Preview [#43680499020](https://github.com/SoonCheol/D200X-Deck/actions/runs/43680499020) 확인 대상. Windows Preview는 **success** 및 Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43680499020/artifacts/14147384143) 업로드 확인(artifact ID 14147384143, 170,369,611 bytes, 확인 시 expired=false). 이전 진행 중인 중간 preview의 결과와 혼동 금지. 사용자 물리 D200X에서 실제 중첩 제거·순환 작동은 아직 미검증.
+
+
+### 2026-11-15 — 사용자 실기 재확인: 순환 성공, 날짜 화면에 통계 겹침
+
+- 사용자가 Ulanzi Studio의 잔류 트레이 아이콘을 Windows Explorer 재시작으로 정리한 이후 D200X-Deck에서 **아날로그+디지털 시계**와 **날짜·시간·요일** 2개만 활성화했으며, **물리 가로 버튼 누를 때 이 두 화면 사이 순환은 정상적으로 됨**을 직접 확인. 더 이상 이 조합에서 버튼 순환을 고장으로 분류하거나 무조건 재수정하지 말 것.
+- 남은 실기 문제는 날짜 화면 위에 체크하지 않은 **CPU/RAM/GPU 통계 UI가 중첩**되는 것. 이전 D200X 전송 코드 `transport.cjs`는 펌웨어 모드 2(이미지)로 들어가기 전에 `0|||||24H|`와 `1|||||24H|`를 '초기화' 명령이라고 보내고 있었으나 `app/lib/page.js`와 `app/lib/deck.js` 상에서 **mode 0은 실제 통계 표시**이므로 원치 않는 통계 화면을 켰을 가능성이 큼.
+- 최소 수정 `193895a3`: 이미지 전환 때 모드 0/1을 보내는 이전 초기화 구간 삭제. 기존 `setWideMode('blank')`, ZIP PNG 전송 및 최종 mode 2 이미지 명령은 유지. 액션·프로필·노브 저장 스키마 변경 없음.
+- 회귀 검증 `560fb5fb`: 통계→PNG 화면 전환 시 mode 0/1 전송 없음, 이미지 모드 2와 ZIP 전송 순서를 확인. Windows Preview 테스트 코드 포함 재트리거 `5fe22f92`. **기기에서 중첩 제거 검증 전까지 해결 완료라고 주장 금지.** 노브 정보 및 CPU/RAM/GPU 화면 개별 기능 보존, `main`/PR 불변.
+
+
+### 2026-11-15 — 실물 와이드 버튼 1회/2회 교대 반응 및 전송 경쟁 수정
+
+- 사용자 정정: 실제 반응은 느린 게 아니라, 처음은 물리키 한 번으로 바뀌고 다음은 **두 번 눌러야 바뀌는 듯한 1회·2회 교대 누름**. 2개 모드(아날로그/디지털 시계, 날짜·시간·요일) 체크 조건의 실기 관찰. 사용자 진술만으로 단순 딜레이나 특정 HID 이벤트 조합을 확정하지 말 것.
+- `device-sync.js`에서 이전에 가로 키(index=13) 누름 시 `schedule(0)`, 뗌 시 120ms 뒤 `schedule(0)`를 호출하여 전체 14개 아이콘 다시 그리기+ZIP 전송을 반복함을 코드에서 확인. 이 잦은 재전송이 새로운 모드 출력을 덮거나 순환을 지연시킬 가능성 있음.
+- 변경: 가로 키(13/14)는 **일반 키 눌림 시각 효과 및 전체 페이지 갱신 대상에서 제외**. 실제 누름은 기존 `executeD200XKey` → `advanceWideDisplay`로만 라우팅. 13/14번이 한 번의 누름에서 둘 다 발생할 가능성을 감안해 240ms 이내 중복 가로 누름만 무시(일반 키/노브는 영향 없음).
+- `editor.js`: 가로 모드 바꿀 때 `persist(false)`로 저장하되 불필요한 전체 갱신 예약 제거, `render()`로 편집기 속성창/미리보기 유지, `window.scheduleD200XWideSync`로 빠른 화면 갱신 처리. `device-sync.js`에서 전송 완료한 기존 키 0~12 PNG를 재사용하고 가로 키 13의 이미지만 새로 그림(기기 페이지 ZIP 전송 로직은 기존 `transport.cjs` 유지); 초기 로딩이나 캐시 부족 시 전체 전송으로 복귀.
+- 코드 커밋: `34e...? ` 가 아니라 **`2c7a5224` (중복 방지 및 가로 전용 갱신), `aa272f9f` (가로키 release 전체 갱신 제거)**. 캐시 구현은 직전 `d7addeaa` (device-sync 파일 SHA, 커밋은 조회 필요). 기존 프로필·노브·버튼 액션 보존.
+- 새 Windows Preview [#43681874878](https://github.com/SoonCheol/D200X-Deck/actions/runs/43681874878) 및 CI [#43681878317](https://github.com/SoonCheol/D200X-Deck/actions/runs/43681878317) 확인 후 Artifact 제공. **실물 누름 1회당 1회 화면 전환**은 사용자 재검증 전까지 확인된 것으로 말하지 말 것.
+
+- **빌드 결과 확인:** 최종 기능 커밋 `aa272f9fa423b72dfb0ebd44b319698710503132` CI [#43681878317](https://github.com/SoonCheol/D200X-Deck/actions/runs/43681878317) `success`, Windows Preview [#43681874878](https://github.com/SoonCheol/D200X-Deck/actions/runs/43681874878) `success`. Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43681874878/artifacts/14148613104), ID `14148613104`, 170,370,165 bytes, 조회 당시 만료되지 않음. 기존 코드는 사용자 실기 테스트 전까지 1회/2회 증상 해결 확정 불가.
+
+
+### 2026-11-15 — 사용자 재시험: 네이티브 시계 정상, 모든 다른 화면 통계 오버레이, 간헐적 두 번 누름
+
+- 최신 실기: 아날로그+디지털 시계 모드는 CPU/RAM/GPU 정보가 겹치지 않음. 날짜·시간·요일 및 다른 사용자 지정 정보 화면은 CPU/RAM/GPU가 겹쳐 나타남. CPU/RAM/GPU 자체 모드는 같은 정보가 겹치는 탓에 정상처럼 보일 수 있음. 물리 가로 버튼의 1회/2회 누름 교대 문제도 남음. **오버레이 제거/버튼 모두 실기 해결 미확인**.
+- 외부 D200X 실기 확인 자료: `arturs03/ulanzi-d200x` 공개 저장소의 `Protocol.cs` `DisplayPackets()`와 README의 Preview 1~3 해결 기록을 조사. 동일한 기본 CPU/RAM/GPU 오버레이 문제를 물리 기기에서 해결한 구현은 0x0006 이미지 모드 패킷 `2|0|0|00:00:00|0`을 **페이지 ZIP(0x0001) 전후 모두** 송신. 빈 필드 패킷 `2|||||24H|`을 쓰지 않음. 외부 GPL 코드 복사 없음(해당 저장소는 MIT이나 직접 구현만 변경).
+- 코드 변경: `app/streamdeck-editor/transport.cjs`에서 이미지 모드 패킷을 실제 입증된 형식 `2|0|0|00:00:00|0`으로 교체하고 `this.deck.pushPage(zip)` 전/후로 한 번씩 전송. `stats`/기본 `clock`은 기존 네이티브 분기를 그대로 유지하고 이미지 모드 외에는 패킷 추가하지 않음. `test/streamdeck-transport.test.cjs`의 모든 패킷값 및 전후 순서·native overlay 비활성 검증을 갱신.
+- 주요 기능 커밋 `c1ee9357`, 테스트 `b5346b1c`, 최종 Windows Preview 트리거 `642ffa18`; CI/Windows Preview 결과는 별도 조회 필요. 빌드 자동 성공을 실물 전환 성공으로 오인 금지. `main`/PR/프로필·노브·일반 액션 설정 무변경. 
+
+- **실제 새 EXE 검증:** 소스 커밋 `642ffa18b5d80f3a441d6ffab0bf9bf9b65a9a07`의 CI [#43682570458](https://github.com/SoonCheol/D200X-Deck/actions/runs/43682570458) `success`, Windows Preview [#43682567982](https://github.com/SoonCheol/D200X-Deck/actions/runs/43682567982) `success`, Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43682567982/artifacts/14149630319) ID `14149630319`, 170,370,149 bytes, 조회 시 미만료. **이는 소프트웨어 빌드/모의 테스트 성공이며 사용자 D200X 실기 중첩·두 번 누름 해결은 미확인**.
+
+
+### 2026-11-15 — 와이드 슬롯 액션 등록 방지·물리 버튼 우클릭 삭제·통계 화면 입력 수정
+
+- **사용자 실기:** 최종 CPU/RAM/GPU 겹침이 사라졌고 일반 가로 화면은 한 번 눌러 순환 성공. **CPU/RAM/GPU 네이티브 통계 화면에서만 여러 번 눌러야 다음 화면으로 전환**되는 상태로 보고. 기존 다른 가로 화면 정상 동작은 유지한다.
+- `app/lib/deck.js` _onKeyEvent의 `knob = (index>=17&&index<=19)||kind===2`는 D200X 네이티브 통계 모드에서 kind 값이 2로 오는 가로 버튼 이벤트를 노브로 분류하여 `isWideDisplayPress`가 배제할 위험이 있었다. 노브 판별을 물리 인덱스 17~19만으로 한정하고, 화면 모드 blank 클록 패킷도 검증된 `2|0|0|00:00:00|0`으로 통일했다. 실기 입력 변동 여부는 사용자 재검증 필요.
+- `app/streamdeck-editor/editor.js` 가로 인덱스 13은 루트/폴더 모두 **액션 할당 금지**: `setItem` 진입 차단, 드롭 불허, 붙여넣기·액션 불러오기·키보드 붙여넣기·우클릭 액션 메뉴 차단. 루트의 와이드 화면은 기존 저장된 슬롯 13 액션보다 우선 화면 모드 UI/출력 표시. **기존 저장된 액션을 자동 삭제하거나 프로필 JSON 스키마 변경하지 않음**. 다른 13개 버튼 및 5개 물리 입력 설정은 보존.
+- 물리 버튼 2개와 노브 누름 3개(즉 모든 물리 제어 인덱스 14~18)에 **우클릭 → '누르기 액션 삭제'** 메뉴 추가. 할당이 없는 경우 메뉴 비활성. 해당 컨트롤 `down`만 지우므로 노브 left/right, 조절 방식/스택/프로필/다른 물리 버튼은 유지. 속성창 '이 동작 삭제'와 우클릭 메뉴 모두 `removeControlAction`을 공통 호출하여 같은 확인/제거/렌더링 처리.
+- 일반 LCD 버튼 역시 속성창 X와 우클릭 삭제가 같은 `removeSlotAction`을 경유하게 하고 확인 창 중복 제거. 고정된 액션은 기존 고정 해제 분기를 보존. 스크립트/화면 경로 일관화.
+- 커밋: `60dc1162`(native stats 입력), `12e6615a`(와이드 할당 차단), `794a2da4`(물리 우클릭 삭제), `749671fd`(와이드 루트/폴더·속성창), `c738f160`(일반 LCD 삭제 일관화). 최종 코드는 `c738f16095996d64b2dd8b215515743fba299390`.
+- 검증: CI [#43683897871](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683897871) 성공, 입력 검증 [#43683894235](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894235) 성공, Windows Preview [#43683894213](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894213) 성공. EXE Artifact [D200X-StreamDeck-Device-Sync-win-x64](https://github.com/SoonCheol/D200X-Deck/actions/runs/43683894213/artifacts/14149443199), ID `14149443199`, 170,370,664 bytes, 조회 시 `expired=false`. **최종 해결은 사용자 D200X 실기 미검증**. `main` 또는 PR 무변경.
+
+## 2026-11-16 — 추후 개발 목표 기록: 원본 Stream Deck 프로필 가져오기
+
+- **보류 / 미구현:** Elgato `.streamDeckProfile`을 DeckForge 새 프로필로 안전하게 변환하여 가져오는 기능. 사용자 지시로 **로드맵에 체크리스트만 기록**하며 구현·빌드 금지.
+- 세부 체크 항목과 완료 기준: [로드맵의 '후속 개발 보류 — Elgato Stream Deck 원본 프로필 가져오기'](D200X-STREAMDECK-ROADMAP.md#후속-개발-보류--elgato-stream-deck-원본-프로필-가져오기-2026-11-16).
+- 기존 DeckForge JSON 프로필·설정 보호, 원본 글꼴명 보존/누락 안내, D200X 키·노브 배치 변환, 비호환 액션 고지 등을 추후 검토. 원본 파일 형식의 실측 호환성은 아직 검증하지 않음.
+
+## 2026-11-16 — 내장 Pretendard를 D200X 버튼 제목 기본 글꼴로 연결
+
+- `device-sync.js`의 캔버스 `drawText` 기본 family를 내장 `DeckForge Pretendard`로 바꾼 코드 변경. 편집기 제목 미리보기와 글꼴 선택기에도 동일한 글꼴 연결. `deck-core.js` 선택 글꼴 화이트리스트 확장.
+- `default` 프로필 값은 그대로 보존하고 이전에 명시된 맑은 고딕 / Segoe UI는 유지. 일반 사용자 설치 글꼴 검색 기능은 별도 미래 과제.
+- D200X 실제 화면 글꼴은 설치된 EXE로 사용자 검증 필요. HTML/CSS·JS 정적 수정 확인 또는 Actions 성공을 실기 확인으로 처리하지 말 것.
+
+## 2026-11-16 — 제목 글꼴 프리셋 추가 (후속 검증 대기)
+
+- 기존 제목 글꼴 팝업 너비 277px 고정. 글꼴 목록 바로 아래 프리셋 선택 + 저장(＋) + 삭제(−) 한 줄을 추가했으며 저장/선택 시 전체 제목 스타일을 스냅샷으로 사용. 같은 이름 덮어쓰기 및 삭제 확인창. 최대 20개.
+- 저장소 `deckforge-title-style-presets-v1`는 프로필 저장과 별도. 프리셋 선택은 개별 버튼의 `titleStyle`만 바꾸며 원본 프리셋을 참조로 연결하지 않음. 기존 두 폰트 명시 설정 보존, 기본 Pretendard D200X PNG 경로 유지.
+- 개발 브랜치에 코드/CSS 반영. 실제 Windows UI 동작·D200X 디스플레이는 후속 실기 확인 필요. 새 빌드 결과는 GitHub Actions run별로 확인할 것.
+
+## 2026-11-16 — 제목 표시 체크박스 위치 및 프리셋 즉시 동기화 변경
+
+- **사용자 최종 요구:** `제목` 라벨 삭제 → 왼쪽 `제목 표시` 체크박스 / 오른쪽 제목 입력 필드 / 필드 안 `T⌄` 글꼴 버튼. 팝업 내 `제목 보기` 체크 제거. 글꼴 선택/프리셋 선택 위 별도 제목 제거, 선택기 안 기본 문구만 사용.
+- **코드:** `editor.js`에서 기존 `title-visible` DOM을 제목 라벨 위치로 이동, `style.css`에 해당 행만 92px 레이블 배치. 프리셋 `change`에서 `Object.assign(style,chosen.style)` 사용으로 기존 참조 보존; 글꼴, 크기, 정렬, 강조, 색상, 외곽선, 표시 상태를 현재 열린 팝업 컨트롤에 즉시 반영. 이전의 `renderInspector()` 호출은 이 경로에서 제거하여 드롭다운과 팝업이 유지되게 함.
+- **안전:** 프리셋 데이터는 별도 `deckforge-title-style-presets-v1` 저장소, 프로필은 `titleStyle` 스키마 그대로 사용. 명시적 맑은 고딕/Segoe UI 유지, 기본은 내장 Pretendard. D200X로 전송되는 제목 PNG 렌더링 경로는 변경하지 않음.
+- **검증:** 정적 회귀 테스트에 UI 배치·프리셋 필드 동기화 회귀 방지 추가. Actions 결과/빌드 아티팩트·D200X 실기는 반드시 별도 확인. PR #5 병합 금지.
+
+- **확인된 CI:** 변경 코드 및 레이아웃 회귀 테스트 후 최종 문서 커밋 `b9986bb1` 기준 [CI #43799006679](https://github.com/SoonCheol/D200X-Deck/actions/runs/43799006679) `completed/success` 확인. 소스 커밋 `fb01c996`, `4ffe581b`, `af4c1015`의 CI 역시 성공 확인.
+- **Windows 자동 빌드 정책:** `.github/workflows/streamdeck-clean-preview.yml`은 해당 개발 브랜치의 `app/streamdeck-editor/**` 변경에 `push`로 실행하도록 정의됨. 이번 코드 변경으로 트리거 조건을 만족하지만, 연결된 CI 조회는 PR 기반 실행만 반환해 **Windows build run 번호, 완료 상태 및 ZIP/Setup 아티팩트 존재를 확인하지 못했음**. 확인 전 빌드 성공/다운로드 가능이라고 주장하지 말 것.
+
+## 2026-11-16 — Fusion 실제 메뉴 명령만 일괄 등록하도록 제한
+
+- 소스: `tools/fusion-mcp/captures/fusion-ui-hierarchy-20261116-174725-797858.json`, `fusion-live-commands-20261116-174725.json` (개발 브랜치 커밋 `97f55e92`). GitHub API contents를 통해 원본을 열어 메뉴 계층과 명령 ID를 대조.
+- 디자인 작업 영역 `FusionSolidEnvironment`의 메뉴 탭 9개(스케치, 솔리드, 곡면, 메쉬, 판금, 플라스틱, 매니지, 유틸리티, 자동화)를 지정된 순서로 재배열. 패널은 좌→우, 명령 및 드롭다운 자식은 위→아래, 하위 메뉴는 재귀 순회. 결과 **메뉴 배치 959건 / 고유 명령 ID 326개**, 명령 API에 존재하지 않는 메뉴 ID 0건.
+- `tools/fusion-mcp/fusion-menu-catalog.json`에 ID·이름·탭·패널·드롭다운 경로를 보관. `server.cjs`의 명령 목록과 `fusion_export_batch`는 이 스냅샷에 등록된 ID만 보이거나 내보내며, 현재 Fusion 애드인의 실시간 `/commands` 목록에도 있어야 한다. 중복 배치는 첫 메뉴 순서만 사용하고, 이름이 같아도 ID가 다르면 별도 명령이다.
+- 이전의 3,151개 전체 API 명령 `all:true` 일괄 내보내기는 메뉴 전용으로 변경. 프로필 자동 적용·Fusion 자동 실행·D200X 하드웨어 테스트는 하지 않음. 기존 D200X JSON 가져오기 및 사용자 데이터 보호.
+- 자동 검증: `test/streamdeck-fusion-mcp.test.cjs`에 메뉴 화이트리스트·중복 제거·순서·ID 차이 검사를 추가. GitHub CI 및 Windows/D200X/Fusion 실기 결과는 별도로 기록.

@@ -1,0 +1,637 @@
+'use strict';
+/* Display synchronization only. Do not execute action handlers in this stage.
+ * Render each edited slot as PNG and let the isolated main process send a page.
+ */
+(() => {
+  const bridge = window.deckBridge;
+  const statusNode = document.getElementById('deck-status');
+  const notice = document.querySelector('.prototype-note');
+  if (!bridge) {
+    if (statusNode) statusNode.title = '브라우저 미리보기: 장치 연결 없음';
+    return;
+  }
+
+  let renderSerial=0,slotRevision=0;
+  let timeout=null,rendering=false,fullPending=false,renderRetryCount=0;
+  // Keep each dirty slot until the exact captured revision has been submitted.
+  const dirtyNativeSlots=new Map();
+  let lastSentImages = null;
+  let lastSentWideMode='blank',lastSentPageStamp=null;
+  let online = false;
+  const pageSession=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+  let pageEntry=null,pageGeneration=0,displayedPageToken=null;
+  const physicalDownTokens=new Map();
+  const PAGE_ENTRY_MAX_MS=500;
+  const pressedKeys=new Map();
+  const releaseTimers=new Map();
+  const pageStamp=()=>String(state.profileId)+':'+state.page+':'+(state.folderPath||[]).join('-')+':'+(DeckCore.activeFolder(state)?.pageIndex||0)+':'+(window.D200XPageStructureEpoch?.()||0);
+  const keyPressed=index=>pressedKeys.get(index)===pageStamp();
+  window.D200XPhysicalKeyPressed=keyPressed;
+  const text = message => { if (notice) notice.textContent = message; };
+
+  bridge.onStatus(status => {
+    online = Boolean(status?.connected);
+    if(!online){
+      window.clearD200XNativeWide?.();
+      window.clearD200XOpenAppHolds?.('hid-disconnect');
+      window.clearD200XFusionPresses?.();
+      window.clearD200XSidePresses?.();
+      window.clearD200XWarningPresses?.();
+      displayedPageToken=null;physicalDownTokens.clear();
+      pressedKeys.clear();
+      for(const timer of releaseTimers.values())clearTimeout(timer);
+      releaseTimers.clear();
+    }
+    if (statusNode) {
+      statusNode.classList.toggle('online', online);
+      statusNode.title = online
+        ? 'D200X 연결됨 — 액션 등록 시 화면 동기화'
+        : 'D200X 미연결 — ' + (status?.message || 'USB 장치를 찾을 수 없습니다.');
+    }
+    text(online
+      ? 'D200X 연결됨 · 화면 동기화 · 페이지 이동/웹사이트 열기 실행 지원'
+      : 'D200X 미연결 · ' + (status?.message || '장치 확인 중'));
+    if (online) schedule();
+  });
+  bridge.onError(message => text('D200X 전송 오류: ' + message));
+  bridge.onSynced(details => {
+    if(online&&details?.pageToken===pageEntry?.token)displayedPageToken=details.pageToken;
+    if (online) text('D200X 화면 동기화 전송 완료 (' + details.slots + '개 키) · 실제 화면 확인 필요');
+  });
+  window.d200xActionStatus = message => text('D200X 동작 · ' + message);
+  bridge.onKey(event => {
+    // A brief visual press acknowledgement, independent of action/HA state.
+    const keyIndex=Number(event?.index);
+    if(Number(event?.kind)===1&&Number.isInteger(keyIndex)&&keyIndex>=0&&keyIndex<13){
+      // A late release must never activate a different page's action.
+      const token=pageEntry?.token;
+      if(event.pressed){
+        if(displayedPageToken!==token||physicalDownTokens.has(keyIndex)&&physicalDownTokens.get(keyIndex)!==token){
+          physicalDownTokens.set(keyIndex,null);text('페이지 전환 중 · 버튼 입력 보류');return;
+        }
+        physicalDownTokens.set(keyIndex,token);
+      }else{
+        const down=physicalDownTokens.get(keyIndex);physicalDownTokens.delete(keyIndex);
+        if(down!==token||displayedPageToken!==token)return;
+      }
+    }
+    // Wide key (13/14) has its own mode switch. Do not schedule full-page
+    // press/release repaints: those can overwrite the newly chosen mode.
+    if(Number(event?.kind)===1&&Number.isInteger(keyIndex)&&keyIndex>=0&&keyIndex<13){
+      const oldTimer=releaseTimers.get(keyIndex);
+      if(oldTimer){clearTimeout(oldTimer);releaseTimers.delete(keyIndex);}
+      if(event.pressed){
+        window.clearD200XVisualPreview?.(keyIndex);
+        pressedKeys.set(keyIndex,pageStamp());
+        schedule(0);window.refreshKeyPressIcons?.();
+      }else{
+        const raw=DeckCore.visibleActions(state)[keyIndex];
+        const current=window.getD200XDisplayItem?.(raw,keyIndex);
+        // Different Down artwork returns at the physical Up event.
+        // Identical artwork preserves the existing short shrink animation.
+        const release=()=>{
+          pressedKeys.delete(keyIndex);releaseTimers.delete(keyIndex);
+          schedule(0);window.refreshKeyPressIcons?.();
+        };
+        if(current?.keyPressAlternate)release();
+        else releaseTimers.set(keyIndex,setTimeout(release,120));
+      }
+    }
+    if((keyIndex===13||keyIndex===14)&&event?.pressed===true)
+      console.info('[D200X wide display press]',{index:keyIndex,kind:event.kind,state:event.state});
+    const result = window.executeD200XKey?.(event);
+    if (result) { text('D200X 버튼 #' + event.index + ' · ' + result); return; }
+    if((keyIndex===13||keyIndex===14)&&event?.pressed===true){
+      text('가로 버튼 입력 수신 ('+keyIndex+') · 화면 전환 처리 안 됨');
+      return;
+    }
+    const where = Number(event?.kind) === 1 ? '버튼' : '입력 종류 ' + event?.kind;
+    const direction = event?.pressed ? '누름' : '뗌';
+    if (event?.pressed) text('D200X 입력 수신 · ' + where + ' #' + event.index +
+      ' · 해당 동작은 아직 실행되지 않음');
+  });
+
+  // DeckForge renders titles over a fixed full-key icon.
+  // Preserve the established 72px logical font scale; D200X accepts 196px PNG.
+  // Rendering both views from this compositor prevents CSS flex layout drift.
+  function applyTitleFont(ctx,height,style){
+    const baseSize = Math.max(8, Math.min(48, Number(style?.size) || 12));
+    const fontSize = baseSize * height / 72;
+    const family = style?.family === 'Segoe UI' ? '"Segoe UI"'
+      : style?.family === 'Malgun Gothic' ? '"Malgun Gothic"'
+      : '"DeckForge Pretendard"';
+    ctx.font = (style?.italic ? 'italic ' : '') +
+      (style?.bold ? 'bold ' : '') + fontSize + 'px ' + family + ',sans-serif';
+    return fontSize;
+  }
+  let marqueeMeasureContext=null,marqueePhaseScope=null;
+  const marqueeStarts=new Map();
+  let marqueeClock=Date.now();
+  function titleFrame(item,index,now=marqueeClock){
+    if(!item?.title||item.titleStyle?.marquee!==true||item.titleStyle?.visible===false||item.type==='wide-display')return null;
+    marqueeMeasureContext??=document.createElement('canvas').getContext('2d');
+    applyTitleFont(marqueeMeasureContext,196,item.titleStyle);
+    const scope=pageStamp();
+    if(scope!==marqueePhaseScope){marqueePhaseScope=scope;marqueeStarts.clear();}
+    const width=(index===13?392:196)-16,measure=text=>marqueeMeasureContext.measureText(text).width;
+    const key=JSON.stringify([index,item.title,item.titleStyle.family,item.titleStyle.size,item.titleStyle.bold,item.titleStyle.italic,item.titleStyle.marqueeSpeed]);
+    const start=marqueeStarts.get(key)??now;
+    const frame=DeckCore.titleMarqueeFrame(item.title,item.titleStyle,width,measure,Math.max(0,now-start));
+    if(frame===null){marqueeStarts.delete(key);return null;}
+    marqueeStarts.delete(key);marqueeStarts.set(key,start);
+    if(marqueeStarts.size>64)marqueeStarts.delete(marqueeStarts.keys().next().value);
+    return frame;
+  }
+  function drawText(ctx, title, width, height, style) {
+    if (!title || style?.visible === false) return;
+    const alignment = ({left:'bottom',center:'middle',right:'top'})[style?.align]
+      || (['top','middle','bottom'].includes(style?.align) ? style.align : 'bottom');
+    const fontSize=applyTitleFont(ctx,height,style);
+    ctx.fillStyle = style?.color || '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    // DeckForge title text overlays the icon without repositioning it.
+    const maxWidth = width - 16;
+    const lines = [];
+    for (const paragraph of String(title).split(/\r?\n|<br\s*\/?>/gi)) {
+      let line = '';
+      for (const ch of Array.from(paragraph)) {
+        if (ctx.measureText(line + ch).width > maxWidth && line) {
+          lines.push(line);
+          line = '';
+        }
+        line += ch;
+      }
+      if (line || paragraph === '') lines.push(line);
+    }
+    const lineHeight = fontSize * 1.13;
+    const visibleLines = lines.slice(0, Math.max(1, Math.min(3, Math.floor((height - 12) / lineHeight))));
+    const blockHeight = visibleLines.length * lineHeight;
+    const top = alignment === 'top' ? 6
+      : alignment === 'middle' ? (height - blockHeight)/2
+      : height - blockHeight - 6;
+    // Subtitle background is one rounded block, sized to the longest rendered line.
+    if(style?.backgroundEnabled===true&&visibleLines.some(value=>value.trim())){
+      const scale=height/144,padX=6*scale,padY=3*scale;
+      const longest=Math.max(...visibleLines.map(value=>Math.min(maxWidth,ctx.measureText(value).width)));
+      const w=Math.min(width,longest+padX*2),y=Math.max(0,top-padY);
+      const h=Math.min(height-y,blockHeight+padY*2);
+      const opacity=Number.isFinite(style.backgroundOpacity)?Math.max(0,Math.min(100,style.backgroundOpacity)):65;
+      ctx.save();
+      ctx.globalAlpha=opacity/100;
+      ctx.fillStyle=/^#[0-9a-fA-F]{6}$/.test(style.backgroundColor)?style.backgroundColor:'#000000';
+      ctx.beginPath();ctx.roundRect((width-w)/2,y,w,h,Math.min(8*scale,w/2,h/2));ctx.fill();
+      ctx.restore();
+    }
+    visibleLines.forEach((value,index)=>{
+      const y = top + (index + 0.5) * lineHeight;
+      // A subtle black outline is readable over bright icons without
+      // adding an unwanted background when title background is disabled.
+      const outlineColor = /^#[0-9a-fA-F]{6}$/.test(style?.outlineColor)
+        ? style.outlineColor : '#000000';
+      const outlineWidth = {none:0,thin:fontSize/16,medium:fontSize/10,thick:fontSize/6}
+        [style?.outlineWidth || 'thin'] ?? fontSize/16;
+      if(outlineWidth>0){
+        ctx.strokeStyle=outlineColor;
+        ctx.lineWidth=Math.max(1,outlineWidth);
+        ctx.strokeText(value,width/2,y,maxWidth);
+      }
+      ctx.fillText(value,width/2,y,maxWidth);
+      if(style?.underline){
+        const actual = Math.min(maxWidth,ctx.measureText(value).width);
+        ctx.fillRect((width-actual)/2,y+fontSize*0.48,actual,Math.max(1,fontSize/15));
+      }
+    });
+  }
+
+  function imageLoaded(source) {
+    return new Promise(resolve => {
+      const img = new Image();
+      let settled=false;
+      const finish=value=>{
+        if(settled)return;settled=true;clearTimeout(timer);
+        img.onload=null;img.onerror=null;resolve(value);
+      };
+      const timer=setTimeout(()=>finish(null),5000);
+      img.onload=()=>finish(img);
+      img.onerror=()=>finish(null);
+      img.src=source;
+    });
+  }
+
+  function drawWidePanel(ctx,width,height,mode,now=new Date(),knobs=null){
+    const text=(value,x,y,font,align='center',color='#f2f5fa')=>{
+      ctx.font=font;ctx.textAlign=align;ctx.textBaseline='middle';ctx.fillStyle=color;ctx.fillText(value,x,y);
+    };
+    ctx.fillStyle='#111823';ctx.fillRect(0,0,width,height);
+    const w=width,h=height;
+    if(mode==='unsaved'){
+      ctx.fillStyle='#301c18';ctx.fillRect(0,0,w,h);
+      ctx.strokeStyle='#dc9944';ctx.lineWidth=4;ctx.strokeRect(4,4,w-8,h-8);
+      ctx.fillStyle='#ffbd59';ctx.beginPath();
+      ctx.moveTo(w/2,18);ctx.lineTo(w/2-29,69);ctx.lineTo(w/2+29,69);ctx.closePath();ctx.fill();
+      text('!',w/2,55,'bold 33px "Segoe UI",sans-serif','center','#301c18');
+      text('저장하지 않은 변경 사항',w/2,105,'bold 28px "Malgun Gothic",sans-serif','center','#ffbd59');
+      text('이 버튼을 눌러 확인',w/2,145,'23px "Malgun Gothic",sans-serif');
+      text('DeckForge',w/2,174,'17px "Segoe UI",sans-serif','center','#d5bca9');
+    }else if(mode==='clock'){
+      const radius=69,cx=88,cy=h/2;
+      ctx.strokeStyle='#7e93ab';ctx.lineWidth=3;ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.stroke();
+      for(let i=0;i<12;i++){
+        const angle=i*Math.PI/6-Math.PI/2;
+        const x1=cx+Math.cos(angle)*(radius-12),y1=cy+Math.sin(angle)*(radius-12);
+        const x2=cx+Math.cos(angle)*(radius-5),y2=cy+Math.sin(angle)*(radius-5);
+        ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+      }
+      const hands=[[((now.getHours()%12)+now.getMinutes()/60)*Math.PI/6,39,5],
+        [(now.getMinutes()+now.getSeconds()/60)*Math.PI/30,56,3],
+        [now.getSeconds()*Math.PI/30,60,1]];
+      hands.forEach(([angle,len,lineWidth])=>{
+        const a=angle-Math.PI/2;ctx.lineWidth=lineWidth;
+        ctx.strokeStyle=lineWidth===1?'#fa7272':'#e8f1fa';
+        ctx.beginPath();ctx.moveTo(cx,cy);
+        ctx.lineTo(cx+Math.cos(a)*len,cy+Math.sin(a)*len);ctx.stroke();
+      });
+      const hh=String(now.getHours()).padStart(2,'0'),mm=String(now.getMinutes()).padStart(2,'0');
+      text(hh+':'+mm,278,82,'bold 49px "Segoe UI",sans-serif');
+      text(now.toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit',weekday:'short'}),278,134,'22px "Malgun Gothic",sans-serif','center','#aebbd0');
+    }else if(mode==='datetime'){
+      const date=now.toLocaleDateString('ko-KR',{year:'numeric',month:'long',day:'numeric'});
+      const day=now.toLocaleDateString('ko-KR',{weekday:'long'});
+      text(date,w/2,43,'bold 27px "Malgun Gothic",sans-serif');
+      text(now.toLocaleTimeString('ko-KR',{hour12:false,hour:'2-digit',minute:'2-digit'}),w/2,107,'bold 60px "Segoe UI",sans-serif');
+      text(day,w/2,167,'24px "Malgun Gothic",sans-serif','center','#aebbd0');
+    }else if(mode==='knobs'){
+      const info=knobs??window.D200XKnobInfo?.()??[];
+      info.slice(0,3).forEach((knob,i)=>{
+        const x=65+i*131;
+        if(i){
+          ctx.strokeStyle='#364657';ctx.lineWidth=1;
+          ctx.beginPath();ctx.moveTo(i*131,22);ctx.lineTo(i*131,174);ctx.stroke();
+        }
+        // Bound each label to its own 112px column; never spill into a
+        // neighboring knob, even with long Korean titles.
+        const draw=(value,y,size,color='#f2f5fa')=>{
+          ctx.font='bold '+size+'px "Malgun Gothic",sans-serif';
+          ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=color;
+          ctx.fillText(String(value),x,y,112);
+        };
+        draw(knob.name||'노브 '+(i+1),38,18,'#aebbd0');
+        draw(knob.title||'미설정',83,19);
+        if(knob.detail)draw(knob.detail,132,18,'#aebbd0');
+      });
+    }else{
+      text('CPU',76,55,'bold 25px "Segoe UI",sans-serif');
+      text('RAM',196,55,'bold 25px "Segoe UI",sans-serif');
+      text('GPU',316,55,'bold 25px "Segoe UI",sans-serif');
+      text('장치에서 실시간 표시',w/2,125,'21px "Malgun Gothic",sans-serif','center','#aebbd0');
+    }
+  }
+  async function drawNativeWide(ctx,frame){
+    if(frame.kind==='png'){
+      const image=await imageLoaded(frame.data);
+      if(!image||image.width!==392||image.height!==196)return false;
+      ctx.drawImage(image,0,0,392,196);return true;
+    }
+    ctx.fillStyle=frame.background;ctx.fillRect(0,0,392,196);
+    for(const e of frame.elements){
+      ctx.save();ctx.beginPath();ctx.rect(e.x,e.y,e.w,e.h);ctx.clip();
+      ctx.fillStyle=e.color;
+      if(e.type==='text'){
+        ctx.font=e.size+'px "Malgun Gothic","Segoe UI",sans-serif';
+        ctx.textAlign=e.align;ctx.textBaseline='middle';
+        const x=e.align==='left'?e.x:e.align==='right'?e.x+e.w:e.x+e.w/2;
+        ctx.fillText(e.text,x,e.y+e.h/2,e.w);
+      }else if(e.type==='rect')ctx.fillRect(e.x,e.y,e.w,e.h);
+      else if(e.type==='bar'){
+        ctx.fillStyle=e.track;ctx.fillRect(e.x,e.y,e.w,e.h);
+        ctx.fillStyle=e.color;ctx.fillRect(e.x,e.y,e.w*e.value,e.h);
+      }
+      ctx.restore();
+    }
+    return true;
+  }
+  const bitmapCache=DeckCore.createBitmapCache();
+  let fontEpoch=0;
+  const styleFields=['visible','align','family','size','bold','italic','underline','color','outlineColor','outlineWidth','backgroundEnabled','backgroundColor','backgroundOpacity','marquee','marqueeSpeed'];
+  const visualStyle=style=>style?Object.fromEntries(styleFields.map(key=>[key,style[key]])):undefined;
+  // Only the automatically supplied Fusion command artwork is constrained.
+  // Explicit key artwork and background images retain the normal full canvas.
+  function fusionArtworkScale(item){
+    if(item?.fusionCommandArtwork!==true||item.icon?.kind!=='file')return 1;
+    const custom=[...Object.values(item.settings?.keyPressIcons||{}),...Object.values(item.settings?.sdkStateIcons||{})];
+    return custom.some(icon=>icon?.kind==='file'&&icon.value===item.icon.value)?1:0.79;
+  }
+  function keyDescriptor(item,index,previewPressed=false){
+    const wide=index===13;
+    const wideMode=item?.type==='wide-display'?(item.wideNotice?'unsaved':window.D200XWideModeName?.()||'clock'):null;
+    const panelArtwork=item&&!item.icon?.glyph&&item.icon?.kind!=='file'?window.D200XPanelIcons?.keyArtwork?.(item.type)||null:null;
+    const background=item?.keyBackground||item?.settings?.keyBackgrounds?.default;
+    const frame=item?.titleStyle?.marquee===true?titleFrame(item,index):null;
+    const visual=item?{type:item.type,title:frame??(item.title||''),titleStyle:visualStyle(item.titleStyle),
+      icon:item.icon?{kind:item.icon.kind,value:item.icon.value,glyph:item.icon.glyph}:undefined,
+      keyBackground:background?{enabled:background.enabled,color:background.color}:undefined,
+      sensorDisplay:item.sensorDisplay===true,sensorOverlay:item.sensorDisplay===true&&typeof item.sensorOverlay==='string'?item.sensorOverlay:null,
+      indicatorNumber:item.indicatorNumber,indicatorNumberStyle:visualStyle(item.indicatorNumberStyle),
+      fusionOffline:item.fusionOffline===true,fusionArtworkScale:fusionArtworkScale(item),keyPressAlternate:item.keyPressAlternate===true,
+      wideNotice:item.wideNotice===true,wideOverlay:item.wideOverlay?JSON.parse(JSON.stringify(item.wideOverlay)):undefined}:null;
+    const pressed=Boolean(item&&(keyPressed(index)||previewPressed||item.previewPressed===true)&&!item.keyPressAlternate);
+    const time=wideMode==='clock'?Math.floor(Date.now()/1000)*1000:wideMode==='datetime'?Math.floor(Date.now()/60000)*60000:0;
+    const knobs=wideMode==='knobs'?(window.D200XKnobInfo?.()||[]).map(k=>({name:k.name,title:k.title,detail:k.detail,icon:k.icon})):null;
+    return {version:1,fontEpoch,wide,visual,pressed,panelArtwork,fallback:item?ACTIONS.get(item.type)?.icon||'•':'•',wideMode,time,knobs};
+  }
+  function prepareDeckKeyImage(item,index,previewPressed=false){
+    const descriptor=keyDescriptor(item,index,previewPressed);
+    return {signature:JSON.stringify(descriptor),render:async()=>{
+      await document.fonts?.ready;
+      const ready={...descriptor,fontEpoch};
+      return bitmapCache.get(JSON.stringify(ready),()=>composeSlot(ready));
+    }};
+  }
+  async function drawSlot(item,index,previewPressed=false){
+    return {index,png:await prepareDeckKeyImage(item,index,previewPressed).render()};
+  }
+  async function composeSlot(descriptor){
+    const {visual:item,wide,pressed,panelArtwork,fallback,wideMode,time,knobs}=descriptor;
+    const width = wide ? 392 : 196;
+    const height = 196;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    const background=item?.keyBackground||item?.settings?.keyBackgrounds?.default;
+    const baseColor=!wide&&background?.enabled===true&&/^#[0-9a-fA-F]{6}$/.test(background.color)?background.color:'#08090c';
+    ctx.fillStyle = baseColor;
+    ctx.fillRect(0, 0, width, height);
+    if(item?.type==='wide-display'){
+      // The custom knobs screen is rendered as PNG; the device-native mode must stay blank.
+      if(item.wideNotice||!item.wideOverlay||!await drawNativeWide(ctx,item.wideOverlay))
+      {
+        drawWidePanel(ctx,width,height,wideMode,new Date(time),knobs);
+        if(wideMode==='knobs'&&!item.wideNotice){
+          for(const [i,knob] of (knobs||[]).slice(0,3).entries()){
+            if(!knob.icon)continue;
+            const icon=await imageLoaded(knob.icon);
+            if(!icon||!icon.width||!icon.height)continue;
+            const ratio=Math.min(30/icon.width,30/icon.height),w=icon.width*ratio,h=icon.height*ratio;
+            ctx.drawImage(icon,65+i*131-w/2,162-h/2,w,h);
+          }
+        }
+      }
+      return canvas.toDataURL('image/png').split(',')[1];
+    }
+    if (item) {
+      let indicatorArtwork=false;
+      if (item.icon?.kind === 'file' && typeof item.icon.value === 'string') {
+        const image = await imageLoaded(item.icon.value);
+        if (image) {
+          const artworkScale=item.fusionArtworkScale===0.79?0.79:1;
+          const limitWidth = width*artworkScale, limitHeight = height*artworkScale;
+          const scale = Math.min(limitWidth / image.width, limitHeight / image.height);
+          const w = image.width * scale, h = image.height * scale;
+          ctx.drawImage(image, (width - w)/2, (height - h)/2, w, h);
+          indicatorArtwork=true;
+        }
+      } else if(item.sensorDisplay&&!item.icon?.glyph){
+        // A sensor with no custom image uses only the selected background.
+      } else if (item.type==='indicator'&&item.indicatorNumber!==undefined&&!item.icon?.glyph) {
+        // Number is drawn independently of the optional background artwork.
+      } else if (!item.icon?.glyph && panelArtwork) {
+        const image = await imageLoaded(panelArtwork);
+        if (image) {
+          const side = Math.min(width, height) * 0.79;
+          ctx.drawImage(image, (width-side)/2, (height-side)/2, side, side);
+        } else {
+          ctx.font = '154px "Segoe UI Symbol","Malgun Gothic",sans-serif';
+          ctx.fillStyle = '#f3f3f3';
+          ctx.textAlign = 'center';ctx.textBaseline = 'middle';
+          ctx.fillText(fallback, width/2, height/2);
+        }
+      } else if ((item.type === 'previous' || item.type === 'next') && !item.icon?.glyph) {
+        // The current placeholder font renders arrow symbols inconsistently
+        // on some Windows fonts; draw the direction explicitly instead.
+        const backward = item.type === 'previous';
+        const centerX = width/2;
+        const centerY = height/2;
+        const extent = Math.min(width,height) * 0.30;
+        const sign = backward ? -1 : 1;
+        ctx.strokeStyle = '#f3f3f3';
+        ctx.lineWidth = Math.max(10,height*0.105);
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(centerX-sign*extent,centerY);
+        ctx.lineTo(centerX+sign*extent,centerY);
+        ctx.moveTo(centerX,centerY-extent*0.72);
+        ctx.lineTo(centerX+sign*extent,centerY);
+        ctx.lineTo(centerX,centerY+extent*0.72);
+        ctx.stroke();
+      } else {
+        ctx.font = '154px "Segoe UI Symbol","Malgun Gothic",sans-serif';
+        ctx.fillStyle = '#f3f3f3';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(item.icon?.glyph || fallback, width/2, height/2, Math.min(172,width-12));
+        indicatorArtwork=!!item.icon?.glyph;
+      }
+      if(item.type==='indicator'&&item.indicatorNumber!==undefined)drawText(ctx,item.indicatorNumber,width,height,DeckCore.indicatorNumberDisplayStyle(item.indicatorNumberStyle,baseColor,indicatorArtwork));
+      // Bottom to top: button color, custom artwork, live HA readings,
+      // then the existing title. Keep the live layer in the cache signature.
+      if(item.sensorDisplay&&item.sensorOverlay&&!wide){
+        const image=await imageLoaded(item.sensorOverlay);
+        if(image)ctx.drawImage(image,0,0,width,height);
+      }
+      drawText(ctx, item.title || '', width, height, item.titleStyle);
+      // Offline indicator is an overlay; never alter the original cached PNG.
+      if(item.fusionOffline){
+        const r=Math.max(11,Math.round(Math.min(width,height)*0.095));
+        const x=width-r-8,y=r+8;
+        ctx.fillStyle='#15171c';ctx.beginPath();ctx.arc(x,y,r+4,0,Math.PI*2);ctx.fill();
+        ctx.fillStyle='#e5484d';ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();
+        ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(3,r*.2);ctx.lineCap='round';
+        ctx.beginPath();ctx.moveTo(x-r*.45,y-r*.45);ctx.lineTo(x+r*.45,y+r*.45);
+        ctx.moveTo(x+r*.45,y-r*.45);ctx.lineTo(x-r*.45,y+r*.45);ctx.stroke();
+      }
+      if(pressed){
+        const snapshot=document.createElement('canvas');
+        snapshot.width=width;snapshot.height=height;
+        snapshot.getContext('2d').drawImage(canvas,0,0);
+        ctx.fillStyle=baseColor;ctx.fillRect(0,0,width,height);
+        const inset=Math.round(Math.min(width,height)*0.05);
+        ctx.drawImage(snapshot,inset,inset,width-inset*2,height-inset*2);
+      }
+    }
+    return canvas.toDataURL('image/png').split(',')[1];
+  }
+
+  // Same compositor feeds the inspector preview and the D200X transfer.
+  window.prepareDeckKeyImage=prepareDeckKeyImage;
+  window.renderDeckKeyImage = async (item,index=0,previewPressed=false) => (await drawSlot(item,index,previewPressed)).png;
+  document.fonts?.addEventListener?.('loadingdone',()=>{fontEpoch++;renderGrid();window.refreshSelectedVisual?.();schedule(0);});
+  renderGrid();
+  window.refreshSelectedVisual?.();
+  // The initial inspector was constructed before this deferred compositor existed.
+  // Repaint its two state cards now, without requiring selection or checkbox changes.
+  const initialItem=state.selected===null?null:DeckCore.visibleActions(state)[state.selected];
+  if(initialItem)void refreshStateTitleCards(initialItem);
+
+  // Keep normal bitmaps/mode cached. Apply the alert only to the outgoing
+  // page, including native clock/stats and legacy populated folder slots.
+  const warningPageStamp=()=>JSON.stringify([state.profileId,state.page,state.folderPath||[],DeckCore.activeFolder(state)?.pageIndex||0,window.D200XWideOverlayStamp?.()||0,window.D200XPageStructureEpoch?.()||0]);
+  function sendImages(images,mode,liveOnly=false){
+    if(window.D200XUnsavedWarning?.()){
+      const canvas=document.createElement('canvas');canvas.width=392;canvas.height=196;
+      drawWidePanel(canvas.getContext('2d'),392,196,'unsaved');
+      const overlay=images.slice();
+      overlay[13]={index:13,png:canvas.toDataURL('image/png').split(',')[1]};
+      bridge.syncPage(overlay,'blank',false,window.D200XPageEntryToken?.());
+    }else bridge.syncPage(images,mode,liveOnly===true,window.D200XPageEntryToken?.());
+  }
+  function cacheAndSendImages(images,mode,stamp,liveOnly=false){
+    sendImages(images,mode,liveOnly);
+    lastSentImages=images;lastSentWideMode=mode;lastSentPageStamp=stamp;
+  }
+  window.scheduleD200XWarningSync=()=>{
+    // Do not cancel an outstanding normal page synchronization. It will
+    // also apply the current alert state at the point of transmission.
+    if(!window.D200XPageEntryPending?.()&&lastSentImages?.length===14&&lastSentPageStamp===warningPageStamp())
+      sendImages(lastSentImages,lastSentWideMode);
+    else schedule(0);
+  };
+  async function synchronize(nativeOnly=false) {
+    if(rendering)return;
+    rendering=true;
+    const serial=renderSerial;
+    let failed=false;
+    try{
+      const stamp=warningPageStamp(),mode=window.getD200XWideMode?.()||'blank';
+      const changed=new Map(dirtyNativeSlots);
+      const partial=nativeOnly&&changed.size>0&&lastSentImages?.length===14&&lastSentPageStamp===stamp&&
+        (lastSentWideMode===mode||changed.has(13));
+      const indices=partial?[...changed.keys()]:Array.from({length:14},(_,i)=>i);
+      const images=partial?lastSentImages.slice():new Array(14);
+      // Capture visual state before awaiting any decode. The editor and USB
+      // compositor consume the same resolved visual state.
+      const page=DeckCore.visibleActions(state).slice(0,14);
+      const jobs=indices.map(index=>{
+        const raw=page[index];
+        const item=raw|| (state.folderPath?.length&&index===13?{type:'folder-back',title:'뒤로',icon:{kind:'glyph',glyph:'↩'},titleStyle:DeckCore.TITLE}:null);
+        const visual=window.getD200XDisplayItem
+          ?window.getD200XDisplayItem(item,index)
+          :item?.type==='indicator'?{...item,icon:{kind:'glyph',glyph:String(state.page+1)}}:DeckCore.displaySwitchAction(item);
+        return {index,visual};
+      });
+      const results=await Promise.allSettled(jobs.map(async({visual,index})=>{
+        images[index]=await drawSlot(visual,index);
+      }));
+      // A newer full page request supersedes all older page bitmaps.
+      if(serial!==renderSerial||stamp!==warningPageStamp()||mode!==(window.getD200XWideMode?.()||'blank')){
+        fullPending=true;return;
+      }
+      const rejected=results.find(result=>result.status==='rejected');
+      if(rejected)throw rejected.reason;
+      // Single flight means an older frame can never overwrite an already
+      // submitted newer frame. A change during rendering remains dirty.
+      // Only a same-page partial render of one ordinary slot is eligible.
+      // Main/transport still require a complete snapshot and explicit opt-in.
+      cacheAndSendImages(images,mode,stamp,partial&&indices.length===1&&indices[0]<13&&mode==='blank');
+      for(const [index,revision] of changed)
+        if(dirtyNativeSlots.get(index)===revision)dirtyNativeSlots.delete(index);
+      renderRetryCount=0;
+    }catch(error){
+      failed=true;fullPending=true;renderRetryCount++;
+      text('D200X 아이콘 생성 오류: '+String(error?.message||error));
+    }finally{
+      rendering=false;
+      // Bounded retries preserve pending state, without spinning forever on a
+      // corrupt asset or a persistent renderer/transport failure.
+      if((fullPending||dirtyNativeSlots.size)&&(!failed||renderRetryCount<=3))
+        ensureRenderTimer(failed?Math.min(1000,125*2**renderRetryCount):0);
+    }
+  }
+  // A scope transition owns one bounded initial collection window.
+  function observePageEntry(){
+    const scope=pageStamp();
+    if(pageEntry?.scope===scope)return false;
+    const initial=window.D200XInitialNativeImagesReady?.()||{count:0,ready:true};
+    pageEntry={scope,token:pageSession+'-'+(++pageGeneration),deadline:Date.now()+PAGE_ENTRY_MAX_MS,collecting:initial.count>0&&!initial.ready};
+    dirtyNativeSlots.clear();++renderSerial;fullPending=true;renderRetryCount=0;
+    pressedKeys.clear();for(const timer of releaseTimers.values())clearTimeout(timer);releaseTimers.clear();
+    return true;
+  }
+  function entryDelay(delay){
+    if(!pageEntry?.collecting)return delay;
+    if(window.D200XInitialNativeImagesReady?.()?.ready)return 0;
+    return Math.max(0,pageEntry.deadline-Date.now());
+  }
+  window.D200XPageEntryToken=()=>pageEntry?.token;
+  window.D200XPageEntryPending=()=>displayedPageToken!==pageEntry?.token;
+  window.D200XObservePageEntry=()=>{if(observePageEntry())ensureRenderTimer(250,true);};
+  function runScheduledRender(){
+    timeout=null;
+    if(rendering)return;
+    observePageEntry();
+    const wait=entryDelay(0);
+    if(wait>0){ensureRenderTimer(wait);return;}
+    if(pageEntry)pageEntry.collecting=false;
+    const nativeOnly=!fullPending;
+    if(nativeOnly&&!dirtyNativeSlots.size)return;
+    fullPending=false;
+    void synchronize(nativeOnly);
+  }
+  function ensureRenderTimer(delay=0,replace=false){
+    if(rendering)return;
+    if(timeout!==null){
+      if(!replace)return;
+      clearTimeout(timeout);
+    }
+    timeout=setTimeout(runScheduledRender,entryDelay(delay));
+  }
+  function schedule(delay=250){
+    observePageEntry();++renderSerial;fullPending=true;renderRetryCount=0;
+    ensureRenderTimer(delay,true);
+  }
+  function requestSlots(slots){
+    observePageEntry();
+    for(const index of slots)dirtyNativeSlots.set(index,++slotRevision);
+    renderRetryCount=0;
+    ensureRenderTimer(0,true);
+  }
+  window.scheduleDeckSync=schedule;
+  window.scheduleNativeDeckSync=slots=>{
+    if(!Array.isArray(slots)||!slots.length||slots.some(i=>!Number.isInteger(i)||i<0||i>=13)){schedule(0);return;}
+    requestSlots(slots);
+  };
+  // Wide-mode changes share the same single-flight scheduler. The old full
+  // page remains the safe fallback if page identity has changed.
+  window.scheduleD200XWideSync=()=>requestSlots([13]);
+  bridge.ready();
+  schedule();
+  // At most one animation sweep per second, and only visible overflowing titles.
+  // Reuse the existing dirty-slot scheduler; do not enqueue a full-page repaint
+  // from each title. Hidden/offline device state never creates a send backlog.
+  const marqueeFrames=new Map();let marqueeScope=null;
+  setInterval(()=>{
+    if(rendering||pageEntry?.collecting)return;
+    const scope=pageStamp();if(scope!==marqueeScope){marqueeScope=scope;marqueeFrames.clear();}
+    const slots=[];const now=marqueeClock=Date.now();
+    DeckCore.visibleActions(state).slice(0,13).forEach((raw,index)=>{
+      if(!raw){marqueeFrames.delete(index);return;}
+      const item=window.getD200XDisplayItem?.(raw,index)||raw;
+      const frame=titleFrame(item,index,now);
+      if(frame===null){marqueeFrames.delete(index);return;}
+      if(marqueeFrames.get(index)!==frame){marqueeFrames.set(index,frame);slots.push(index);}
+    });
+    if(!slots.length)return;
+    renderGrid(slots);
+    if(slots.includes(state.selected))void window.refreshSelectedVisual?.();
+    if(online)requestSlots(slots);
+  },1000);
+  // Refresh the date/time image without polling or overwriting unrelated keys.
+  setInterval(()=>{
+    if(window.getD200XWideMode?.()==='blank'&&window.D200XWideModeName?.()==='datetime'){
+      window.renderGridWideClock?.();window.scheduleD200XWideSync();
+    }
+  },60_000);
+})();

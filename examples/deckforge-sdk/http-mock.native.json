@@ -1,0 +1,28 @@
+{
+  "apiVersion": 2,
+  "id": "com.deckforge.native.example.http-mock",
+  "name": "Offline HTTP example",
+  "version": "1.0.0",
+  "permissions": [
+    "display",
+    "network.request"
+  ],
+  "networkEndpoints": [
+    {
+      "id": "status",
+      "url": "https://example.invalid/status",
+      "method": "GET"
+    }
+  ],
+  "actions": [
+    {
+      "id": "com.deckforge.native.example.http-mock.status",
+      "name": "Status",
+      "controllers": [
+        "Keypad"
+      ],
+      "states": 1,
+      "script": "if(event.type==='press')api.request('status');if(event.type==='networkResult')api.setTitle(event.response.ok?event.response.body:event.response.error);"
+    }
+  ]
+}

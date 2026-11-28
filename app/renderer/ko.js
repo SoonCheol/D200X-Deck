@@ -164,7 +164,7 @@
   "Close app": "프로그램 종료",
   "Switch to page": "페이지 전환",
   "Plugin action": "플러그인 동작",
-  "Multi action": "다중 동작",
+  "Multi action": "순차 동작",
   "Toggle two actions": "두 동작 전환",
   "Page indicator": "페이지 표시",
   "Play audio": "오디오 재생",

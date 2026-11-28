@@ -1,0 +1,267 @@
+'use strict';
+// DeckForge-owned HA plugin. Protocol reference: HA WebSocket API and
+// home-assistant-js-websocket states.ts (interoperability only; no copied code).
+const ID='com.deckforge.native.home-assistant';
+function service(event,settings,state,memory,api){
+  function handle(event,api){
+  const clean=(v,n=100)=>typeof v==='string'?v.replace(/[\x00-\x1f\x7f]/g,' ').trim().slice(0,n):'';
+  const valid=id=>typeof id==='string'&&id.length<=256&&/^[a-z0-9_]+\.[a-z0-9_]+$/.test(id);
+  const switchDomains=['switch','light','fan','input_boolean'],otherDomains=['script','scene','automation','button','input_button'],sensorDomains=['sensor','binary_sensor'];
+  const switchDevice=id=>switchDomains.includes(id.split('.')[0]);
+  const otherDevice=id=>otherDomains.includes(id.split('.')[0]);
+  const control=id=>switchDevice(id)||otherDevice(id);
+  const sensor=id=>sensorDomains.includes(id.split('.')[0]);
+  const old=api.getSharedState();
+  function publish(s){
+    if(new TextEncoder().encode(JSON.stringify(s)).length>262144){api.publishSharedState({status:'목록 용량 초과',controls:[],sensors:[],others:[],entities:{}});return;}
+    api.publishSharedState(s);
+  }
+  const empty=status=>({status,controls:[],sensors:[],others:[],entities:{},groups:{},devices:{}});
+  // Retain only the catalogue during reconnect; old readings cannot be
+  // treated as current or used for a control request.
+  const stale=status=>({...empty(status),controls:old.controls||[],sensors:old.sensors||[],others:old.others||[]});
+  const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+  const send=(id,type)=>api.sendSocket({id,type});
+  const available=id=>valid(id)&&switchDevice(id)&&['on','off'].includes(old.entities?.[id]?.value);
+  const command=(entity,op)=>{
+    memory.next=(memory.next||10)+1;
+    api.sendSocket({id:memory.next,type:'call_service',domain:entity.split('.')[0],service:op,target:{entity_id:entity}});
+    return memory.next;
+  };
+  if(event.type==='start'){memory.pending=[];memory.next=10;memory.phase='connecting';delete memory.generation;delete memory.subscriptionId;publish(stale('연결 중'));api.connectSocket('ha');return;}
+  if(event.type==='serviceMessage'){
+    const id=event.response?.message?.entity;
+    if(memory.phase!=='live'||old.status!=='연결됨'||!valid(id)||!control(id)||!Object.hasOwn(old.entities||{},id))return;
+    const entry=old.entities[id],message=event.response.message;
+    if(['unknown','unavailable',''].includes(entry.value))return;
+    let target=id,domain=id.split('.')[0],operation=domain==='automation'?'trigger':domain==='button'||domain==='input_button'?'press':domain==='script'||domain==='scene'?'turn_on':'toggle';
+    if(message.other===true&&!otherDevice(id))return;
+    // A newer press supersedes an unacknowledged link for this primary device.
+    memory.pending=(memory.pending||[]).filter(p=>p.base!==id);
+    if(message.linked===true&&switchDevice(id)){
+      if(!['on','off'].includes(entry.value))return;
+      const nextOn=entry.value==='off';
+      // Always operate the primary switch first, even with an absent/invalid linked target.
+      const requestId=command(id,nextOn?'turn_on':'turn_off');
+      if(nextOn?message.linkOn===false:message.linkOff===false)return;
+      const linked=message.linkEntity;
+      if(linked===id||!available(linked))return;
+      // One privileged operation per event: only a successful HA result can continue.
+      memory.pending.push({id:requestId,base:id,target:linked,operation:nextOn!==(message.linkReverse===true)?'turn_on':'turn_off'});
+      memory.pending=memory.pending.slice(-10);return;
+    }
+    if(message.linked===true&&!switchDevice(id))return;
+    command(target,operation);return;
+  }
+  if(event.type!=='socketEvent')return;
+  const response=event.response||{};
+  const gen=Number.isSafeInteger(response.generation)?response.generation:null;
+  if(gen!==null&&Number.isSafeInteger(memory.generation)&&gen<memory.generation)return;
+  if(response.event==='open'){
+    if(gen!==null&&memory.generation===gen&&['features','devices','registry','snapshot','live','failed'].includes(memory.phase))return;
+    memory.pending=[];memory.generation=gen;memory.next=10;memory.phase='features';delete memory.subscriptionId;
+    publish(stale('연결 중'));api.sendSocket({id:1,type:'supported_features',features:{coalesce_messages:1}});return;
+  }
+  if(response.event!=='message'){
+    memory.pending=[];memory.generation=gen;memory.phase='connecting';delete memory.subscriptionId;
+    publish(stale(response.event==='reconnecting'?'재연결 중':'연결 끊김'));return;
+  }
+  if(gen!==null&&gen!==memory.generation)return;
+  if(response.gap===true){memory.pending=[];return;}
+  let m;try{m=JSON.parse(response.body);}catch{return;}
+  if(!m||typeof m!=='object')return;
+  if(m.type==='result'&&m.id===1&&memory.phase==='features'){
+    if(m.success!==true&&!(m.success===false&&['unknown_command','not_supported','invalid_format'].includes(m.error?.code))){
+      memory.phase='failed';publish(stale('연결 기능 협상 실패'));return;
+    }
+    memory.phase='devices';publish(stale('기기 조회 중'));send(2,'config/device_registry/list');return;
+  }
+  if(m.type==='result'&&m.id===2&&memory.phase==='devices'){
+    memory.phase='registry';const next=stale('엔티티 조회 중');
+    for(const d of Array.isArray(m.result)?m.result:[]){const id=clean(d?.id,64),name=clean(d?.name_by_user||d?.name);if(/^[a-f0-9]{32}$/.test(id)&&name)next.devices[id]=name;}
+    publish(next);send(3,'config/entity_registry/list_for_display');return;
+  }
+  if(m.type==='result'&&m.id===3&&memory.phase==='registry'){
+    memory.phase='snapshot';const next={...old,status:'상태 구독 중',groups:{},devices:{},entities:{}};
+    for(const e of Array.isArray(m.result?.entities)?m.result.entities:[]){
+      if(valid(e?.ei)&&(control(e.ei)||sensor(e.ei))){
+        const device=clean(e.di,64);if(/^[a-f0-9]{32}$/.test(device))next.groups[e.ei]=old.devices?.[device]||'기기 '+device.slice(0,8);
+      }
+    }
+    memory.subscriptionId=4;
+    publish(next);api.sendSocket({id:4,type:'subscribe_entities',include:{domains:[...switchDomains,...otherDomains,...sensorDomains]}});return;
+  }
+  // Older HA versions reject the include filter. Retry only an explicitly
+  // rejected subscription, once per connection, under a fresh request ID.
+  if(m.type==='result'&&m.id===memory.subscriptionId&&m.success===false&&['snapshot','live'].includes(memory.phase)){
+    if(memory.phase==='snapshot'&&memory.subscriptionId===4&&m.error?.code==='invalid_format'){
+      memory.subscriptionId=5;send(5,'subscribe_entities');return;
+    }
+    memory.pending=[];memory.phase='failed';publish(stale('상태 구독 실패'));return;
+  }
+  if(m.type==='result'&&m.id>10&&m.id<=memory.next&&memory.phase==='live'){
+    const pending=(memory.pending||[]).find(p=>p.id===m.id);
+    memory.pending=(memory.pending||[]).filter(p=>p.id!==m.id);
+    if(m.success===false)publish({...old,commandError:'HA 제어 실패'});
+    else if(m.success===true){
+      if(old.commandError)publish({...old,commandError:''});
+      if(pending&&old.status==='연결됨'&&available(pending.target))command(pending.target,pending.operation);
+    }
+    return; // Receipt is not physical state confirmation.
+  }
+  if(m.type!=='event'||m.id!==memory.subscriptionId||!object(m.event)||old.status==='목록 용량 초과'||
+     !['snapshot','live'].includes(memory.phase))return;
+  const changes=m.event,initial=memory.phase==='snapshot';
+  // The first subscription event is a complete added-state snapshot, not a delta.
+  if(initial&&!(object(changes.a)||Object.keys(changes).length===0))return;
+  if(initial&&(Object.hasOwn(changes,'c')||Object.hasOwn(changes,'r')))return;
+  const entities=initial?{}:{...(old.entities||{})};
+  let catalogueDirty=initial,changed=initial;
+  const merge=(id,part,removed,reset)=>{
+    if(!valid(id)||!(sensor(id)||control(id)))return;
+    const prior=reset?{}:entities[id];if(!prior)return;
+    const a=part?.a||{},record={...prior};
+    if(typeof part?.s==='string')record.value=clean(part.s,80);
+    if(Object.hasOwn(a,'friendly_name'))record.label=clean(a.friendly_name)||id.slice(0,100);
+    if(Object.hasOwn(a,'unit_of_measurement'))record.unit=clean(a.unit_of_measurement,20);
+    if(Object.hasOwn(a,'device_class'))record.kind=clean(a.device_class,40);
+    if(Array.isArray(removed?.a))for(const key of removed.a){
+      if(key==='friendly_name')record.label=id.slice(0,100);
+      if(key==='unit_of_measurement')record.unit='';
+      if(key==='device_class')record.kind='';
+    }
+    const next={label:record.label||id.slice(0,100),value:record.value||'unknown',unit:record.unit||'',kind:record.kind||''};
+    if(!entities[id]||entities[id].label!==next.label)catalogueDirty=true;
+    if(JSON.stringify(entities[id])!==JSON.stringify(next)){entities[id]=next;changed=true;}
+  };
+  for(const [id,part] of Object.entries(changes.a||{}))merge(id,part,null,true);
+  for(const [id,part] of Object.entries(changes.c||{}))merge(id,part?.['+'],part?.['-'],false);
+  if(Array.isArray(changes.r))for(const id of changes.r)if(valid(id)&&Object.hasOwn(entities,id)){delete entities[id];catalogueDirty=true;changed=true;}
+  if(!changed)return;
+  let {controls=[],sensors=[],others=[]}=old;
+  if(catalogueDirty){
+    controls=[];sensors=[];others=[];
+    for(const [id,e] of Object.entries(entities)){
+      const group=old.groups?.[id]||(sensor(id)?'기기 미분류 센서':switchDevice(id)?'기기 미분류 스위치':'기기 미분류 기타');
+      (sensor(id)?sensors:switchDevice(id)?controls:others).push({value:id,label:e.label,group});
+    }
+  }
+  memory.phase='live';publish({...old,status:'연결됨',entities,controls,sensors,others});
+  }
+  if(event.type!=='socketEvent'||event.response?.event!=='messages')return handle(event,api);
+  // Transport batches preserve every frame in FIFO order; publish only the final
+  // shared snapshot. Result/registry frames retain their own protocol semantics.
+  const bodies=event.response.bodies;
+  if(!Array.isArray(bodies)||bodies.length<2||bodies.length>8)return;
+  let shared=api.getSharedState(),dirty=false;
+  const local={...api,getSharedState:()=>shared,publishSharedState:value=>{shared=value;dirty=true;}};
+  for(const body of bodies)handle({...event,response:{...event.response,event:'message',body}},local);
+  if(dirty)api.publishSharedState(shared);
+}
+function controlKey(event,settings,state,memory,api){
+  const shared=api.getSharedState(),id=settings.entity,entry=shared.entities?.[id];
+  const ready=shared.status==='연결됨'&&entry&&!['unknown','unavailable'].includes(entry.value);
+  if(event.type==='press'&&ready){
+    api.sendServiceMessage(settings.linked===true?{entity:id,linked:true,linkEntity:settings.linkEntity||'',linkOn:settings.linkOn!==false,linkOff:settings.linkOff!==false,linkReverse:settings.linkReverse===true}:{entity:id});return;
+  }
+  if(!['appear','settings','sharedState','tick'].includes(event.type))return;
+  const active=ready&&entry.value==='on',name=(entry?.label||'기기 선택').slice(0,30);
+  const value=ready?(entry.value==='on'?'켜짐':entry.value==='off'?'꺼짐':entry.value):id?(shared.status==='연결됨'?'사용 불가':shared.status||'연결 안 됨'):'설정 필요';
+  const frame=JSON.stringify([name,value,active]);if(memory.frame===frame&&event.type!=='appear'&&event.type!=='settings')return;memory.frame=frame;
+  api.setTitle(name);api.setState(active?1:0);
+  api.drawKey({width:144,height:144,commands:[
+    {type:'circle',x:72,y:44,radius:25,color:active?'#39AF80':'#657384'},
+    {type:'line',x:72,y:26,toX:72,toY:43,width:4,color:'#FFFFFF'},
+    {type:'text',x:72,y:83,text:value.slice(0,24),size:24,bold:true,color:active?'#6EF3BC':'#FFFFFF'}
+  ]});
+}
+function otherKey(event,settings,state,memory,api){
+  const shared=api.getSharedState(),id=settings.entity,entry=shared.entities?.[id];
+  const domain=typeof id==='string'?id.split('.')[0]:'';
+  const labels={automation:'자동화 실행',script:'스크립트 실행',scene:'장면 실행',button:'버튼 누르기',input_button:'버튼 누르기'};
+  const supported=Object.hasOwn(labels,domain),ready=supported&&shared.status==='연결됨'&&entry&&!['unknown','unavailable',''].includes(entry.value);
+  if(event.type==='press'&&ready){api.sendServiceMessage({entity:id,other:true});return;}
+  if(!['appear','settings','sharedState','tick'].includes(event.type))return;
+  const name=(entry?.label||'기기 선택').slice(0,30),value=ready?labels[domain]:id?(shared.status==='연결됨'?'사용 불가':shared.status||'연결 안 됨'):'설정 필요';
+  const frame=JSON.stringify([name,value,!!ready]);if(memory.frame===frame&&event.type!=='appear'&&event.type!=='settings')return;memory.frame=frame;
+  api.setTitle(name);api.drawKey({width:144,height:144,commands:[
+    {type:'circle',x:72,y:44,radius:25,color:ready?'#367FA8':'#657384'},
+    {type:'text',x:72,y:44,text:'▶',size:28,bold:true,color:'#FFFFFF'},
+    {type:'text',x:72,y:83,text:value.slice(0,24),size:20,bold:true,color:'#FFFFFF'}
+  ]});
+}
+function sensorKey(event,settings,state,memory,api){
+  const shared=api.getSharedState(),ids=Array.isArray(settings.entities)?settings.entities:[],mode=settings.mode;
+  if(event.type==='settings'||event.type==='appear'){memory.index=0;memory.since=Date.now();}
+  if(event.type==='press'&&mode==='press'&&ids.length>1){memory.index=((memory.index||0)+1)%ids.length;memory.since=Date.now();}
+  if(event.type==='tick'&&mode==='auto'&&ids.length>1&&Date.now()-(memory.since||0)>=settings.seconds*1000){
+    memory.index=((memory.index||0)+1)%ids.length;memory.since=Date.now();
+  }
+  if(!['appear','settings','sharedState','tick','press'].includes(event.type))return;
+  const selected=mode==='all'?ids:ids.length?[ids[(memory.index||0)%ids.length]]:[];
+  const color=settings.color||'#FFFFFF',commands=[];
+  const add=(text,y,size,c,bold=false)=>commands.push({type:'text',x:72,y,text:String(text).slice(0,80),size,color:c,bold});
+  if(!selected.length){add('센서 선택',72,24,'#CFD7E2',true);}
+  else if(shared.status!=='연결됨'){add(shared.status||'연결 안 됨',72,22,'#CFD7E2',true);}
+  else {
+    const h=144/selected.length;
+    selected.forEach((id,i)=>{
+      const row=shared.entities?.[id],label=(row?.label||id).slice(0,35);
+      let value=row?.value??'unknown';
+      if(value==='unknown'||value==='unavailable')value='—';
+      else if(id.startsWith('binary_sensor.')){
+        const pairs={door:['열림','닫힘'],window:['열림','닫힘'],opening:['열림','닫힘'],garage_door:['열림','닫힘'],
+          motion:['감지','미감지'],occupancy:['재실','부재'],presence:['재실','부재'],moisture:['누수 감지','정상'],
+          smoke:['연기 감지','정상'],gas:['가스 감지','정상'],battery:['배터리 부족','정상'],connectivity:['연결','끊김'],
+          lock:['잠금 해제','잠김'],problem:['이상','정상'],safety:['위험','안전'],power:['전원 있음','전원 없음']};
+        const pair=Object.hasOwn(pairs,row?.kind)?pairs[row.kind]:['켜짐','꺼짐'];
+        value=value==='on'?pair[0]:value==='off'?pair[1]:value;
+      }
+      else if(value!==''&&Number.isFinite(Number(value))&&settings.decimals>=0)value=Number(value).toFixed(settings.decimals);
+      if(settings.unit&&row?.unit&&value!=='—')value+=' '+row.unit;
+      if(settings.labels)add(label,i*h+h*0.26,selected.length===1?20:13,'#CFD7E2');
+      add(value,i*h+h*(settings.labels?0.66:0.5),Math.min(settings.fontSize,selected.length===1?48:selected.length===2?34:24),color,true);
+    });
+  }
+  const frame=JSON.stringify(commands);if(memory.frame===frame&&event.type!=='appear'&&event.type!=='settings')return;memory.frame=frame;
+  api.setTitle('');api.drawKey({width:144,height:144,commands});
+}
+function createHomeAssistantManifest(server){
+  let u=null;
+  if(server!==null){
+    if(typeof server!=='string'||server.length>1024)throw Error('HA 주소를 확인하세요.');
+    u=new URL(server.trim());
+    if(!['https:','wss:'].includes(u.protocol)||u.username||u.password||u.search||u.hash||!['/','/api/websocket'].includes(u.pathname))throw Error('HTTPS/WSS 서버 주소만 지원합니다.');
+    u.protocol='wss:';u.pathname='/api/websocket';
+  }
+  const script=f=>'return ('+f.toString()+')(event,settings,state,memory,api);';
+  const select=(key,label,value,options)=>({key,label,type:'select',default:value,options:options.map(([value,label])=>({value,label}))});
+  const device=(key,label)=>({key,label,type:'dynamicSelect',source:'controls',default:''});
+  return {apiVersion:2,id:ID,name:'DeckForge Home Assistant',version:'0.1.16',requiresDeckForge:'>=2.0.69',
+    permissions:['display','background.run','timer.tick',...(u?['network.websocket']:[])],
+    ...(u?{capabilities:['socketBatch','socketJsonArray'],networkEndpoints:[{id:'ha',url:u.href,method:'WSS',auth:'home-assistant',reconnect:true,maxReceiveBytes:1048576}]}:{}),
+    service:{script:u?script(service):"if(event.type==='start')api.publishSharedState({status:'초기 연결 필요',controls:[],sensors:[],others:[],entities:{}});",sharedStateBytes:262144},
+    actions:[
+      {id:ID+'.control',name:'HA 스위치 기기',controllers:['Keypad'],states:2,script:script(controlKey),sharedStateView:{keys:['status','commandError'],map:'entities',selection:'entity'},
+       settingsSchema:[device('entity','상태 기준 기기'),{key:'linked',label:'별도 기기 연동 제어',type:'boolean',default:false},
+         device('linkEntity','연동 기기'),{key:'linkOn',label:'ON',type:'boolean',default:true},
+         {key:'linkOff',label:'OFF',type:'boolean',default:true},{key:'linkReverse',label:'반대로 작동',type:'boolean',default:false}],
+       settingsUI:['linkEntity','linkOn','linkOff','linkReverse'].map(key=>({key,visibleWhen:{key:'linked',equals:true}})),titlePolicy:{selectionLabel:'entity',defaultTitle:'기기 선택'}},
+      {id:ID+'.sensor',name:'HA 센서 기기',controllers:['Keypad'],states:1,visualPolicy:'foreground',script:script(sensorKey),tickIntervalMs:1000,tickWhen:{setting:'mode',equals:'auto',selection:'entities',minItems:2},sharedStateView:{keys:['status'],map:'entities',selection:'entities'},
+       settingsSchema:[
+         {key:'entities',label:'표시 항목',type:'dynamicMultiSelect',source:'sensors',maxItems:4,default:[]},
+         select('mode','표시 방식','all',[['all','동시에 표시'],['press','누를 때 전환'],['auto','자동 전환']]),
+         {key:'seconds',label:'자동 전환 간격 (초)',type:'integer',min:2,max:60,default:5},
+         {key:'labels',label:'항목 이름 표시',type:'boolean',default:true},
+         {key:'unit',label:'측정 단위 표시',type:'boolean',default:true},
+         {key:'decimals',label:'소수점 (-1: 원본)',type:'integer',min:-1,max:3,default:-1},
+         {key:'fontSize',label:'측정값 크기',type:'integer',min:16,max:48,default:36},
+         select('color','측정값 색상','#FFFFFF',[['#FFFFFF','흰색'],['#65BDFF','하늘색'],['#FFAD55','주황'],['#86D99A','연두']])
+       ]},
+      {id:ID+'.other',name:'HA 기타 기기',controllers:['Keypad'],states:1,script:script(otherKey),
+       sharedStateView:{keys:['status','commandError'],map:'entities',selection:'entity'},
+       settingsSchema:[{key:'entity',label:'기기 선택',type:'dynamicSelect',source:'others',default:''}],
+       titlePolicy:{selectionLabel:'entity',defaultTitle:'기기 선택'}}
+    ]};
+}
+module.exports={createHomeAssistantManifest,service,controlKey,sensorKey,otherKey};

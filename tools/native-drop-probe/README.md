@@ -1,0 +1,7 @@
+# DeckForge native drop diagnostic (phase 1)
+
+Independent x64 .NET Framework WinForms probe. It owns its own HWND and OLE drop target, reads IDataObject within Drop, logs IShellItemArray, filesystem and parsing names, AppUserModelID (when provided), available formats and CF_HDROP. It performs no launch, file move, profile modification, or network transfer. Candidate labels are not proof that an application can be launched. No polling.
+
+Download DeckForge-NativeDrop-Test from the dedicated GitHub Actions workflow. Unzip and run as a normal user (same elevation as Start menu). Drag VLC, Joplin, Lively Wallpaper, Fusion 360, Bitwarden, a Store app, explorer EXE, LNK and folder into the top panel. Save JSON log after all attempts. If the cursor refuses a drop, record the app name separately. The log contains local paths and IDs; share only as needed.
+
+The build smoke test checks real filesystem shell items and synthetic CF_HDROP, not real Start-menu drags. The regular DeckForge app remains unchanged. After actual probe results, separately validate drop-area integration with existing Electron internal and Fusion drags. Unsupported external app drops should offer Cancel / 프로그램 열기; choose a file using the existing program picker and register in the original slot only after successful inspection and confirmation. If cancelled or the slot/page changed, keep the original data. No migration or deletion is planned; user permits clean-install-first design.

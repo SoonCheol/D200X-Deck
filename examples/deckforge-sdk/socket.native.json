@@ -1,0 +1,29 @@
+{
+  "apiVersion": 2,
+  "id": "com.deckforge.native.socket-example",
+  "name": "WSS status example",
+  "version": "1.0.0",
+  "requiresDeckForge": ">=1.1.165",
+  "permissions": [
+    "display",
+    "network.websocket"
+  ],
+  "networkEndpoints": [
+    {
+      "id": "live",
+      "url": "wss://example.com/events",
+      "method": "WSS"
+    }
+  ],
+  "actions": [
+    {
+      "id": "com.deckforge.native.socket-example.key",
+      "name": "WSS status",
+      "controllers": [
+        "Keypad"
+      ],
+      "states": 1,
+      "script": "if(event.type==='press'){api.connectSocket('live');} if(event.type==='socketEvent'){const r=event.response;if(r.event==='open')api.setTitle('Connected');if(r.event==='message')api.setTitle(r.body.slice(0,256));if(r.event==='error'||r.event==='close')api.setTitle('Disconnected');}"
+    }
+  ]
+}

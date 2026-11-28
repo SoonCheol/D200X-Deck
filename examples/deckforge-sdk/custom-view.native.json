@@ -1,0 +1,33 @@
+{
+  "apiVersion": 2,
+  "id": "com.deckforge.native.custom-view",
+  "name": "사용자 정의 창 예제",
+  "version": "1.0.0",
+  "requiresDeckForge": ">=2.0.150",
+  "permissions": [
+    "display",
+    "view.open",
+    "settings.write"
+  ],
+  "views": {
+    "form": {
+      "title": "버튼 제목 편집",
+      "mode": "modal",
+      "width": 440,
+      "height": 320,
+      "html": "<style>body{font:16px system-ui;padding:24px}input{width:100%;box-sizing:border-box;padding:8px}button{margin:16px 8px 0 0;padding:8px 16px}</style><label>버튼 제목<input id=\"label\" maxlength=\"80\"></label><button id=\"save\">저장</button><button id=\"cancel\">취소</button><script>const label=document.querySelector('#label');deckforgeView.getInput().then(v=>{label.value=v.label||''});document.querySelector('#save').onclick=()=>deckforgeView.submit({label:label.value});document.querySelector('#cancel').onclick=()=>deckforgeView.close();</script>"
+    }
+  },
+  "actions": [
+    {
+      "id": "com.deckforge.native.custom-view.edit",
+      "name": "사용자 정의 제목",
+      "controllers": [
+        "Keypad"
+      ],
+      "states": 1,
+      "script": "if(event.type==='appear'||event.type==='settings')api.setTitle(settings.label||'제목 편집');if(event.type==='press')api.openView('form',{label:settings.label||''});if(event.type==='viewResult'&&event.response.status==='submitted')api.patchSettings({label:event.response.value.label});",
+      "settingsView": "form"
+    }
+  ]
+}

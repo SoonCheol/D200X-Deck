@@ -1,0 +1,31 @@
+{
+  "apiVersion": 2,
+  "id": "com.deckforge.native.example.counter",
+  "name": "Counter",
+  "version": "1.0.0",
+  "requiresDeckForge": ">=1.1.122",
+  "permissions": [
+    "display"
+  ],
+  "actions": [
+    {
+      "id": "com.deckforge.native.example.counter.count",
+      "name": "Counter",
+      "controllers": [
+        "Keypad",
+        "Encoder"
+      ],
+      "states": 2,
+      "settingsSchema": [
+        {
+          "key": "label",
+          "label": "Label",
+          "type": "text",
+          "maxLength": 32,
+          "default": "Count"
+        }
+      ],
+      "script": "if(event.type==='appear'||event.type==='settings'){memory.count=memory.count||0;}else if(event.type==='press'||event.type==='rotateRight'){memory.count=Math.min(9999,(memory.count||0)+1);api.toggleState();}else if(event.type==='rotateLeft'){memory.count=Math.max(0,(memory.count||0)-1);}else if(event.type==='heldRotateLeft'){memory.count=0;}if(event.type!=='disappear')api.setTitle(settings.label+' '+(memory.count||0));"
+    }
+  ]
+}

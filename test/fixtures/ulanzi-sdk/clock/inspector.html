@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta
+			name="viewport"
+			content="width=device-width,initial-scale=1,maximum-scale=1,minimum-scale=1,user-scalable=no,minimal-ui,viewport-fit=cover"
+		/>
+  <title>action</title>
+  <link rel="stylesheet" href="../../libs/css/uspi.css">
+</head>
+<body>
+  <div class="uspi-wrapper hidden">
+
+    <form id="property-inspector">
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Face</div>
+        <select class="uspi-item-value select clockSelector" name="clock_index" >
+        </select>
+      </div>
+
+      <div class="uspi-item">
+        <div class="uspi-item-label" data-localize>Digital</div>
+        <div class="uspi-item-value">
+          <div class="uspi-item-child" style="margin-top: -1px;">
+            <input id="clock_type" name="clock_type" type="checkbox" value="digital">
+            <label for="clock_type" class="sdpi-item-label"><span></span></label>
+          </div>
+        </div>
+      </div>
+
+    </form>
+
+  </div>
+
+  <script src="../../libs/js/constants.js"></script>
+  <script src="../../libs/js/eventEmitter.js"></script>
+  <script src="../../libs/js/timers.js"></script>
+  <script src="../../libs/js/utils.js"></script>
+  <script src="../../libs/js/ulanziApi.js"></script>
+
+  <script src="../../plugin/actions/clockfaces.js"></script>
+
+
+  <script src="./inspector.js"></script>
+  
+</body>
+</html>

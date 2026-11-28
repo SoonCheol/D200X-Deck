@@ -1,0 +1,53 @@
+{
+  "appId": "net.homedisk.deckforge",
+  "productName": "DeckForge",
+  "directories": {
+    "output": "../dist-installer"
+  },
+  "asar": true,
+  "asarUnpack": [
+    "**/*.node",
+    "deckforge-editor/folder-control-helper.exe",
+    "deckforge-editor/native-drop-helper.exe",
+    "deckforge-editor/app-focus-helper.exe"
+  ],
+  "npmRebuild": false,
+  "electronVersion": "45.2.1",
+  "files": [
+    "**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "deckforge-editor/tray.png",
+      "to": "deckforge-tray.png"
+    },
+    {
+      "from": "mcp",
+      "to": "mcp"
+    },
+    {
+      "from": "bundled",
+      "to": "bundled"
+    }
+  ],
+  "win": {
+    "target": [
+      "nsis"
+    ],
+    "artifactName": "DeckForge-${version}-Setup-win-x64.exe",
+    "signAndEditExecutable": true,
+    "icon": "deckforge-editor/app-icon.ico"
+  },
+  "nsis": {
+    "oneClick": true,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": false,
+    "createStartMenuShortcut": true,
+    "createDesktopShortcut": true,
+    "runAfterFinish": true,
+    "deleteAppDataOnUninstall": false,
+    "include": "installer-fusion.nsh",
+    "installerIcon": "deckforge-editor/app-icon.ico",
+    "uninstallerIcon": "deckforge-editor/app-icon.ico"
+  }
+}

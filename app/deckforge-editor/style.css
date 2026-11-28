@@ -1,0 +1,1853 @@
+/* Embedded only in the packaged app; no system-wide font installation required.
+   Font files are fetched and Git-blob-verified by the Windows build workflow. */
+@font-face{font-family:"DeckForge Pretendard";src:url("./fonts/PretendardVariable.woff2") format("woff2");font-style:normal;font-weight:100 900;font-display:swap}
+@font-face{font-family:"DeckForge Noto Symbols";src:url("./fonts/NotoSansSymbols.ttf") format("truetype");font-style:normal;font-weight:100 900;font-display:swap}
+@font-face{font-family:"DeckForge Noto Symbols 2";src:url("./fonts/NotoSansSymbols2-Regular.ttf") format("truetype");font-style:normal;font-weight:400;font-display:swap}
+:root{font-family:"DeckForge Pretendard","DeckForge Noto Symbols","DeckForge Noto Symbols 2","Segoe UI","Malgun Gothic",sans-serif;color:#e6e6e6;background:#292929;font-size:13px}*{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button{color:inherit;cursor:pointer}#app{height:100vh;min-height:600px;display:grid;grid-template-columns:minmax(540px,1fr) 315px}.work{display:grid;grid-template-rows:94px minmax(270px,55%) minmax(210px,1fr);min-height:0}.toolbar{display:flex;align-items:center;justify-content:space-between;padding:18px 48px}.identity{display:flex;align-items:center;gap:15px}.device-symbol{border:1px solid #888;border-radius:5px;font-size:23px;padding:8px}.identity strong,.identity small{display:block}.identity small{margin-top:6px;color:#bdbdbd}.tools button,.page-controls button{border:0;background:none;font-size:19px}.canvas{padding:0 36px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:19px}.key-grid{display:grid;grid-template-columns:repeat(5,76px);grid-template-rows:repeat(3,76px);gap:15px}.deck-key{background:#0d0d0f;border:3px solid #111;border-radius:12px;box-shadow:0 0 0 1px #494949;color:#c9c9c9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;overflow:hidden;padding:6px;text-align:center}.deck-key:focus-visible,.deck-key.selected{outline:2px solid #328cde;outline-offset:3px}.deck-key.drag-over{box-shadow:0 0 0 3px #42a9e5}.deck-key.wide{grid-column:4/span 2}.deck-key .glyph{font-size:25px;line-height:1}.deck-key .caption{font-size:10px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.page-controls{display:flex;align-items:center;gap:18px;color:#bbb}.inspector{border-top:1px solid #444;min-height:0;overflow:auto;padding:16px 40px;background:#2a2a2a}.inspector.empty{display:flex;align-items:center;justify-content:center;color:#8a8a8a}.action-head{border-bottom:1px solid #404040;padding-bottom:11px;display:flex;justify-content:space-between;align-items:center}.action-head strong{font-weight:600}.action-head button{border:0;background:transparent;color:#aaa;font-size:18px}.properties{display:grid;grid-template-columns:108px minmax(0,1fr);gap:28px;padding-top:14px}.preview-key{width:98px;height:98px;background:#101013;border:2px solid #555;border-radius:11px;display:flex;justify-content:center;align-items:center;font-size:38px}.preview button{margin-top:11px;background:#414141;border:1px solid #666;border-radius:4px;padding:5px 9px}.fields{display:flex;flex-direction:column;gap:10px;max-width:760px}.field{display:grid;grid-template-columns:130px minmax(0,1fr);align-items:center;gap:12px}.field label{text-align:right;color:#cacaca}.field input,.field select,.field textarea{width:100%;background:#363636;border:1px solid #555;border-radius:4px;color:#eee;padding:6px 9px;min-height:31px}.field textarea{resize:vertical;min-height:80px}.field input[type=range]{padding:0;min-height:20px}.field input[type=checkbox]{width:auto;min-height:0}.field .compound{display:flex;gap:9px;align-items:center}.field .compound input{flex:1;min-width:0}.field .compound button{padding:6px 12px;background:#454545;border:1px solid #666;border-radius:4px}.hint{font-size:11px;color:#9e9e9e}.library{background:#232323;border-left:1px solid #3f3f3f;display:flex;flex-direction:column;min-height:0}.search{padding:14px;border-bottom:1px solid #333}.search input{width:100%;background:#383838;border:0;border-radius:5px;color:#eee;padding:9px}.library-tabs{display:flex;align-items:flex-end;gap:4px;padding:8px 12px 0;min-height:47px;background:#1c1c1c;border-bottom:1px solid #474747}.library-tabs button{position:relative;flex:1;min-width:0;border:1px solid transparent;border-radius:9px 9px 0 0;background:transparent;padding:8px 5px;color:#bcbcbc;white-space:nowrap}.library-tabs button:hover:not(:disabled){background:#2c2c2c;color:#fff}.library-tabs button.active{background:#232323;border-color:#474747;border-bottom-color:#232323;color:#fff;font-weight:600;margin-bottom:-1px;padding-bottom:9px}.library-tabs button.active:hover{background:#232323}.library-tabs button:focus-visible{outline:2px solid #328cde;outline-offset:-3px}.library-tabs button:disabled{opacity:.4}.library-list{overflow:auto;flex:1}.group-title{background:#303030;color:#e1e1e1;font-weight:600;line-height:18px;padding:4px 12px;cursor:pointer}.action-item{padding:10px 18px 10px 37px;display:flex;align-items:center;gap:12px;cursor:grab;color:#d0d0d0}.action-item:hover{background:#393939}.action-item .action-icon{width:22px;text-align:center;font-size:18px}.action-item[hidden],.group[hidden]{display:none}.key-menu{position:fixed;z-index:100;border:1px solid #656565;border-radius:6px;background:#303030;box-shadow:0 8px 25px #0009;padding:5px;min-width:205px}.key-menu button{display:block;text-align:left;width:100%;background:transparent;border:0;padding:8px 12px}.key-menu button:hover{background:#444}.key-menu hr{border:0;border-top:1px solid #555;margin:5px 0}.prototype-note{position:fixed;bottom:3px;left:7px;color:#888;font-size:10px;pointer-events:none;margin:0}@media(max-width:1000px){#app{grid-template-columns:minmax(440px,1fr) 250px}.work{grid-template-rows:75px minmax(260px,52%) 1fr}.toolbar{padding:12px 20px}.canvas{padding:0 10px}.key-grid{grid-template-columns:repeat(5,60px);grid-template-rows:repeat(3,60px);gap:10px}.inspector{padding:12px 16px}.properties{gap:15px}.field{grid-template-columns:95px minmax(0,1fr)}}
+/* Keep the device at the top rather than vertically centering it as the window grows. */
+.work{grid-template-rows:76px minmax(330px,auto) minmax(210px,1fr)}
+.canvas{justify-content:flex-start;padding-top:8px;gap:11px;min-height:0;overflow:auto}
+.device-layout{display:flex;flex-direction:column;align-items:center;gap:9px}
+.physical-controls{width:100%;display:flex;align-items:center;justify-content:center;gap:18px;padding:9px 10px 4px;border-radius:11px;background:#25282d;border:1px solid #383c42}
+.physical-control{display:flex;min-width:55px;flex-direction:column;align-items:center;justify-content:center;gap:5px;border:0;background:none;padding:3px;color:#bfc6d0;cursor:pointer}
+.physical-control .physical-symbol{border-radius:50%;width:22px;height:22px;background:radial-gradient(circle at 35% 30%,#555d6d,#10131b 68%);border:2px solid #13151a;box-shadow:0 0 0 1px #525866}
+.physical-control.knob .physical-symbol{width:37px;height:37px;border:4px solid #252a31;box-shadow:0 0 0 2px #555b65,inset 0 0 0 1px #89909b}
+.physical-control .physical-name{font-size:10px;white-space:nowrap}
+.physical-control.selected .physical-symbol{outline:2px solid #328cde;outline-offset:3px}
+.physical-control.drag-over .physical-symbol{outline:2px solid #5db3ff}
+.title-line{display:flex;position:relative;gap:7px;align-items:center;min-width:0}
+.title-line>input{flex:1;min-width:0}
+.title-style-trigger{border:0;background:transparent;padding:4px 6px;white-space:nowrap;font-size:16px}
+.title-style-trigger[aria-expanded=true]{background:#444;border-radius:3px}
+.title-style-popover{position:absolute;z-index:80;top:calc(100% + 5px);right:0;width:277px;padding:13px;border:1px solid #4e4e4e;background:#383838;border-radius:5px;box-shadow:0 10px 23px #0009;display:flex;flex-direction:column;gap:10px}
+.title-style-popover[hidden]{display:none}
+.title-style-popover label{display:flex;align-items:center;gap:6px;text-align:left;color:#eee}
+.title-style-popover input[type=checkbox]{width:auto}
+.title-align{display:flex;gap:3px}
+.title-align button{flex:1;border:1px solid #666;border-radius:3px;background:#515151;padding:6px}
+.title-align button.active{background:#217ce5;border-color:#217ce5}
+.title-align button svg{display:block;width:20px;height:20px;margin:auto;pointer-events:none}
+.title-style-popover select{width:100%}
+.title-format{display:flex;gap:6px;align-items:center}
+.title-format input[type=number]{width:65px;flex:none}
+.title-format input[type=color]{width:35px;height:30px;padding:2px;min-height:30px}
+.title-format button{flex:1;min-width:0;border:1px solid #666;border-radius:4px;background:#555;padding:6px 2px}
+.title-format button.active{background:#2676c1}
+.title-style-popover .style-reset{align-self:end;background:#555;border:1px solid #666;border-radius:3px;padding:4px 10px}
+@media(max-width:1000px){.work{grid-template-rows:70px minmax(290px,auto) minmax(210px,1fr)}.canvas{padding-top:5px;gap:7px}.physical-controls{gap:8px;padding:4px}.physical-control.knob .physical-symbol{width:29px;height:29px}.physical-control .physical-name{font-size:9px}}
+
+
+/* DeckForge editor geometry: the keypad starts high and the inspector owns the remaining height. */
+#app{min-height:620px;grid-template-columns:minmax(530px,1fr) 320px}
+.work{grid-template-rows:clamp(358px,48vh,413px) minmax(220px,1fr);min-height:0}
+.canvas{padding-top:15px;justify-content:flex-start;overflow:auto;gap:9px}
+.device-layout{gap:11px}
+.key-grid{gap:12px;grid-template-columns:repeat(5,74px);grid-template-rows:repeat(3,74px)}
+.physical-controls{max-width:418px;gap:10px;padding:7px 8px 4px}
+.physical-control{min-width:55px}
+.page-controls{gap:14px;min-height:25px}
+.sidebar-header{height:61px;min-height:61px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 16px 9px;border-bottom:1px solid #353535;position:relative;z-index:5}
+.profile-picker{position:relative;min-width:0;flex:1}
+.profile-trigger{background:transparent;border:0;padding:4px 2px;font-size:13px;display:flex;align-items:center;gap:9px;max-width:185px;text-align:left}
+.profile-trigger:hover,.profile-trigger[aria-expanded=true]{color:#fff}
+.profile-trigger .chevron{color:#a6a6a6}
+#profile-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebar-device{display:flex;align-items:center;gap:10px;padding-top:1px;white-space:nowrap}
+.device-name{font-weight:600;font-size:12px}
+.settings-trigger{background:transparent;border:0;padding:0 3px;font-size:20px;color:#d5d5d5}
+.profile-menu{position:absolute;left:0;top:32px;min-width:205px;max-width:260px;z-index:20;background:#333;border:1px solid #555;border-radius:6px;padding:5px;box-shadow:0 10px 28px #0009}
+.profile-menu[hidden]{display:none}
+.profile-menu button{border:0;background:transparent;width:100%;text-align:left;padding:9px 11px;color:#ddd;border-radius:4px}
+.profile-menu button:hover,.profile-menu button[aria-current=true]{background:#484848}
+.library .search{padding:7px 13px 11px}
+.library .search input{height:33px}
+.icon-library-overlay{position:fixed;inset:0;z-index:150;background:#0005;display:flex;justify-content:center;align-items:center}
+.icon-library-overlay[hidden]{display:none}
+.icon-library-dialog{display:grid;grid-template-rows:37px 51px minmax(0,1fr) 38px;width:min(455px,calc(100vw - 32px));height:min(530px,calc(100vh - 60px));border:1px solid #4d4d4d;border-radius:7px;background:#252525;box-shadow:0 14px 45px #000c;overflow:hidden}
+.icon-library-heading{display:flex;align-items:center;gap:10px;padding:0 12px;background:#222;border-bottom:1px solid #3c3c3c;font-size:12px}
+.library-badge{font-size:16px;color:#7757ef}
+.icon-library-heading strong{flex:1}
+.icon-library-heading button{border:0;background:transparent;font-size:22px;font-weight:300}
+.icon-library-search{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:8px 14px}
+.icon-library-search input{background:#383838;border:0;border-radius:5px;color:#ddd;padding:6px 11px;min-width:65px;flex:1;width:auto}
+.icon-library-search #icon-pack-import,.icon-library-search #icon-pack-folder-import{border:1px solid #606060;border-radius:4px;padding:7px 9px;background:#383838;color:#eee;white-space:nowrap;font-size:11px}
+.icon-library-search #icon-pack-import:hover,.icon-library-search #icon-pack-folder-import:hover{background:#464646}
+.icon-library-search #icon-pack-import:disabled,.icon-library-search #icon-pack-folder-import:disabled{opacity:.45}
+.icon-pack-swatch img{width:100%;height:100%;object-fit:contain;image-rendering:auto}
+.icon-pack-more{grid-column:1/-1;padding:9px;border:1px solid #555;background:#3c3c3c;border-radius:4px;color:#eee;font-size:12px}
+.icon-pack-more:hover{background:#505050}
+
+.icon-library-search button{border:0;background:transparent;color:#bbb;font-size:19px}
+.icon-library-groups{overflow:auto}
+.icon-group-title{width:100%;display:flex;align-items:center;gap:9px;padding:11px 15px;border:0;border-top:1px solid #3b3b3b;background:#303030;text-align:left;font-size:12px;font-weight:600}
+.icon-group-title:hover{background:#393939}
+.icon-group-heading{display:flex;align-items:stretch;border-top:1px solid #3b3b3b;background:#303030}
+.icon-group-heading .icon-group-title{flex:1;min-width:0;border-top:0}
+.icon-group-heading .icon-pack-remove{align-self:center;margin:0 10px;border:1px solid #646464;border-radius:4px;background:#383838;color:#ddd;padding:5px 8px;font-size:11px;white-space:nowrap}
+.icon-group-heading .icon-pack-remove:hover{background:#514040}
+
+.icon-group-title .icon-group-count{color:#828282;font-weight:400}
+.icon-group-title .icon-group-arrow{font-size:12px;color:#aaa}
+.icon-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;padding:11px 8px}
+.icon-grid[hidden]{display:none}
+.icon-swatch{aspect-ratio:1;background:#353535;border:1px solid transparent;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:23px;color:#f3f3f3}
+.icon-swatch:hover,.icon-swatch:focus-visible{border-color:#368ae8;background:#3d4553}
+.icon-swatch.blue{color:#3e90ec;background:#172233}
+.icon-library-footer{display:flex;align-items:center;justify-content:space-between;border-top:1px solid #444;padding:0 14px;color:#aaa;font-size:11px}
+.icon-zoom{font-size:20px}
+.preview-key{position:relative;overflow:hidden}
+.preview-key .icon-image{width:100%;height:100%;object-fit:contain}
+.preview-key .icon-glyph{font-size:38px}
+.preview .preview-key{position:relative}
+.icon-preview-control{position:absolute;top:1px;border:0!important;border-radius:50%!important;background:#292929!important;color:white!important;width:23px;height:23px;padding:0!important;font-size:13px!important;margin:0!important;z-index:2}
+.icon-preview-plus{left:1px}
+.icon-preview-menu{right:1px}
+.icon-preview-menu[aria-expanded=true]{background:#444!important}
+.icon-dropdown{position:absolute;top:46px;left:60px;width:236px;background:#373737;border:1px solid #575757;border-radius:6px;box-shadow:0 10px 28px #000a;z-index:100;padding:5px}
+.icon-dropdown[hidden]{display:none}
+.icon-dropdown button{display:block;margin:0;padding:5px 12px;width:100%;background:transparent;border:0;text-align:left;font-size:12px}
+.icon-dropdown button:hover{background:#4a4a4a}
+.preview{position:relative}
+@media(max-width:1000px){
+  #app{grid-template-columns:minmax(430px,1fr) 270px}
+  .work{grid-template-rows:clamp(318px,47vh,380px) minmax(210px,1fr)}
+  .canvas{padding-top:12px}
+  .key-grid{grid-template-columns:repeat(5,60px);grid-template-rows:repeat(3,60px);gap:9px}
+  .physical-controls{max-width:338px;gap:5px;padding:6px 3px}
+  .sidebar-header{padding-left:11px;padding-right:11px}
+  .device-name{font-size:11px}
+}
+
+.icon-library-groups.compact .icon-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
+.icon-library-groups.compact .icon-swatch{font-size:27px}
+
+
+/* Single-screen D200X canvas. Size the hardware controls to viewport height:
+   on the packaged Windows preview (min 630px tall), every key, side button,
+   knob and page control should fit above the Inspector without scrolling.
+   At extreme OS zoom / smaller embedded viewports this may still require scaling. */
+#app { min-height:0; height:100dvh; }
+.work {
+  --key-edge:clamp(52px,calc(100dvh / 10),74px);
+  --key-gap:clamp(7px,1.2dvh,11px);
+  grid-template-rows:minmax(0,min(395px,calc(100dvh - 235px))) minmax(0,1fr);
+  min-height:0;
+}
+.canvas {
+  overflow:hidden;
+  min-height:0;
+  padding:clamp(5px,1.2dvh,12px) 10px 2px;
+  gap:clamp(5px,1dvh,9px);
+  justify-content:flex-start;
+}
+.device-layout { flex:0 0 auto; gap:clamp(5px,1dvh,9px); }
+.key-grid {
+  grid-template-columns:repeat(5,var(--key-edge));
+  grid-template-rows:repeat(3,var(--key-edge));
+  gap:var(--key-gap);
+}
+.physical-controls {
+  width:calc(5 * var(--key-edge) + 4 * var(--key-gap));
+  max-width:100%;
+  min-height:0;
+  padding:4px 4px 2px;
+  gap:clamp(3px,0.8dvh,9px);
+}
+.physical-control { min-width:0; flex:1; padding:2px 0; gap:3px; }
+.physical-control.knob .physical-symbol {
+  width:clamp(26px,4.3dvh,35px);
+  height:clamp(26px,4.3dvh,35px);
+}
+.physical-control .physical-name {
+  max-width:100%; overflow:hidden; text-overflow:ellipsis;
+}
+.page-controls { flex:0 0 auto; gap:12px; min-height:23px; }
+@media(max-height:690px) {
+  .work { --key-edge:clamp(47px,calc(100dvh / 10),64px); --key-gap:7px; grid-template-rows:minmax(0,calc(100dvh - 220px)) minmax(0,1fr); }
+  .canvas{padding-top:5px;gap:5px;}
+  .device-layout{gap:5px;}
+  .physical-controls{padding:2px 3px;}
+  .physical-control .physical-name{font-size:9px;}
+  .page-controls{min-height:20px;}
+}
+@media(max-width:1000px) {
+  .work {
+    --key-edge:clamp(47px,calc(100dvh / 10),62px);
+    --key-gap:clamp(6px,1dvh,9px);
+    grid-template-rows:minmax(0,min(360px,calc(100dvh - 220px))) minmax(0,1fr);
+  }
+  .canvas{padding:6px 8px 2px;gap:6px;}
+  .device-layout{gap:6px;}
+  .physical-controls{gap:3px;padding:3px;}
+}
+
+/* Small HID status light in the approved sidebar header; no geometry changes. */
+.deck-status{display:inline-block;width:7px;height:7px;border-radius:50%;background:#747474;flex-shrink:0;box-shadow:0 0 0 1px #161616}
+.deck-status.online{background:#47c787;box-shadow:0 0 6px #47c7877a}
+
+
+/* Common action properties: preview title mirrors the current typography settings. */
+#icon-preview { position:relative; }
+#icon-preview-content { display:flex;align-items:center;justify-content:center;width:100%;height:100%;overflow:hidden; }
+#icon-preview-content .icon-image {max-width:100%;max-height:100%;object-fit:contain;}
+.preview-title {position:absolute;bottom:5px;left:5px;right:5px;max-height:65%;overflow:hidden;line-height:1.15;overflow-wrap:anywhere;white-space:normal;pointer-events:none;text-shadow:0 1px 3px #000;}
+/* Minimal local icon creator dialog; does not change the approved editor layout. */
+.icon-maker-overlay {position:fixed;inset:0;z-index:160;background:#0009;display:flex;align-items:center;justify-content:center;}
+.icon-maker-overlay[hidden] {display:none;}
+.icon-maker-dialog {width:min(320px,calc(100vw - 30px));background:#303030;border:1px solid #626262;border-radius:7px;box-shadow:0 14px 40px #000b;padding:15px;display:flex;flex-direction:column;align-items:stretch;gap:13px;}
+.icon-maker-dialog header{display:flex;justify-content:space-between;align-items:center;}
+.icon-maker-dialog header button{background:none;border:0;font-size:20px;}
+#icon-maker-canvas{width:148px;height:148px;align-self:center;border-radius:9px;box-shadow:0 0 0 1px #555;}
+.icon-maker-dialog label{display:flex;justify-content:space-between;align-items:center;gap:12px;}
+.icon-maker-dialog label input[type=text],.icon-maker-dialog label input:not([type]){background:#414141;border:1px solid #666;border-radius:4px;color:#eee;width:150px;padding:7px;}
+.icon-maker-colors{display:flex;gap:14px;justify-content:space-between;}
+.icon-maker-colors label{gap:6px;}
+.icon-maker-colors input[type=color]{width:44px;height:32px;background:transparent;border:0;cursor:pointer;}
+.icon-maker-dialog footer{display:flex;justify-content:flex-end;gap:8px;}
+.icon-maker-dialog footer button{padding:7px 13px;background:#444;border:1px solid #777;border-radius:4px;}
+#icon-maker-save{background:#2977c9;border-color:#2977c9;}
+
+
+/* DeckForge title overlay: fixed icon bitmap, title drawn over it in the
+   shared 196px compositor. Never vertically reflow the key when font grows. */
+.deck-key{position:relative;}
+.deck-key:has(> .rendered-key-image){padding:0;gap:0;}
+.deck-key > .rendered-key-image{
+  display:block;position:absolute;inset:0;
+  width:100%;height:100%;object-fit:fill;
+  border-radius:inherit;pointer-events:none;
+}
+.deck-key > .glyph.icon-image{width:100%;height:100%;object-fit:contain;}
+.deck-key > .caption{position:absolute;left:4px;right:4px;bottom:4px;z-index:1;pointer-events:none;}
+.preview-title{max-height:95%;line-height:1.12;}
+
+
+/* Title palette and adjustable outline live inside the existing T menu. */
+.title-style-popover{max-height:min(80dvh,660px);overflow-y:auto;}
+.title-format input[type=color],.outline-settings input[type=color]{width:35px;height:30px;flex:none;padding:2px;border:1px solid #666;border-radius:3px;background:#414141;}
+.title-format .title-palette-open,.outline-settings .title-palette-open{flex:none;width:29px;padding:4px 2px;background:#505050;border:1px solid #666;border-radius:4px;}
+.outline-settings{display:flex;gap:7px;align-items:center;}
+.outline-settings span{flex:1;color:#ddd;}
+.outline-settings select{width:92px;flex:none;min-height:30px;}
+.title-palette{border:1px solid #595959;border-radius:5px;padding:9px;background:#303030;display:flex;flex-direction:column;gap:8px;}
+.title-palette[hidden]{display:none;}
+.title-palette-header{display:flex;align-items:center;justify-content:space-between;}
+.title-palette-header button{background:transparent;border:0;font-size:18px;}
+.title-palette-label{font-size:11px;color:#ccc;}
+.title-palette-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px;}
+.title-palette-grid.my-colors{grid-template-columns:repeat(6,minmax(0,1fr));}
+.title-color-swatch{width:100%;aspect-ratio:1;border:1px solid #999!important;border-radius:4px!important;padding:0!important;min-width:0!important;}
+/* Saved colors use a text-only context menu instead of a separate delete tile. */
+.title-palette .palette-color-context{z-index:125;min-width:76px;width:auto;padding:4px;}
+.title-palette .palette-color-context button{margin:0!important;min-width:0;padding:6px 12px!important;}
+#title-palette-save{padding:7px!important;background:#3f566f!important;border:1px solid #718399!important;border-radius:4px!important;}
+
+
+/* Per-gesture inspector for the two physical buttons and three rotary knobs.
+   Lives below the locked D200X grid; never expands its top hardware layout. */
+.control-inspector{display:block}
+.control-config{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:11px 0}
+.control-config>label{min-width:90px;color:#bfc4cf}
+/* Explicit action tests only; ordinary key clicks remain edit-only. */
+.action-head .action-preview-test{margin-left:auto;margin-right:12px;background:#345579;border:1px solid #7397ba;border-radius:5px;padding:5px 12px;font-size:12px;color:#fff}
+.control-config>button{background:#345579;border:1px solid #7397ba;border-radius:5px;padding:6px 12px;color:#fff}
+.action-head .action-preview-test:hover,.control-config>button:hover{background:#416b98}
+.control-config>select{background:#373737;color:#eee;border:1px solid #656565;border-radius:5px;padding:7px;min-width:170px}
+.control-gesture-strip{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.control-gesture-tile{flex:1;min-width:110px;max-width:210px;border:1px solid #5b5b5b;background:#25282e;border-radius:9px;display:flex;align-items:center;flex-direction:column;gap:5px;padding:9px;color:#ddd}
+.control-gesture-tile.active{border:2px solid #4d9ee9;background:#303b49}
+.control-gesture-tile.drag-over{outline:3px solid #68b8fa;outline-offset:2px}
+.control-gesture-symbol{font-size:24px;line-height:1.1;color:#eee}
+.control-gesture-value{font-size:11px;color:#abc3e4;min-height:20px;text-align:center;overflow-wrap:anywhere}
+.control-action-editor{border-top:1px solid #484848;padding:14px 0}
+.control-action-header{display:flex;gap:12px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.control-action-header button{background:#444;border:1px solid #777;border-radius:5px;padding:5px 10px}
+.control-stack-targets{display:flex;flex-wrap:wrap;gap:10px}
+.control-stack-targets label{display:flex;align-items:center;gap:4px}
+.control-stack-targets input{accent-color:#529eea}
+
+/* Multi Action editor stays inside the existing inspector, no layout redesign. */
+.multi-action-editor{margin-top:12px;border-top:1px solid #555;padding-top:12px;min-width:0}
+.multi-action-editor>strong{display:block;margin-bottom:4px}
+.multi-action-steps{display:flex;flex-direction:column;gap:7px;margin-top:10px;min-height:36px}
+.multi-action-row{display:flex;align-items:center;gap:6px;min-width:0}
+.multi-action-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.multi-action-row button,.multi-action-toolbar button{background:#414141;border:1px solid #666;border-radius:4px;padding:5px 9px}
+.multi-action-toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.multi-action-toolbar select,.multi-action-steps>input{background:#363636;color:#eee;border:1px solid #555;border-radius:4px;padding:6px;max-width:100%}
+.multi-step-fields{padding:6px 0 9px 0;margin-bottom:8px;border-bottom:1px solid #414141}
+
+.multi-switch-tabs{display:flex;gap:8px;margin-bottom:12px}
+.multi-switch-tabs button{border:1px solid #666;border-radius:5px;background:#414141;padding:7px 12px}
+.multi-switch-tabs button[aria-pressed="true"]{background:#345579;border-color:#8ab5d8;color:#fff}
+
+.multi-switch-visuals{display:grid;grid-template-columns:minmax(85px,auto) minmax(0,1fr);gap:7px;align-items:center;margin:8px 0 12px}
+.multi-switch-visuals input{min-width:0;background:#363636;color:#eee;border:1px solid #666;border-radius:4px;padding:6px}
+.multi-switch-visuals .hint{grid-column:1/-1}
+
+/* Action catalogue appearance: scoped to right-hand panel only. */
+.action-appearance{display:flex;align-items:center;gap:7px;padding:5px 12px 8px;border-bottom:1px solid #343434;font-size:11px;color:#bfc3ca}
+.action-appearance label{white-space:nowrap}
+.action-appearance select{min-width:0;flex:1;background:#34383e;color:#f4f4f4;border:1px solid #555;border-radius:5px;padding:5px;font-size:11px}
+.action-appearance button{border:1px solid #555;background:#383b40;border-radius:5px;color:#dedede;padding:5px 7px;font-size:10px;white-space:nowrap}
+.library .action-item{position:relative;min-height:32px;gap:8px;padding:4px 12px 4px 16px}
+.library .action-item .action-icon{width:30px;min-width:30px;display:grid;place-items:center;line-height:1}
+.action-caption{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px;font-size:12px}
+.action-caption>span{white-space:normal;overflow-wrap:anywhere}
+.action-shortcut{font-size:10px;color:#acb6c7;line-height:1.2;white-space:normal}
+.action-customize{margin-left:auto;flex:none;border:0;background:transparent;color:#acb3bd;border-radius:4px;padding:2px 6px;font-size:19px;line-height:1.1;cursor:pointer}
+.action-customize:hover,.action-customize:focus-visible{background:#515966;color:#fff}
+.action-override-controls{position:absolute;z-index:10;right:10px;top:100%;background:#292d35;box-shadow:0 6px 18px #0009;border:1px solid #606874;border-radius:6px;display:flex;gap:5px;padding:7px}
+.action-override-controls button{font-size:11px;border:1px solid #616975;border-radius:4px;background:#434c59;color:#fff;padding:6px;cursor:pointer;white-space:nowrap}
+.panel-action-svg{height:27px;width:27px;display:grid;place-items:center;flex:none;color:#e2e7ef}
+.panel-action-svg svg,.panel-action-svg img{width:20px;height:20px;display:block;object-fit:contain}
+.panel-action-svg.theme-line{color:#d6e0ed}
+.panel-action-svg.theme-color{border-radius:8px;background:color-mix(in srgb,var(--icon-accent) 19%,#21252d);color:var(--icon-accent)}
+.panel-action-svg.theme-button{border-radius:7px;background:linear-gradient(145deg,#4e5b6b,#1b222e);border:1px solid #657083;color:#fff;box-shadow:inset 0 1px 0 #ffffff25,0 1px 2px #0008}
+.panel-action-svg.theme-button svg{height:18px;width:18px}
+
+/* Keep unavailable Virtual DeckForge visible without allowing assignment. */
+.library .action-item.action-disabled{opacity:.48;cursor:not-allowed}
+.library .action-item.action-disabled:hover{background:transparent}
+.library .action-item.action-disabled .action-unavailable{font-size:10px;color:#b9b9b9}
+.library .action-item.action-disabled .action-customize{visibility:visible}
+
+/* Single-key artwork retains the existing pressed/released visual feedback. */
+.deck-key:active .rendered-key-image,.deck-key:active .glyph{transform:scale(.94)}
+.deck-key .rendered-key-image,.deck-key .glyph{transition:transform 90ms ease}
+
+
+/* Plugin tab replaces the global action-icon strip, keeping the Keys tab unchanged. */
+#action-appearance-toolbar[hidden],#plugin-install-toolbar[hidden]{display:none!important}
+.plugin-install-toolbar{min-width:0;padding:7px 12px 8px;border-bottom:1px solid #333}
+.plugin-install-toolbar>summary{display:flex;align-items:center;justify-content:space-between;gap:8px;list-style:none;cursor:pointer;padding:8px 10px;background:#30343a;border:1px solid #535b65;border-radius:5px;font-size:12px;font-weight:600;color:#f3f6fa}
+.plugin-install-toolbar>summary::-webkit-details-marker{display:none}
+.plugin-install-toolbar>summary::after{content:"";width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(-45deg);margin-right:3px;flex:none}
+.plugin-install-toolbar[open]>summary::after{transform:rotate(45deg)}
+.plugin-install-toolbar>summary:hover{background:#3d444d}
+.plugin-install-toolbar>summary:focus-visible{outline:2px solid #328cde;outline-offset:2px}
+.plugin-management-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-top:7px}
+.plugin-install-toolbar .plugin-add-button{width:100%;min-width:0;white-space:normal;overflow-wrap:break-word;background:#393f49;color:#f3f6fa;border:1px solid #67717c;border-radius:5px;padding:9px 8px;text-align:center;font-size:12px;font-weight:600}
+.plugin-install-toolbar .plugin-add-button:hover{background:#495463}
+/* Fusion-only manager utility: no changes to existing action/button dimensions. */
+.fusion-manager-launch{display:block;margin:5px 0 10px 16px;width:auto;max-width:calc(100% - 28px);padding:7px 10px;white-space:nowrap;background:#393f49;color:#f3f6fa;border:1px solid #67717c;border-radius:5px;font-size:12px;font-weight:600;cursor:pointer}
+.fusion-manager-launch:hover{background:#495463}
+.fields button.sdk-settings-open{width:100%;color:#f3f6fa;background:#41464e;border:1px solid #727782;border-radius:5px;padding:8px;cursor:pointer}
+.fields button.sdk-settings-open:hover{background:#535d69}
+.sdk-state-icons{display:flex;flex-wrap:wrap;gap:12px;padding:7px 0 10px 142px}
+.sdk-state-icon{min-width:118px;max-width:170px;display:grid;grid-template-columns:repeat(3,1fr);gap:5px;align-items:center;padding:9px;border:1px solid #555b65;border-radius:7px;background:#30343b}
+.sdk-state-icon strong{grid-column:1/-1}
+.sdk-state-preview{grid-column:1/-1;display:flex;align-items:center;justify-content:center;width:72px;height:72px;border-radius:8px;background:#15171b;color:#aeb7c4;font-size:12px;border:1px solid #555}
+.sdk-state-preview img{width:100%;height:100%;object-fit:contain}
+.sdk-state-icon button{background:#444c58;border:1px solid #646d7a;border-radius:4px;color:#f0f2f5;padding:6px 3px;font-size:11px;cursor:pointer}
+.sdk-state-icon button:hover{background:#556171}
+@media(max-width:1000px){.sdk-state-icons{padding-left:107px}}
+
+/* Electron-safe profile name dialog and explicit unfinished-menu state. */
+.profile-name-dialog{width:min(350px,calc(100vw - 32px));background:#303030;color:#eee;border:1px solid #626262;border-radius:8px;box-shadow:0 14px 40px #000b;padding:20px}
+.profile-name-dialog::backdrop{background:#0009}
+.profile-name-dialog form{display:flex;flex-direction:column;gap:15px}
+.profile-name-dialog strong{font-size:14px}
+.profile-name-dialog input{width:100%;background:#414141;color:#eee;border:1px solid #777;border-radius:5px;padding:9px 10px}
+.profile-name-dialog input:focus{outline:2px solid #328cde;outline-offset:1px}
+.profile-name-actions{display:flex;justify-content:flex-end;gap:8px}
+.profile-name-actions button{background:#444;color:#eee;border:1px solid #777;border-radius:5px;padding:8px 16px}
+.profile-name-actions button.primary{background:#2977c9;border-color:#2977c9}
+.key-menu button:disabled,.profile-menu button:disabled,.settings-trigger:disabled{opacity:.42;cursor:not-allowed}
+.key-menu button:disabled:hover,.profile-menu button:disabled:hover{background:transparent}
+
+/* Profile selector: a short list with per-profile gear controls. */
+.profile-menu{min-width:260px;max-width:315px;max-height:min(80vh,650px);overflow-y:auto}
+.profile-list-row{display:grid;grid-template-columns:minmax(0,1fr) 32px;align-items:center}
+.profile-menu .profile-list-select{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;height:30px;padding:5px 11px;line-height:20px}
+.profile-list-row .profile-row-gear{width:30px;height:30px;text-align:center;font-size:16px;padding:0 4px;line-height:30px}
+.profile-row-tools{grid-column:1 / -1;background:#282828;border-left:2px solid #4b91d4;margin:2px 4px 8px 10px;padding:4px}
+.profile-row-tools[hidden],.profile-global-panel[hidden]{display:none}
+.profile-row-tools button,.profile-global-panel button{font-size:12px}
+.profile-row-tools button:disabled{opacity:.4;cursor:not-allowed}
+.profile-global-panel{background:#282828;border-left:2px solid #666;margin:4px 5px;padding:4px}
+
+/* Wide D200X window: per-profile mode checkbox and drag-to-sort inspector. */
+.wide-mode-list{display:flex;flex-direction:column;gap:6px;margin:10px 0}
+.wide-mode-row{display:grid;grid-template-columns:22px 22px minmax(0,1fr) auto;align-items:center;gap:7px;background:#333;border:1px solid #4b4b4b;border-radius:6px;padding:10px 9px;font-size:12px;cursor:default}
+.wide-mode-handle{cursor:grab;user-select:none}
+.wide-mode-handle:active{cursor:grabbing}
+.wide-mode-row input{accent-color:#e9a300;width:16px;height:16px}
+.wide-mode-handle{color:#aaa;font-size:16px}
+.wide-mode-row small{font-size:10px;color:#e4ac39}
+.wide-mode-reset{font-size:11px;padding:9px 12px;border:1px solid #555;background:#383838;color:#eee;border-radius:5px;text-align:left}
+.wide-mode-reset:hover{background:#494949}
+
+/* Compact device options; preserve the existing header layout. */
+.sidebar-device{position:relative}
+.settings-menu{position:absolute;right:0;top:30px;min-width:170px;z-index:30;background:#333;border:1px solid #555;border-radius:6px;padding:5px;box-shadow:0 10px 28px #0009}
+.settings-menu[hidden]{display:none}
+.settings-menu button{display:block;width:100%;border:0;background:transparent;color:#ddd;text-align:left;padding:9px 11px;border-radius:4px;white-space:nowrap}
+.settings-menu button:hover:not(:disabled),.settings-menu button:focus-visible:not(:disabled){background:#484848}
+.settings-menu{min-width:235px}
+.update-version-info{padding:9px 11px 7px;display:flex;flex-direction:column;gap:8px}
+.update-version-row{display:flex;align-items:center;justify-content:space-between;gap:12px;color:#bbb;font-size:12px}
+.update-version-row strong{color:#f3f3f3;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums}
+.update-state{border-top:1px solid #4b4b4b;padding-top:8px;color:#b9b9b9;font-size:11px;white-space:normal;line-height:1.45}
+.settings-menu .update-button-row{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:5px 0;border-top:1px solid #4b4b4b}
+.settings-menu .update-button-row button{min-width:0;text-align:center;padding:8px 5px;font-size:12px;background:#3b4047;border:1px solid #58616c;border-radius:4px}
+.settings-menu .update-button-row button:disabled{opacity:.45;cursor:default}
+
+/* Consistent inspector header, compact knob tabs, and action buttons. */
+.control-head{gap:9px;min-height:34px}
+.control-head strong{white-space:nowrap}
+.control-mode-badge{flex:none;border:1px solid #478bd0;background:#243d5d;color:#f2f7ff;border-radius:5px;padding:4px 9px;font-size:11px}
+.control-mode-badge.trigger{border-color:#ae854b;background:#4d3822}
+.control-mode-badge.stack{border-color:#9877c9;background:#3f3054}
+.control-mode-tabs{display:flex;margin-left:auto;gap:3px;border-radius:8px;background:#202020;padding:3px}
+.control-mode-tabs button{border:0;border-radius:6px;padding:7px 11px;background:transparent;font-size:12px;color:#b4b4b4;white-space:nowrap}
+.control-mode-tabs button.active{background:#373737;color:white}
+.control-held-enable{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.control-adjust-config>select{min-width:145px}
+.control-adjust-config>select:disabled{opacity:.45;cursor:default}
+.control-adjust-config>select.control-step{min-width:64px;width:68px}
+.control-adjust-config>label{min-width:auto}
+.control-adjust-config>.control-reverse{display:flex;align-items:center;gap:6px}
+.control-gesture-strip{flex-wrap:nowrap;gap:10px}
+.control-tile-holder{position:relative;flex:1 1 0;min-width:0;max-width:215px}
+.control-gesture-tile{width:100%;min-width:0;max-width:none;min-height:104px;height:104px;justify-content:center;gap:3px;padding:7px 6px}
+.control-gesture-tile strong{font-size:12px;line-height:1.25;text-align:center}
+.control-gesture-tile:disabled{cursor:default;opacity:.56;border-color:#444;background:#2b2b2b}
+.control-gesture-value{font-size:11px;min-height:12px;line-height:1.25}
+.control-tile-remove{position:absolute;z-index:4;top:5px;right:5px;width:21px;height:21px;border-radius:50%;background:#515966;border:1px solid #88909d;color:white;font-size:16px;display:grid;place-items:center;padding:0;line-height:1}
+.control-tile-remove:disabled{opacity:.25;cursor:default}
+.control-tile-remove:not(:disabled):hover{background:#8b4545}
+.preview-action-remove{top:4px;right:4px}
+.control-test-row{display:flex;flex-wrap:nowrap;gap:5px;margin:8px 0 2px;max-width:100%}
+.control-test-row>button{flex:1 1 0;min-width:0;white-space:nowrap;text-align:center;background:#345579;border:1px solid #7397ba;border-radius:5px;padding:6px 5px;font-size:11px;color:#fff}
+.control-test-row>button:hover{background:#416b98}
+.inspector-save-bar{position:sticky;bottom:-16px;z-index:20;background:#292929;border-top:1px solid #505050;display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:11px 0;margin-top:12px}
+.inspector-save-bar button{border-radius:5px;padding:7px 16px;font-size:12px;color:#fff;background:#494949;border:1px solid #666}
+.inspector-save-bar .inspector-save{background:#2678ca;border-color:#388de3}
+.inspector-save-bar button:disabled{opacity:.4;cursor:default}
+/* Fixed size SDK state cards: original compact proportion with vertical equal-size buttons. */
+.sdk-state-icons{
+  --deckforge-state-card-gap:12px;
+  --deckforge-state-button-width:76px;
+  --deckforge-state-button-height:25px;
+  --deckforge-state-button-gap:4px;
+  padding-left:142px;gap:12px
+}
+.sdk-state-icon{width:196px;min-width:196px;max-width:196px;display:grid;grid-template-columns:84px var(--deckforge-state-button-width);grid-template-rows:auto 84px;column-gap:9px;row-gap:7px;align-items:center;justify-content:start;padding:10px}
+.sdk-state-icon strong{grid-column:1 / 3}
+.sdk-state-preview{grid-column:1;grid-row:2;width:84px;height:84px;border-radius:5px}
+.sdk-state-icon .sdk-state-buttons{grid-column:2;grid-row:2;display:flex;flex-direction:column;gap:var(--deckforge-state-button-gap);width:var(--deckforge-state-button-width)}
+.sdk-state-icon .sdk-state-buttons button{width:var(--deckforge-state-button-width);min-width:var(--deckforge-state-button-width);max-width:var(--deckforge-state-button-width);height:var(--deckforge-state-button-height);min-height:var(--deckforge-state-button-height);padding:2px 3px;text-align:center;white-space:nowrap;line-height:1.1}
+@media(max-width:1000px){.sdk-state-icons{padding-left:107px}}
+
+/* Keep all test controls single-line and compact; avoid consuming inspector height. */
+.control-test-row>button{flex:0 0 auto;min-width:92px;max-width:135px;height:32px;padding:5px 9px}
+.control-test-row>button:disabled,.action-preview-test:disabled{opacity:.42;cursor:default}
+.inspector-unsaved-dialog{width:min(440px,calc(100vw - 32px));border:1px solid #696969;border-radius:8px;background:#303030;color:#eee;padding:20px;box-shadow:0 14px 40px #000b}
+.inspector-unsaved-dialog::backdrop{background:#0009}
+.inspector-unsaved-dialog strong{font-size:14px}
+.inspector-unsaved-dialog p{margin:15px 0;line-height:1.6;font-size:12px}
+.inspector-unsaved-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.inspector-unsaved-actions button{border:1px solid #707070;background:#474747;color:#fff;border-radius:5px;padding:8px 12px;font-size:12px}
+.inspector-unsaved-actions button.primary{background:#287acb;border-color:#438cce}
+.inspector.empty{display:flex;flex-wrap:wrap;align-content:center;justify-content:center}
+.inspector.empty .inspector-save-bar{width:100%;align-self:flex-end}
+
+/* Keep icon picker controls accessible: the remove circle owns top-right, the picker menu moves below. */
+.preview-key .icon-preview-menu{top:1px;bottom:auto;right:1px}
+
+/* Hotkey-switch text fields line up with the two fixed 196px SDK icon cards.
+   Only the value column is width-constrained; the left labels stay unchanged. */
+.hotkey-switch-inspector .fields>.field{grid-template-columns:130px minmax(0,404px)}
+.hotkey-switch-inspector .fields>.field>input{min-width:0}
+@media(max-width:1000px){.hotkey-switch-inspector .fields>.field{grid-template-columns:95px minmax(0,404px)}}
+/* The title typography control sits inside the right end of the existing input,
+   consistently for every title field, without shrinking the text itself. */
+.title-line{gap:0;position:relative}
+.title-line>input{padding-right:43px}
+.title-line>.title-style-trigger{position:absolute;right:3px;top:50%;transform:translateY(-50%);z-index:3;padding:4px 6px;font-size:14px;border-radius:3px}
+.title-line>.title-style-trigger:hover{background:#484848}
+
+/* Compact fixed-shortcut selector: left label, shortcut aligned right.
+   Real select stays in DOM for existing field persistence handlers. */
+.shortcut-select-wrap{position:relative;min-width:0;width:100%}
+.shortcut-select-wrap>select{position:absolute!important;width:1px!important;height:1px!important;min-height:0!important;opacity:0;pointer-events:none;overflow:hidden;padding:0!important;border:0!important}
+.shortcut-select-trigger{display:flex;align-items:center;gap:12px;width:100%;min-height:32px;background:#373737;color:#eee;border:1px solid #626262;border-radius:4px;padding:6px 10px;text-align:left}
+.shortcut-select-trigger>span:first-child{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.shortcut-select-trigger>small{color:#bdc7d7;font-size:11px;white-space:nowrap}
+.shortcut-select-trigger>span:last-child{color:#b9b9b9}
+.shortcut-select-menu{position:absolute;top:calc(100% + 2px);left:0;right:0;z-index:100;padding:3px;background:#353535;border:1px solid #686868;border-radius:4px;box-shadow:0 8px 18px #0009;max-height:220px;overflow-y:auto}
+.shortcut-select-menu[hidden]{display:none}
+.shortcut-select-menu button{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;min-height:29px;padding:5px 8px;border:0;background:transparent;color:#eee;text-align:left}
+.shortcut-select-menu button:hover,.shortcut-select-menu button:focus-visible{background:#2869be}
+.shortcut-select-menu small{color:#bdc7d7;white-space:nowrap;font-size:11px}
+
+/* SDK plugin inspector: align title + native property editor with OFF/ON
+   cards; each icon remains a fixed 196px card (196 + 12 + 196 = 404). */
+.sdk-plugin-inspector .sdk-title-controls{
+  display:grid;grid-template-columns:minmax(0,238px) 158px;gap:8px;
+  width:404px;max-width:100%;min-width:0;align-items:center
+}
+.sdk-plugin-inspector .sdk-title-controls .title-line{min-width:0;width:100%}
+.sdk-plugin-inspector .sdk-title-controls .sdk-settings-open{
+  width:158px;max-width:158px;min-width:0;height:32px;min-height:32px;
+  padding:5px 7px;white-space:nowrap;text-align:center;font-size:11px;
+  border-radius:5px;overflow:hidden;text-overflow:ellipsis
+}
+.sdk-plugin-inspector .fields{min-width:0}
+.sdk-plugin-inspector .sdk-state-icons{display:flex;flex-wrap:wrap;align-items:flex-start}
+.sdk-plugin-inspector .sdk-state-icon{flex:0 0 196px}
+@media(max-width:740px){
+  .sdk-plugin-inspector .sdk-title-controls{grid-template-columns:minmax(0,1fr) 148px}
+  .sdk-plugin-inspector .sdk-title-controls .sdk-settings-open{width:148px;max-width:148px}
+}
+
+/* Shared compact inspector geometry. All single-value fields use the exact
+   404px span of the two fixed 196px OFF/ON cards and their 12px gap.
+   The labels remain independent of that width. */
+#app{grid-template-columns:minmax(640px,1fr) 320px}
+.inspector{padding:16px max(22px,calc((100% - 596px)/2))}
+.properties{grid-template-columns:108px minmax(0,1fr);gap:12px}
+.fields{width:100%;max-width:476px;min-width:0}
+.fields>.field{grid-template-columns:64px minmax(0,404px);gap:8px}
+.fields>.field>label{text-align:right}
+.fields>.field>input,.fields>.field>select,.fields>.field>.title-line,.fields>.field>.compound{min-width:0;max-width:404px}
+.hotkey-switch-inspector .fields>.field{grid-template-columns:64px minmax(0,404px)}
+.sdk-plugin-inspector .sdk-state-icons{padding-left:72px;padding-top:7px}
+.action-head .action-preview-test{
+  flex:0 0 105px;width:105px;height:29px;min-width:105px;
+  margin-left:auto;margin-right:0;padding:5px 8px;white-space:nowrap
+}
+.inspector-save-bar{padding-right:0}
+.inspector-save-bar .inspector-cancel,
+.inspector-save-bar .inspector-save{width:60px;min-width:60px;height:32px;padding:5px 8px}
+/* Restore original responsive D200X key sizes and text, while keeping
+   the whole keypad/knob/page group centered. Allow a little more height when
+   needed so top and bottom breathing room remain balanced. */
+.work{
+  --key-edge:clamp(52px,calc(100dvh / 10),74px);
+  --key-gap:clamp(7px,1.2dvh,11px);
+  grid-template-rows:minmax(0,min(425px,calc(100dvh - 220px))) minmax(0,1fr);
+}
+.canvas{justify-content:center;padding-top:8px;padding-bottom:8px}
+.deck-key .caption,.physical-control .physical-name{font-size:10px}
+@media(max-width:1000px){
+  #app{grid-template-columns:minmax(640px,1fr) 320px}
+  .inspector{padding:16px max(22px,calc((100% - 596px)/2))}
+  .properties{gap:12px}
+  .fields>.field,.hotkey-switch-inspector .fields>.field{grid-template-columns:64px minmax(0,404px);gap:8px}
+  .sdk-plugin-inspector .sdk-state-icons{padding-left:72px}
+  .work{
+    --key-edge:clamp(52px,calc(100dvh / 10),74px);
+    --key-gap:clamp(7px,1.2dvh,11px);
+    grid-template-rows:minmax(0,min(425px,calc(100dvh - 220px))) minmax(0,1fr);
+  }
+  .canvas{justify-content:center;padding-top:8px;padding-bottom:8px}
+}
+
+/* Prevent the action-panel toolbar from spilling past the right window edge.
+   Equal 12px side insets; widths include borders/padding. */
+.library{min-width:0;overflow:hidden}
+.action-appearance{
+  box-sizing:border-box;width:100%;min-width:0;
+  display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;
+  align-items:center;column-gap:6px;row-gap:7px;
+  padding:7px 12px 8px;
+}
+.action-appearance label{min-width:0;white-space:nowrap}
+.action-appearance select{box-sizing:border-box;width:100%;max-width:100%;min-width:0;flex:none}
+.action-appearance button{box-sizing:border-box;max-width:100%;min-width:0;flex:none;white-space:nowrap}
+/* On especially narrow panels, place reset below the selector instead of
+   clipping its text or spilling beyond the equal right padding. */
+@container action-panel (max-width:285px){
+  #action-appearance-toolbar{grid-template-columns:max-content minmax(0,1fr)}
+  #action-appearance-toolbar>button{grid-column:2;justify-self:end}
+}
+.library{container-type:inline-size;container-name:action-panel}
+
+/* The editor track must shrink instead of pushing the right panel off-screen.
+   Keep a guaranteed 280–320px sidebar, even while resizing the window. */
+#app{grid-template-columns:minmax(0,1fr) minmax(280px,320px);min-width:0}
+.work,.library{min-width:0}
+
+/* Completed shared inspector field grid. The label sits OUTSIDE the 404px
+   value span, which equals two 196px state-icon cards plus their 12px gap.
+   Both header test and footer actions now share the 600px content edge. */
+.inspector{padding:16px max(20px,calc((100% - 600px)/2))}
+.properties{grid-template-columns:98px minmax(0,1fr);gap:12px}
+.fields{width:100%;max-width:490px;min-width:0}
+.fields>.field,.hotkey-switch-inspector .fields>.field{
+  grid-template-columns:78px minmax(0,404px);gap:8px;min-width:0
+}
+.fields>.field>label{
+  white-space:nowrap;overflow:visible;text-align:right;justify-self:end;
+}
+.fields>.field>input,.fields>.field>select,.fields>.field>.title-line,
+.fields>.field>.compound,.fields>.field>.shortcut-select-wrap{
+  min-width:0;max-width:404px
+}
+.sdk-plugin-inspector .sdk-state-icons{padding-left:86px}
+/* Compact action parameters: their combined width lines up with the title
+   value (not with the title label or preview), without changing data fields. */
+.fields>.compact-property-group{
+  width:404px;max-width:calc(100% - 86px);margin-left:86px;
+  display:grid;gap:8px;align-items:end;min-width:0
+}
+.compact-property-group.compact-count-2{grid-template-columns:minmax(0,1fr) 110px}
+.compact-property-group.compact-count-3{grid-template-columns:116px minmax(0,1fr) 96px}
+.compact-property-group:has([data-field="seconds"]){grid-template-columns:114px minmax(0,1fr)}
+.compact-property-group:has([data-field="fadeDuration"]){grid-template-columns:minmax(0,1fr) 134px}
+.compact-property-group:has([data-field="enter"]){grid-template-columns:120px minmax(0,1fr)}
+/* Effect playback only: two compact rows; other action layouts stay unchanged. */
+.compact-property-group.audio-play-property-group:has([data-field="mode"]){
+  grid-template-columns:minmax(0,1.18fr) minmax(0,1fr) 100px
+}
+.compact-property-group.audio-play-property-group:has([data-field="volume"]){
+  grid-template-columns:minmax(0,1fr) minmax(0,1.35fr)
+}
+.compact-property-group.audio-play-property-group [data-field="volume"]{cursor:pointer}
+.compact-property-group.audio-play-property-group .compound>output{
+  min-width:27px;text-align:right;font-variant-numeric:tabular-nums
+}
+
+.compact-property-group:has([data-field="autoExitSeconds"]){grid-template-columns:minmax(0,1fr) 150px}
+.compact-property-group>.field{
+  display:flex;flex-direction:column;align-items:stretch;gap:6px;
+  min-width:0;width:100%
+}
+.compact-property-group>.field>label{
+  display:block;width:100%;min-width:0;text-align:left;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  color:#cacaca;font-size:11px;line-height:1.25
+}
+.compact-property-group>.field>select,
+.compact-property-group>.field>input:not([type="checkbox"]),
+.compact-property-group>.field>.compound,
+.compact-property-group>.field>.shortcut-select-wrap{
+  width:100%;max-width:100%;min-width:0
+}
+.compact-property-group>.field>.compound input{min-width:0}
+.compact-property-group>.field>input[type="checkbox"]{align-self:start;margin:8px 0;min-height:0}
+.compact-property-group>.field>.shortcut-select-wrap{flex:1}
+.compact-property-group .shortcut-select-trigger{max-width:100%;min-width:0}
+/* Preset shortcut lives inside the title text box, just left of T⌄. */
+.title-line.has-shortcut>input{padding-right:clamp(132px,45%,215px)}
+.title-shortcut-display{
+  position:absolute;right:41px;top:50%;transform:translateY(-50%);
+  z-index:2;max-width:165px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;pointer-events:none;font-size:11px;color:#b8c5d6
+}
+.title-shortcut-display:empty{display:none}
+@media(max-width:1000px){
+  .inspector{padding:16px max(20px,calc((100% - 600px)/2))}
+  .properties{grid-template-columns:98px minmax(0,1fr);gap:12px}
+  .fields{max-width:490px}
+  .fields>.field,.hotkey-switch-inspector .fields>.field{
+    grid-template-columns:78px minmax(0,404px);gap:8px
+  }
+  .sdk-plugin-inspector .sdk-state-icons{padding-left:86px}
+}
+
+/* One inspector design language: single breadcrumb row, optional contextual
+   help, consistent summary line and compact natural-width command buttons. */
+.action-head{gap:8px;min-width:0}
+.action-head>strong{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.action-head .action-preview-test{margin-left:auto;margin-right:0}
+.action-head .inspector-help-trigger{
+  order:0;flex:0 0 22px;min-width:22px;width:22px;height:22px;
+  display:inline-grid;place-items:center;padding:0;border:1px solid #8a929e;
+  border-radius:50%;background:#34383e;color:#edf1f8;font-weight:700;
+  font-size:12px;line-height:1;cursor:pointer
+}
+.action-head .inspector-help-trigger:hover{background:#45617d;border-color:#91c7f8}
+.inspector-overview>span{min-width:0;color:#dce1eb;line-height:1.4}
+.inspector-overview{min-height:26px}
+.inspector-help-dialog{
+  width:min(440px,calc(100vw - 40px));max-height:min(80vh,650px);overflow:auto;
+  border:1px solid #6b7480;border-radius:9px;background:#30343a;color:#f2f4f7;
+  padding:21px 23px;box-shadow:0 16px 45px #000a;font-size:13px
+}
+.inspector-help-dialog::backdrop{background:#000a}
+.inspector-help-dialog>strong{display:block;font-size:16px;margin-bottom:12px}
+.inspector-help-dialog p{line-height:1.6;margin:0 0 11px}
+.inspector-help-dialog h3{font-size:13px;margin:14px 0 6px}
+.inspector-help-dialog ul{margin:4px 0 12px;padding-left:20px;line-height:1.6}
+.inspector-help-dialog li+li{margin-top:4px}
+.inspector-help-close{
+  display:block;margin:20px 0 0 auto;min-width:68px;height:32px;
+  padding:5px 14px;background:#3b6b99;border:1px solid #75a1d0;
+  color:white;border-radius:5px;cursor:pointer
+}
+/* Multi action variants follow the same compact 404px value-column system.
+   The help modal owns long explanations, so only active controls appear here. */
+.properties>.fields>.multi-action-editor{
+  width:calc(100% - 86px);max-width:404px;margin-left:86px;
+  min-width:0;margin-top:12px;padding-top:12px
+}
+.multi-action-editor{min-width:0}
+.multi-action-editor>.multi-action-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.multi-action-toolbar button{
+  flex:0 0 auto;width:auto;max-width:max-content;min-height:32px;
+  padding:5px 10px;white-space:nowrap
+}
+.multi-action-toolbar select{
+  flex:0 1 176px;min-width:110px;max-width:190px;height:32px
+}
+.multi-action-editor>.control-config{gap:8px;margin:12px 0}
+.multi-action-editor>.control-config>label{min-width:0;flex:0 0 auto;white-space:nowrap}
+.multi-action-editor>.control-config>input[type="number"]{width:72px;min-width:56px;flex:0 0 72px}
+.multi-switch-visuals{
+  display:grid;grid-template-columns:116px minmax(0,1fr);
+  align-items:center;gap:8px;max-width:404px;margin:8px 0 12px
+}
+.multi-switch-visuals>label{white-space:nowrap;min-width:0;color:#d0d5df}
+.multi-switch-visuals>label:first-child{grid-column:1/-1;display:flex;align-items:center;gap:5px}
+.multi-switch-visuals>input[type="text"]{width:100%;min-width:0;max-width:100%}
+.multi-switch-visuals>.state-image-actions{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0
+}
+.multi-switch-visuals>.state-image-actions>button{
+  width:auto;max-width:max-content;min-height:30px;flex:0 0 auto;
+  padding:5px 9px;border-radius:5px;white-space:nowrap;cursor:pointer;
+  background:#414954;border:1px solid #727e8d;color:#f0f2f6;font-size:11px
+}
+.multi-switch-visuals>.state-image-actions>button:hover{background:#546374}
+.multi-switch-visuals>.state-image-actions>.state-image-choose{
+  background:#355777;border-color:#678db0;color:#fff
+}
+.multi-switch-visuals>.state-image-actions>.state-image-reset{background:#414141}
+.multi-switch-visuals>input[type="file"][hidden]{display:none}
+.multi-switch-tabs{margin:0 0 9px}
+.multi-action-steps{min-height:0}
+.multi-action-steps:empty{margin-top:0}
+.multi-action-row button{flex:0 0 auto}
+.multi-step-fields{width:100%;max-width:404px}
+/* Nested key logic uses the same compact dropdown size as other actions. */
+.multi-action-editor>.control-config>select{min-width:0;max-width:240px;flex:1 1 175px}
+
+/* Symbols use bundled symbol fonts rather than pretending the text face contains all glyphs.
+   Actual SVG/PNG icons and user-configured D200X title typography are unchanged. */
+.icon-glyph,.action-icon,.control-gesture-symbol,.icon-zoom,.device-symbol{
+  font-family:"DeckForge Noto Symbols","DeckForge Noto Symbols 2","DeckForge Pretendard","Segoe UI Symbol",sans-serif;
+}
+
+/* Saved title typography presets: compact row inside the existing 277px popover. */
+.title-preset-heading{font-size:11px;color:#ccc;margin-bottom:-5px;}
+.title-preset-row{display:flex;gap:5px;align-items:center;min-width:0;}
+.title-style-popover .title-preset-row select{flex:1;min-width:0;width:0;height:30px;}
+.title-preset-row button{flex:none;width:29px;height:30px;border:1px solid #666;border-radius:4px;background:#505050;color:#eee;padding:0;font-size:18px;line-height:1;}
+.title-preset-row button:hover:not(:disabled){background:#606060;}
+.title-preset-row button:disabled{opacity:.35;cursor:default;}
+
+/* Title visibility belongs beside its input, not inside the typography popover. */
+.fields>.field.title-setting-field{grid-template-columns:92px minmax(0,404px);}
+.fields>.field.title-setting-field>.title-visible-label{display:flex;justify-content:flex-end;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;font-size:12px;}
+.fields>.field.title-setting-field>.title-visible-label input[type=checkbox]{width:15px;height:15px;margin:0;flex:none;min-height:0;accent-color:#2676c1;}
+@media(max-width:1000px){.fields>.field.title-setting-field{grid-template-columns:92px minmax(0,404px);}}
+
+/* Both key-press and SDK state icon pairs live exclusively in the fixed inspector icon region. */
+#icon-preview-content{cursor:pointer}
+
+/* Fixed four-zone Inspector Contract: header / properties / icons / footer.
+   All key-action types share the same 404px VALUE column alignment. */
+.inspector{
+  --inspector-preview-width:98px;
+  --inspector-preview-gap:12px;
+  --inspector-label-width:78px;
+  --inspector-label-gap:8px;
+  --inspector-values-width:404px;
+  --inspector-values-left:calc(var(--inspector-preview-width) + var(--inspector-preview-gap) + var(--inspector-label-width) + var(--inspector-label-gap));
+}
+.inspector .inspector-properties-region{grid-template-columns:var(--inspector-preview-width) minmax(0,1fr);gap:var(--inspector-preview-gap)}
+.inspector .inspector-properties-region>.fields>.field,
+.inspector .inspector-properties-region>.fields>.field.title-setting-field{
+  grid-template-columns:var(--inspector-label-width) minmax(0,var(--inspector-values-width));
+  gap:var(--inspector-label-gap);
+}
+.inspector .inspector-properties-region>.fields>.field>label{justify-self:end;text-align:right}
+.inspector .inspector-icon-section{
+  display:block;
+  margin:12px 0 0 var(--inspector-values-left);
+  width:var(--inspector-values-width);
+  /* Reclaim the unused right inset before treating a 404px pair as overflow. */
+  max-width:calc(100% - var(--inspector-values-left) + 16px);
+  margin-right:-16px;
+  min-width:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+}
+.inspector .inspector-icon-section:empty{display:none}
+.inspector .inspector-icon-section .sdk-state-icons{
+  display:flex;flex-wrap:nowrap;align-items:flex-start;
+  width:404px;min-width:404px;max-width:none;gap:12px;padding:0;
+}
+.inspector .inspector-icon-section .sdk-state-icon{flex:0 0 196px;min-width:196px;max-width:196px}
+.inspector .inspector-footer-region{justify-content:flex-end}
+
+/* Inspector alignment: all boolean fields start at the value-column left edge. */
+.inspector-properties-region>.fields>.field.checkbox-setting-field{align-items:center}
+.inspector-properties-region>.fields>.field.checkbox-setting-field>input[type="checkbox"]{
+  justify-self:start;align-self:center;box-sizing:border-box;width:15px;height:15px;
+  margin:0;min-height:0;accent-color:#2676c1
+}
+.inspector-properties-region>.fields>.field.checkbox-setting-field>label{
+  max-width:var(--inspector-label-width);white-space:normal;overflow-wrap:break-word;line-height:1.25
+}
+.compact-property-group>.field>input[type="checkbox"]{justify-self:start;align-self:start;margin:0;box-sizing:border-box;width:15px;height:15px;accent-color:#2676c1}
+.unit-field{position:relative;width:100%;max-width:404px}
+.inspector-properties-region .unit-field input{padding-right:32px}
+.unit-field>span{position:absolute;right:12px;top:50%;transform:translateY(-50%);color:#bfc8d2;font-size:12px;pointer-events:none}
+.folder-editor-actions{margin:0 0 0 86px!important;padding:0!important;border-top:0!important;width:404px;max-width:calc(100% - 86px)}
+.folder-editor-actions button{border:1px solid #66717f;background:#414a56;color:#f3f5f9;padding:7px 12px;border-radius:4px;min-height:30px}
+.folder-editor-actions button:hover{background:#536075}
+.website-url-control{display:flex;align-items:center;gap:8px;min-width:0;max-width:404px}
+.website-url-control>.https-toggle{display:flex;align-items:center;gap:4px;white-space:nowrap;flex:none;font-size:11px;color:#d1d9e4}
+.website-url-control>.https-toggle input{width:15px;height:15px;min-height:0;margin:0;accent-color:#2676c1}
+.website-url-control>input[data-field="url"]{flex:1;min-width:0}
+
+/* SDK help is a native dialog: style its close control explicitly instead of
+   allowing the Windows default white button to appear on the dark surface. */
+#sdk-plugin-help-dialog .sdk-plugin-help-close{
+  flex:0 0 auto;min-width:76px;min-height:29px;
+  padding:5px 10px;border:1px solid #717e8e;border-radius:5px;
+  background:#414a56;color:#f3f5f9;font-size:12px;line-height:1.2;
+}
+#sdk-plugin-help-dialog .sdk-plugin-help-close:hover{background:#536075}
+
+/* Only the icon pair gets five equal rows; approved card widths, artwork and anchors remain unchanged. */
+.inspector .inspector-icon-section .sdk-state-icon{grid-template-rows:auto auto;align-items:start}
+.inspector .inspector-icon-section .sdk-state-icon .sdk-state-buttons button{
+  box-sizing:border-box;width:var(--deckforge-state-button-width);min-width:var(--deckforge-state-button-width);max-width:var(--deckforge-state-button-width);height:var(--deckforge-state-button-height);min-height:var(--deckforge-state-button-height);
+}
+
+
+/* State-specific titles: preview + two cards use one flexible row, never a
+   hard-coded 404px strip. The 141px art size naturally shrinks with the cards. */
+.state-title-inspector{overflow-x:hidden}
+.state-title-inspector .state-title-toolbar{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin:9px 0 7px 110px;min-width:0;min-height:33px
+}
+.inspector.state-title-inspector .inspector-properties-region>.fields>.field.folder-shortcut-path-row{
+  grid-template-columns:max-content minmax(0,1fr);gap:8px
+}
+.inspector.state-title-inspector .folder-shortcut-path-row>.compound{min-width:0;max-width:none;width:100%}
+.folder-shortcut-path-row>.folder-new-window-option{
+  display:flex;align-items:center;gap:6px;white-space:nowrap;min-width:0;color:#cacaca
+}
+.folder-shortcut-path-row .folder-new-window-option>input[type="checkbox"]{
+  flex:none;width:15px;height:15px;min-height:0;margin:0;padding:0;accent-color:#2676c1
+}
+.state-title-inspector .state-title-toolbar .sdk-settings-open{
+  width:auto;max-width:185px;flex:0 1 auto;height:32px;min-height:32px;
+  padding:5px 8px;background:#414a56;color:#f3f5f9;border:1px solid #626e7c;
+  border-radius:5px;font-size:11px;white-space:nowrap
+}
+.state-title-inspector .state-title-toolbar .inspector-save-bar{
+  position:static;bottom:auto;flex:0 0 auto;margin:0 0 0 auto;padding:0;border:0;
+  background:transparent;gap:8px
+}
+.state-title-inspector .state-title-layout{
+  display:grid;grid-template-columns:98px minmax(0,1fr);
+  column-gap:12px;min-width:0;align-items:start
+}
+.state-title-inspector .state-title-layout>.preview{width:98px;min-width:0}
+.state-title-inspector .state-title-layout>.inspector-icon-section{
+  display:block;margin:0;width:100%;min-width:0;max-width:100%;
+  overflow:visible
+}
+.state-title-inspector .state-title-layout .sdk-state-icons{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  width:100%;min-width:0;max-width:100%;gap:var(--deckforge-state-card-gap);
+  padding:0
+}
+.state-title-inspector .state-title-layout .sdk-state-icon{
+  box-sizing:border-box;width:100%;min-width:0;max-width:none;
+  flex:initial;padding:7px;display:grid;
+  grid-template-columns:minmax(0,1fr) var(--deckforge-state-button-width);grid-template-rows:auto 31px auto;
+  column-gap:7px;row-gap:5px;align-items:start;min-width:0
+}
+.state-title-inspector .state-title-layout .sdk-state-icon>strong{
+  grid-column:1/-1;grid-row:1;font-size:13px;line-height:16px
+}
+.state-title-inspector .state-title-layout .state-title-control{
+  grid-column:1/-1;grid-row:2;position:relative;
+  display:flex;align-items:center;gap:4px;min-width:0
+}
+.state-title-inspector .state-title-visible{
+  width:15px;height:15px;margin:0;flex:0 0 15px;accent-color:#2676c1
+}
+.state-title-inspector .state-title-input{
+  box-sizing:border-box;flex:1;min-width:0;width:0;height:29px;min-height:29px;
+  border:1px solid #666;border-radius:4px;background:#363636;color:#eee;
+  padding:3px 6px;font-size:12px
+}
+.state-title-inspector .state-title-input:disabled{opacity:.45}
+.state-title-inspector .state-title-style{
+  flex:0 0 29px;box-sizing:border-box;width:29px;height:29px;min-height:29px;
+  border:1px solid #626e7c;border-radius:4px;background:#434d5b;
+  padding:0;font-size:12px
+}
+.state-title-inspector .state-title-style:disabled{opacity:.4}
+.state-title-inspector .state-title-control>.title-style-popover{
+  position:absolute;top:100%;right:0;left:auto;z-index:45
+}
+.state-title-inspector .state-title-layout .sdk-state-preview{
+  grid-column:1;grid-row:3;box-sizing:border-box;
+  display:flex;align-items:center;justify-content:center;
+  width:100%;height:auto;aspect-ratio:1/1;min-width:0;
+  border-radius:5px;overflow:hidden
+}
+.state-title-inspector .state-title-layout .sdk-state-preview img{
+  width:100%;height:100%;object-fit:contain
+}
+.state-title-inspector .state-title-layout .sdk-state-buttons{
+  grid-column:2;grid-row:3;display:flex;flex-direction:column;
+  width:var(--deckforge-state-button-width);gap:var(--deckforge-state-button-gap)
+}
+.state-title-inspector .state-title-layout .sdk-state-buttons button{
+  box-sizing:border-box;width:var(--deckforge-state-button-width);height:var(--deckforge-state-button-height);min-height:var(--deckforge-state-button-height);
+  font-size:11px;line-height:1.1;padding:2px 3px
+}
+.state-title-inspector .state-title-extra-properties{
+  display:block;padding:0;margin:0;min-width:0
+}
+.state-title-inspector .state-title-extra-properties>.fields{
+  max-width:100%;padding-left:110px;margin-top:8px;box-sizing:border-box
+}
+.state-title-inspector .state-title-extra-properties .title-setting-field{display:none}
+.state-title-inspector .state-title-extra-properties .sdk-title-controls{display:none}
+.state-title-inspector .state-title-extra-properties .field{
+  grid-template-columns:78px minmax(0,1fr);gap:8px
+}
+.state-title-inspector .state-title-extra-properties .fields>.field:not(.title-setting-field){
+  margin:2px 0
+}
+/* Keep the device canvas height independent of the selected inspector. */
+@media(max-width:950px){
+  .state-title-inspector{padding-left:12px;padding-right:12px}
+  .state-title-inspector .state-title-toolbar{margin-left:100px}
+  .state-title-inspector .state-title-layout{grid-template-columns:88px minmax(0,1fr);gap:12px}
+  .state-title-inspector .state-title-layout>.preview{transform:scale(.89);transform-origin:top left}
+  .state-title-inspector .state-title-extra-properties>.fields{padding-left:100px}
+}
+
+/* Optional appearance controls; existing inspector grid and command sizes stay unchanged. */
+.title-background-settings{display:flex;flex-direction:column;gap:7px}
+.title-background-settings .outline-settings label{flex:1;white-space:nowrap}
+.title-background-settings input[type=checkbox],.key-background-settings input[type=checkbox]{width:15px;height:15px;min-height:0;margin:0;accent-color:#2676c1}
+.title-background-opacity{display:flex;align-items:center;gap:7px;color:#ddd}
+.title-background-opacity input[type=range]{flex:1;min-width:0;width:0;margin:0;min-height:20px;padding:0;accent-color:#2676c1}
+.title-background-opacity output{width:38px;text-align:right;font-variant-numeric:tabular-nums}
+.title-palette-open svg,.key-background-trigger svg{display:block;margin:auto}
+.title-palette-grid.palette-default-colors{grid-auto-rows:33px;max-height:111px;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;align-content:start}
+.palette-default-colors .title-color-swatch{height:33px}
+.shared-palette-save{padding:7px!important;background:#3f566f!important;border:1px solid #718399!important;border-radius:4px!important}
+.sdk-state-preview{position:relative}
+ .sdk-state-preview .key-background-trigger,#icon-preview .key-background-trigger{position:absolute;top:1px;right:1px;z-index:6;pointer-events:auto;width:23px;height:23px;min-width:0;min-height:0;margin:0!important;padding:0!important;border:0!important;border-radius:4px;background:#292d34;color:#eee;display:flex;align-items:center;justify-content:center}
+.key-background-trigger[aria-expanded=true]{background:#46566c!important}
+#icon-preview:has(.key-background-trigger) .icon-preview-menu{right:26px}
+ .key-background-popover{position:fixed;z-index:1100;width:251px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;box-shadow:0 10px 23px #0009}
+.key-background-settings{display:flex;gap:8px;align-items:center}
+.key-background-settings label{display:flex;align-items:center;gap:6px;flex:1;white-space:nowrap}
+.key-background-settings input[type=color]{width:35px;height:30px;padding:2px;border:1px solid #666;border-radius:3px;background:#414141}
+
+/* User-approved common key inspector shell. Do not modify the two state cards,
+   their grid columns, artwork, controls, or responsive sizing. */
+.action-layout-inspector>.action-layout-toolbar{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin:9px 0 7px;min-height:33px;min-width:0
+}
+.action-layout-inspector .action-layout-options{
+  display:flex;align-items:center;gap:12px;flex:1;min-width:0;overflow-x:auto;
+  scrollbar-width:thin;white-space:nowrap
+}
+.action-layout-inspector .action-layout-option{
+  display:flex;align-items:center;gap:5px;flex:none;white-space:nowrap
+}
+.action-layout-inspector .action-layout-option>label{white-space:nowrap;text-align:left;cursor:pointer}
+.action-layout-inspector .action-layout-option>input[type="checkbox"]{
+  width:15px;height:15px;min-height:0;margin:0;flex:none;accent-color:#2676c1
+}
+.action-layout-inspector>.action-layout-toolbar>.inspector-save-bar{
+  position:static;bottom:auto;flex:0 0 auto;margin:0 0 0 auto;padding:0;
+  border:0;background:transparent;gap:8px
+}
+.action-layout-inspector .action-preview-card{
+  position:relative;box-sizing:border-box;width:98px;border-radius:5px;
+  background:#30353d;box-shadow:inset 0 0 0 1px #626a74;
+  padding:7px 0
+}
+.action-layout-inspector .action-preview-card>strong{
+  display:block;padding:0 7px 5px;font-size:13px;line-height:16px;white-space:nowrap
+}
+.action-layout-inspector .action-preview-card .preview-key{width:86px;height:86px;margin:0 auto}
+.action-layout-inspector .preview>.action-preview-test{
+  display:block;width:98px;height:29px;margin:7px 0 0;padding:4px 0;
+  white-space:nowrap;font-size:12px;background:#345579;color:#fff;
+  border:1px solid #7397ba;border-radius:5px
+}
+.action-layout-inspector .preview>.action-preview-test:hover:not(:disabled){background:#416b98}
+.action-layout-inspector .preview>.action-preview-test:disabled{opacity:.4;cursor:default}
+.action-layout-inspector .action-single-visual{padding:0;align-items:start}
+.action-layout-inspector .action-single-extra{display:block;padding:0;margin:0}
+.action-layout-inspector .action-single-extra>.fields{
+  max-width:100%;padding-left:110px;margin-top:8px;box-sizing:border-box
+}
+.action-layout-inspector .inspector-properties-region>.fields>.field>label{
+  text-align:right;white-space:nowrap;overflow-wrap:normal
+}
+.action-layout-inspector .action-head>strong{white-space:nowrap}
+@media(max-width:950px){
+  .action-layout-inspector>.action-layout-toolbar{margin-left:0}
+  .action-layout-inspector .action-single-extra>.fields{padding-left:110px}
+}
+
+/* Knob inspector only: one stable grid, reserve inactive rows, no title wrapping. */
+.inspector.knob-inspector{padding:12px 20px;overflow:auto;min-width:0;max-width:100%;container-type:inline-size;container-name:knob-properties;scrollbar-gutter:stable}
+.knob-inspector>.control-head,.knob-inspector>.knob-enable-row,.knob-inspector>.knob-settings,
+.knob-inspector>.knob-stack,.knob-inspector>.control-gesture-strip,.knob-inspector>.control-action-editor{width:100%;min-width:0;max-width:100%;box-sizing:border-box}
+.knob-inspector>.control-head{display:flex;gap:10px;min-height:34px;justify-content:flex-start;padding-bottom:6px}
+.knob-inspector>.control-head>strong{flex:none;white-space:nowrap}
+.knob-inspector .control-mode-tabs{margin-left:0;flex:none}
+.knob-inspector .control-mode-tabs button{white-space:nowrap}
+.knob-inspector .control-head>.inspector-save-bar{position:static;flex:none;margin:0 0 0 auto;padding:0;border:0;background:transparent;gap:8px}
+.knob-inspector .control-head>.inspector-save-bar button{width:66px;height:29px;padding:4px 0;white-space:nowrap}
+.knob-inspector .knob-enable-row{display:flex;align-items:center;height:26px;margin:4px 0}
+.knob-inspector .knob-enable-row label{white-space:nowrap;font-weight:600}
+.knob-inspector .knob-enable-row input,.knob-inspector .control-reverse input,.knob-inspector .knob-stack input{width:15px;height:15px;margin:0;flex:none;accent-color:#2676c1}
+.knob-inspector .knob-settings{border:1px solid #555;border-radius:5px;background:#303030;padding:8px 10px}
+.knob-inspector .knob-settings>.control-config{display:grid;grid-template-columns:84px minmax(0,1fr) 84px minmax(0,1fr);gap:8px;margin:0;align-items:center}
+.knob-inspector .knob-settings>.control-config+.control-config{margin-top:6px}
+.knob-inspector .knob-settings>.control-config>label{min-width:0;white-space:nowrap;text-align:right;justify-self:end}
+.knob-inspector .knob-settings>.control-config>select,.knob-inspector .knob-step-group>select{width:100%;min-width:0;height:28px;padding:4px 7px;border:1px solid #656565;border-radius:4px;background:#373737;color:#eee;white-space:nowrap}
+.knob-inspector .knob-step-group{display:flex;align-items:center;gap:8px;min-width:0}
+.knob-inspector .knob-step-group>select{width:62px;flex:none}
+.knob-inspector .control-reverse{display:flex;align-items:center;gap:5px;white-space:nowrap;min-width:0}
+.knob-inspector .knob-stack{display:grid;grid-template-columns:repeat(5,minmax(max-content,1fr));gap:6px;margin:8px 0 0;padding:6px 10px 9px;border:1px solid #555;border-radius:5px;background:#303030}
+.knob-inspector .knob-stack legend{padding:0 5px;color:#bfc4cf;font-size:12px;white-space:nowrap}
+.knob-inspector .knob-stack label{min-width:0;white-space:nowrap;font-size:12px;gap:4px}
+.knob-inspector .knob-reserved-row{visibility:hidden}
+.knob-inspector .knob-disabled-region{opacity:.45}
+.knob-inspector>.control-gesture-strip{display:flex;flex-wrap:nowrap;gap:10px;margin:10px 0 0}
+.knob-inspector .control-tile-holder{flex:1 1 0;max-width:none;min-width:0}
+.knob-inspector .control-gesture-tile{height:50px;min-height:50px;display:grid;grid-template-columns:25px minmax(0,1fr);align-items:center;gap:6px;padding:5px 66px 5px 9px;border-radius:5px;text-align:left}
+.knob-inspector .control-gesture-tile.active{border:1px solid #4d9ee9;box-shadow:inset 0 0 0 1px #4d9ee9}
+.knob-inspector .control-gesture-symbol{font-size:22px;text-align:center;white-space:nowrap}
+.knob-inspector .knob-gesture-copy{display:flex;flex-direction:column;min-width:0;gap:3px}
+.knob-inspector .knob-gesture-copy strong,.knob-inspector .knob-gesture-copy .control-gesture-value{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:left;min-width:0}
+.knob-inspector .knob-gesture-copy strong{font-size:12px}
+.knob-inspector .knob-card-test{position:absolute;z-index:3;right:31px;top:12px;width:28px;height:26px;min-width:0;margin:0;padding:0;border-radius:4px;background:#345579;color:#fff;border:1px solid #7397ba;font-size:12px}
+.knob-inspector .control-tile-remove{right:6px;top:14px;width:21px;height:21px}
+.knob-inspector .control-action-editor{margin-top:10px}
+/* Respond to the inspector's content width, not the whole window.
+   Both modes retain the same reserved stack rows at a given width. */
+@container knob-properties (max-width:550px){
+  .knob-inspector .knob-stack{grid-template-columns:repeat(3,minmax(max-content,1fr))}
+  .knob-inspector .knob-settings>.control-config{grid-template-columns:78px minmax(0,1fr) 78px minmax(0,1fr);gap:6px}
+  .knob-inspector .knob-step-group{gap:6px}
+  .knob-inspector .knob-step-group>select{width:50px}
+  .knob-inspector>.control-gesture-strip{gap:6px}
+  .knob-inspector .control-gesture-tile{grid-template-columns:20px minmax(0,1fr);gap:4px;padding-left:6px;padding-right:62px}
+}
+@container knob-properties (max-width:480px){
+  .knob-inspector .knob-settings>.control-config{grid-template-columns:84px minmax(0,1fr)}
+  .knob-inspector>.control-head{flex-wrap:wrap}
+  .knob-inspector>.control-gesture-strip{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-rows:50px}
+}
+@container knob-properties (max-width:380px){
+  .knob-inspector .knob-stack{grid-template-columns:repeat(2,minmax(max-content,1fr))}
+}
+
+/* Hotkey controls only: use the same field height and value-column edges. */
+.hotkey-input-modes{display:flex;align-items:center;gap:16px;height:31px;min-width:0}
+.hotkey-input-modes>label{display:flex;align-items:center;gap:5px;white-space:nowrap;cursor:pointer;text-align:left;color:#ddd}
+.hotkey-input-modes>label>input[type="radio"]{width:14px;height:14px;min-height:0;padding:0;margin:0;accent-color:#2678ca}
+.hotkey-preset-mode{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0;width:100%}
+.hotkey-preset-mode>select{flex:1 1 100px;min-width:0;width:0;height:31px;padding:4px 7px}
+.hotkey-preset-mode>label{flex:none;white-space:nowrap}
+.hotkey-preset-mode>.hotkey-input-modes{flex:none;gap:8px}
+.hotkey-preset-mode .hotkey-input-modes>label{font-size:12px}
+.hotkey-capture-wrap{display:flex;align-items:center;min-width:0;width:100%;height:31px;border:1px solid #555;border-radius:4px;background:#363636;overflow:hidden}
+.hotkey-capture-wrap:focus-within{border-color:#529eea}
+.field .hotkey-capture-wrap>.hotkey-capture{flex:1 1 0;min-width:0;width:0;height:29px;min-height:0;border:0;outline:none;background:transparent;padding:5px 9px}
+.field .hotkey-capture-wrap>.hotkey-capture:disabled{opacity:1;color:#ddd;cursor:default}
+.hotkey-function-name{flex:0 1 auto;min-width:0;max-width:48%;padding-right:9px;color:#aaa;font-size:12px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:default}
+.hotkey-function-name[hidden]{display:none!important}
+.hotkey-choices{display:flex;align-items:center;gap:4px;min-width:0;width:100%;flex-wrap:wrap}
+.hotkey-choices>.hotkey-modifier,.hotkey-choices>select{height:31px;min-height:31px;box-sizing:border-box;margin:0;padding:0 4px;border:1px solid #666;border-radius:4px;background:#363636;color:#ddd;font-size:12px}
+.hotkey-choices>.hotkey-modifier{flex:0 0 auto;min-width:30px;white-space:nowrap}
+.hotkey-choices>.hotkey-modifier.active:not(:disabled){background:#2678ca;border-color:#529eea;color:#fff}
+.hotkey-choices>select{flex:1 1 65px;min-width:0;width:0;max-width:none;padding-right:2px}
+.hotkey-choices>select:last-child{flex-grow:1.35}
+.hotkey-choices>.hotkey-modifier:disabled,.hotkey-choices>select:disabled{opacity:.45;cursor:default}
+
+/* Independent AI launcher only; existing editor grid and inspector unchanged. */
+.ai-launch-row{padding:0 14px 8px}.ai-launch-row button{width:100%;background:#353535;border:1px solid #515151;border-radius:5px;padding:7px 10px;font:inherit;color:#e6e6e6}.ai-launch-row button:hover{background:#444}
+
+/* Keep the canvas track, key grid, symbol diameters and horizontal positions.
+   Use its spare vertical space for two aligned, comfortably spaced labels. */
+.canvas{padding-top:3px;padding-bottom:3px}
+.physical-control{display:grid;grid-template-rows:clamp(26px,4.3dvh,35px) 14px 13px;grid-template-columns:minmax(0,1fr);align-items:center;justify-items:center;justify-content:stretch;align-content:center;font-size:10px;line-height:normal;padding:2px 0;gap:3px}
+.physical-control .physical-symbol{grid-row:1;flex-shrink:0}
+.physical-control .physical-name{grid-row:2;line-height:14px;min-width:0;max-width:100%}
+.physical-control .physical-held-name{grid-row:3;display:block;min-width:0;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:9px;line-height:13px;color:#89909b;height:13px}
+.side-inspector .side-binding-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:11px 0;align-items:start}
+.side-inspector .side-binding-column{min-width:0}
+.side-inspector .side-binding-choice{display:grid;grid-template-columns:minmax(0,1fr) 36px;gap:5px 6px;margin:0;align-items:center}
+.side-inspector .side-binding-choice>label{grid-column:1/-1;min-width:0;white-space:nowrap}
+.side-inspector .side-binding-choice>select,.side-inspector .side-binding-target>select{min-width:0;width:100%;height:32px;padding:5px 7px}
+.side-inspector .side-binding-choice>button{width:36px;height:30px;padding:0;white-space:nowrap}
+.side-inspector .side-binding-choice>button:disabled{opacity:.45;cursor:default}
+.side-inspector .side-binding-target{display:grid;grid-template-columns:minmax(0,1fr);gap:5px;margin:8px 0 0}
+.side-inspector .side-binding-target>label{min-width:0}
+.side-inspector .side-binding-column>.hint{margin-top:5px}
+.deckforge-tooltip{position:fixed;z-index:200;pointer-events:none;max-width:min(420px,calc(100vw - 16px));background:#27292c;color:#d9dde2;border:1px solid #51555c;border-radius:5px;overflow:hidden;font-size:11px;line-height:1.45;box-shadow:none}
+.deckforge-tooltip[hidden]{display:none}
+.deckforge-tooltip-title{padding:5px 9px;background:#36393e;color:#e2e5e9;font-weight:500;overflow-wrap:anywhere}
+.deckforge-tooltip-body{display:grid;gap:4px;padding:6px 9px;overflow-wrap:anywhere;white-space:pre-wrap}
+
+/* Ordered Multi only; no change to switch/random/logic property layout. */
+.ordered-multi .multi-action-toolbar{margin:0 0 8px 24px;flex-wrap:nowrap}
+
+.ordered-multi-list{display:flex;flex-direction:column;gap:4px;min-width:0}
+.ordered-multi-row{display:grid;grid-template-columns:20px 92px minmax(0,1fr) 28px 28px;gap:4px;align-items:center;min-width:0}
+.ordered-multi-row>span{white-space:nowrap;text-align:center}
+.ordered-multi-row>input,.ordered-multi-value,.ordered-multi-mini{height:30px;min-width:0;box-sizing:border-box;background:#303030;color:inherit;border:1px solid #555;border-radius:4px;padding:3px 6px;font:inherit}
+.ordered-multi-row>input{text-align:right;width:100%}
+.ordered-multi-value{display:flex;align-items:center;gap:6px;text-align:left;white-space:nowrap;overflow:hidden}
+.ordered-multi-value>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+.ordered-multi-value>small{color:#909090;overflow:hidden;text-overflow:ellipsis;max-width:45%;white-space:nowrap}
+.ordered-multi-mini{padding:0;width:28px}
+.ordered-multi-header{font-size:12px;color:#aaa}
+.ordered-multi-header>span:nth-child(3){text-align:left}
+.ordered-multi-stop{width:100%;white-space:nowrap;background:#383838;color:inherit;border:1px solid #666;border-radius:4px;padding:5px;font:inherit;font-size:12px}
+.ordered-multi-stop:disabled{opacity:.42}
+.ordered-multi-dialog{width:min(520px,90vw);max-width:90vw;}
+.ordered-multi-dialog .fields{display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.ordered-multi-dialog .hotkey-choices{display:flex;flex-wrap:wrap;gap:4px}
+.ordered-hotkey-value{display:flex;justify-content:space-between;gap:8px;padding:6px;border:1px solid #555;border-radius:4px;white-space:nowrap}
+.ordered-hotkey-value small{color:#999}
+
+.timer-settings{display:flex;flex-direction:column;gap:6px;min-width:0}
+.timer-duration-row,.timer-sound-row{display:flex;align-items:center;gap:4px;white-space:nowrap;position:relative;min-width:0}
+.timer-duration-row>label,.timer-sound-row>label{flex:0 0 58px;min-width:0;white-space:nowrap}
+.timer-duration-row>select{width:48px;min-width:48px;flex:0 0 48px;background:#353535;color:inherit;border:1px solid #555;border-radius:4px;padding:4px}
+.timer-sound-row>select{min-width:0;flex:1;background:#353535;color:inherit;border:1px solid #555;border-radius:4px;padding:4px}
+.timer-sound-row>button{width:28px;min-width:28px;height:28px;background:#353535;color:inherit;border:1px solid #555;border-radius:4px}
+.timer-volume-popup{position:absolute;right:0;top:100%;z-index:12;background:#333;border:1px solid #666;border-radius:4px;padding:8px;display:flex;gap:6px;align-items:center}
+.timer-volume-popup[hidden]{display:none}
+.timer-volume-popup input{width:100px}
+
+/* Keep the new full-width row list below the three preview cards. */
+.state-title-inspector .state-title-extra-properties>.fields:has(>.ordered-multi){padding-left:0}
+.properties>.fields>.ordered-multi{width:100%;max-width:none;margin:0;border-top:0;padding-top:0}
+
+.ordered-multi-mini svg,.timer-sound-row>button svg{display:block;margin:auto}
+.action-layout-inspector .preview>.ordered-multi-stop{display:block;width:98px;height:29px;margin:4px 0 0;padding:4px 0}
+.ordered-multi-row .ordered-multi-value{white-space:nowrap;max-width:100%}
+
+/* Page label remains in the existing geometry and advertises its context menu. */
+#page-label{cursor:pointer;border-radius:4px;outline:3px solid transparent}
+#page-label:hover,#page-label:focus-visible{background:#3d3d3d;outline-color:#3d3d3d;color:#fff}
+.action-layout-inspector .indicator-icon-cards{width:auto;min-width:0}
+.action-layout-inspector .action-single-visual .inspector-icon-section:has(.indicator-icon-cards){width:100%;min-width:0;margin:4px 0 0;overflow:visible}
+.action-layout-inspector .side-binding-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:9px 0;align-items:start}
+.action-layout-inspector .side-binding-choice{display:grid;grid-template-columns:minmax(0,1fr) 34px;gap:5px 6px;align-items:center}
+.action-layout-inspector .side-binding-choice>label{grid-column:1/-1}
+.action-layout-inspector .side-binding-choice>select,.action-layout-inspector .side-binding-target>select{width:100%;min-width:0;height:31px}
+.action-layout-inspector .side-binding-target{display:grid;gap:5px;margin-top:7px}
+
+.deck-key.pin-shared,.deck-key.pin-shadowed{position:relative}
+.deck-key.pin-shared::after,.deck-key.pin-shadowed::after{content:'📌';position:absolute;right:3px;top:3px;font-size:11px;line-height:1;filter:grayscale(1);pointer-events:none;z-index:2}
+.deck-key.pin-shadowed::after{opacity:.45}
+.indicator-management{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:5px 0}
+.indicator-management button{border:1px solid #62666d;background:#3b4149;border-radius:4px;padding:5px 9px}
+.indicator-management label{display:flex;align-items:center;gap:3px;font-size:12px;white-space:nowrap}
+.indicator-number-field .title-line{position:relative}
+
+/* Page indication uses the same paired card geometry as ordinary Key Up/Down. */
+.indicator-inspector .state-title-layout .indicator-icon-cards>.sdk-state-icon{grid-template-rows:auto 31px 31px auto}
+.indicator-inspector .state-title-layout .indicator-title-row{grid-row:2}
+.indicator-inspector .state-title-layout .indicator-number-row{grid-row:3}
+.indicator-inspector .state-title-layout .indicator-icon-cards .sdk-state-preview,.indicator-inspector .state-title-layout .indicator-icon-cards .sdk-state-buttons{grid-row:4}
+.indicator-inspector .state-title-layout .indicator-number-label{font-size:12px;color:#bcbcbc;white-space:nowrap}
+
+/* Reclaim lower canvas breathing room only when the full-height track fits. */
+@media(min-height:740px){
+  .work{grid-template-rows:minmax(0,min(405px,calc(100dvh - 220px))) minmax(0,1fr)}
+  .canvas{padding-top:23px;padding-bottom:3px}
+}
+
+/* Compact page indicator navigation only: label, choice and test on one line. */
+.indicator-inspector .state-title-extra-properties>.fields{margin-top:3px}
+.indicator-inspector .indicator-management{margin:3px 0 0}
+.indicator-inspector .side-binding-pair{margin:6px 0 0;gap:10px}
+.indicator-inspector .side-binding-column{min-width:0}
+.indicator-inspector .side-binding-choice{grid-template-columns:auto minmax(0,1fr) 30px;gap:5px;margin:0}
+.indicator-inspector .side-binding-choice>label{grid-column:auto;min-width:0;white-space:nowrap;font-size:12px}
+.indicator-inspector .side-binding-choice>select{min-width:0;font-size:12px;padding:4px 5px}
+.indicator-inspector .side-binding-choice>button{width:30px;min-width:0;height:30px;padding:0}
+.indicator-inspector .side-binding-target{grid-template-columns:auto minmax(0,1fr);align-items:center;gap:5px;margin:4px 35px 0 0}
+.indicator-inspector .side-binding-target>label{min-width:0;font-size:12px}
+.indicator-inspector .side-binding-target>select{min-width:0;font-size:12px;padding:4px 5px}
+
+/* Keep font colors reachable even when the title controls are near the window bottom. */
+.title-style-popover #title-palette{position:fixed;z-index:110;width:251px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;box-shadow:0 10px 23px #0009}
+
+.indicator-inspector .indicator-management{gap:5px 6px}
+.indicator-inspector .indicator-management button{font-size:12px;padding:5px 6px;white-space:nowrap}
+.indicator-inspector .indicator-management label{flex:0 0 100%;margin-top:1px}
+
+
+/* Shared DeckForge confirmation, success, warning and error dialogs. */
+dialog.deckforge-message-dialog{
+  width:min(560px,calc(100vw - 32px));max-height:min(85vh,720px);
+  padding:0;border:1px solid #555;border-radius:9px;
+  color:#eee;background:#292929;box-shadow:0 16px 48px #000b;
+  font:inherit;overflow:hidden;
+}
+dialog.deckforge-message-dialog:not([open]){display:none}
+dialog.deckforge-message-dialog[open]{display:flex;flex-direction:column}
+dialog.deckforge-message-dialog::backdrop{background:#000a}
+.deckforge-message-header{
+  display:flex;flex:0 0 auto;align-items:center;justify-content:space-between;
+  min-height:42px;padding:8px 14px;background:#343434;border-bottom:1px solid #4b4b4b;
+}
+.deckforge-message-product{font-size:13px;font-weight:600;color:#f2f2f2}
+.deckforge-message-close{
+  border:0;background:transparent;color:#aaa;min-width:28px;min-height:26px;
+  font-size:20px;line-height:1;cursor:pointer;
+}
+.deckforge-message-close:hover{color:#fff}
+.deckforge-message-main{
+  overflow:auto;min-height:0;display:flex;flex-direction:column;
+  gap:15px;padding:20px 22px;line-height:1.5;
+}
+.deckforge-message-heading{display:flex;align-items:center;gap:10px;min-width:0}
+.deckforge-message-title{
+  display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:16px;font-weight:650;color:#fff;
+}
+.deckforge-message-icon{
+  display:flex;align-items:center;justify-content:center;flex:0 0 27px;
+  width:27px;height:27px;border:2px solid #9ca6b6;border-radius:50%;
+  color:#cbd4e2;font-size:16px;font-weight:700;
+}
+.deckforge-message-icon-success{border-color:#87c99d;color:#a7e6b9}
+.deckforge-message-icon-warning{border-color:#e3b677;color:#f2c58b}
+.deckforge-message-icon-error{border-color:#e08b8b;color:#ffa3a3}
+.deckforge-message-intro{margin:0;color:#d1d1d1;font-size:13px}
+.deckforge-message-fields{
+  display:grid;grid-template-columns:105px minmax(0,1fr);gap:9px 14px;
+  margin:0;padding:14px;background:#383838;border:1px solid #494949;border-radius:6px;
+  font-size:12px;overflow-wrap:anywhere;
+}
+.deckforge-message-fields dt{color:#aaa}
+.deckforge-message-fields dd{margin:0;color:#eee;min-width:0}
+.deckforge-message-section{display:flex;flex-direction:column;gap:7px}
+.deckforge-message-section-heading{font-size:13px;color:#f2f2f2}
+.deckforge-message-list{
+  margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:6px 14px;color:#d8d8d8;font-size:12px;
+}
+.deckforge-message-list li{min-width:0;overflow-wrap:anywhere}
+.deckforge-message-included li::before{content:'✓ ';color:#9bccad}
+.deckforge-message-excluded .deckforge-message-list{grid-template-columns:1fr}
+.deckforge-message-excluded li::before{content:'– ';color:#aaa}
+.deckforge-message-detail{
+  padding:12px 14px;background:#383838;border:1px solid #494949;border-radius:6px;
+}
+.deckforge-message-detail-label{display:block;font-size:11px;color:#aaa;margin-bottom:5px}
+.deckforge-message-detail-value{font-size:12px;color:#eee;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
+.deckforge-message-detail-toolbar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:8px}
+.deckforge-message-detail-toolbar .deckforge-message-detail-label{margin:0 auto 0 0}
+.deckforge-message-detail-copy{background:#454545;color:#eee;border:1px solid #777;border-radius:4px;padding:5px 10px;min-height:28px;cursor:pointer}
+.deckforge-message-detail-text{display:block;box-sizing:border-box;width:100%;min-width:0;min-height:90px;max-height:280px;resize:vertical;background:#242424;color:#eee;border:1px solid #666;border-radius:4px;padding:8px;font:12px/1.55 inherit;font-family:inherit;white-space:pre-wrap;overflow-wrap:anywhere}
+.deckforge-message-warning{display:flex;align-items:flex-start;gap:10px;color:#ead7bc;font-size:12px}
+.deckforge-message-warning-icon{
+  display:flex;align-items:center;justify-content:center;flex:0 0 19px;
+  width:19px;height:19px;border:1px solid #dba66d;border-radius:50%;
+  font-weight:700;color:#edbc7c;
+}
+.deckforge-message-footer{
+  display:flex;justify-content:flex-end;gap:8px;flex:0 0 auto;
+  padding:12px 16px;border-top:1px solid #505050;
+}
+.deckforge-message-button{
+  min-width:76px;min-height:32px;padding:7px 14px;
+  border:1px solid #747474;border-radius:5px;background:#414141;color:#eee;
+  cursor:pointer;font-size:12px;
+}
+.deckforge-message-button:hover{background:#505050}
+.deckforge-message-primary{background:#2368bb;border-color:#2368bb;color:#fff}
+.deckforge-message-primary:hover{background:#2b79d4}
+.deckforge-message-button:focus-visible,.deckforge-message-close:focus-visible{
+  outline:2px solid #79adf3;outline-offset:2px;
+}
+@media(max-width:460px){
+  .deckforge-message-main{padding:15px;gap:12px}
+  .deckforge-message-fields{grid-template-columns:86px minmax(0,1fr);gap:8px}
+  .deckforge-message-list{grid-template-columns:1fr}
+}
+
+/* Text input layout: label + textarea align at Key Up card's left edge.
+   Keep the common preview, both icon cards, buttons and toolbar untouched. */
+.state-title-inspector.text-inspector .state-title-extra-properties>.fields>.field:has(textarea[data-field="body"]){
+  display:block;width:100%;min-width:0;margin:2px 0;
+}
+.state-title-inspector.text-inspector .state-title-extra-properties>.fields>.field:has(textarea[data-field="body"])>label{
+  display:block;text-align:left;justify-self:start;margin:0 0 7px;
+  font-weight:600;color:#dedede;
+}
+.state-title-inspector.text-inspector .state-title-extra-properties>.fields>.field:has(textarea[data-field="body"])>div{
+  width:100%;min-width:0;
+}
+.state-title-inspector.text-inspector .state-title-extra-properties textarea[data-field="body"]{
+  display:block;box-sizing:border-box;width:100%;
+}
+.state-title-inspector.text-inspector .state-title-extra-properties #text-count{
+  display:block;text-align:right;margin-top:3px;
+}
+
+
+/* One accordion design for backup and selected restore. Each group preserves
+   its checkbox and duplicate-name policy state while collapsed. */
+.deckforge-message-dialog-selection{width:min(650px,calc(100vw - 32px))}
+.deckforge-backup-selection{display:flex;flex-direction:column;gap:8px;min-width:0}
+.deckforge-backup-selection-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+.deckforge-backup-selection-tools>strong{font-size:13px;color:#eee}
+.deckforge-backup-selection-count{margin-left:auto;color:#aaa;font-size:12px;white-space:nowrap}
+.deckforge-backup-selection-buttons{display:flex;gap:6px}
+.deckforge-backup-selection-buttons>button{
+  border:1px solid #686868;border-radius:4px;padding:5px 9px;
+  color:#eee;background:#414141;font-size:12px;cursor:pointer
+}
+.deckforge-backup-selection-buttons>button:hover{background:#505050}
+.deckforge-backup-group-list{
+  border:1px solid #545454;border-radius:5px;overflow:auto;max-height:320px;
+  min-width:0;background:#292929
+}
+.deckforge-backup-restore-list{max-height:350px}
+.deckforge-backup-group+.deckforge-backup-group{border-top:1px solid #505050}
+.deckforge-backup-group-header{
+  display:flex;align-items:center;gap:9px;width:100%;min-height:37px;
+  padding:8px 12px;text-align:left;border:0;background:#363636;
+  color:#eee;cursor:pointer
+}
+.deckforge-backup-group-header:hover{background:#404040}
+.deckforge-backup-group-header>strong{font-size:13px;font-weight:600}
+.deckforge-backup-group-arrow{flex:none;width:12px;color:#ccc;font-size:12px}
+.deckforge-backup-group-count{margin-left:auto;white-space:nowrap;color:#aaa;font-size:12px}
+.deckforge-backup-group-content{padding:3px 12px 6px}
+.deckforge-backup-group-content[hidden],.deckforge-backup-group-list[hidden],
+.deckforge-backup-selection-tools[hidden]{display:none!important}
+.deckforge-backup-group-row{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,210px);gap:8px;
+  align-items:center;padding:7px 0;
+  border-bottom:1px solid #404040;min-width:0
+}
+.deckforge-backup-group-row:last-child{border-bottom:0}
+.deckforge-backup-selection .deckforge-backup-group-row{grid-template-columns:1fr}
+.deckforge-backup-row-left{min-width:0}
+.deckforge-backup-group-item{display:flex;align-items:center;gap:9px;min-width:0;cursor:pointer;overflow-wrap:anywhere}
+.deckforge-backup-group-item>span{min-width:0}
+.deckforge-backup-group-item>input[type=checkbox],
+.profile-name-dialog .deckforge-backup-group-item>input[type=checkbox]{
+  appearance:auto;width:16px;height:16px;min-height:16px;margin:0;padding:0;
+  flex:0 0 16px;accent-color:#287cca;background:transparent;border:0
+}
+.deckforge-backup-row-status{margin:4px 0 0 25px;font-size:11px;overflow-wrap:anywhere}
+.deckforge-backup-conflict-select{
+  width:100%;min-width:0;background:#414141;color:#eee;
+  border:1px solid #777;border-radius:5px;padding:6px;font-size:12px
+}
+.deckforge-backup-selection-notice{font-size:11px;color:#bbb}
+.deckforge-backup-selection-notice.is-warning{color:#ffb777}
+.deckforge-restore-dialog .deckforge-backup-group-row{grid-template-columns:minmax(0,1fr) minmax(0,210px)}
+.deckforge-restore-dialog .deckforge-backup-group-row:has(.deckforge-backup-group-item):not(:has(.deckforge-backup-conflict-select)){grid-template-columns:1fr}
+.deckforge-restore-dialog .deckforge-backup-group-content[hidden]{display:none!important}
+@media(max-width:520px){
+  .deckforge-backup-selection-count{margin-left:0}
+  .deckforge-restore-dialog .deckforge-backup-group-row{grid-template-columns:minmax(0,1fr)}
+}
+
+/* 1.1.90: inspector order only; keep card, artwork, and test dimensions.
+   Paired: Key Up > Key Down > Preview (+ Execute Test). */
+.state-title-inspector .state-title-layout{
+  grid-template-columns:minmax(0,1fr) 98px;
+}
+.state-title-inspector .state-title-toolbar{margin-left:0}
+.state-title-inspector .state-title-extra-properties>.fields{padding-left:0}
+.action-layout-inspector .action-single-visual{
+  grid-template-columns:minmax(0,1fr) 98px;
+}
+.action-layout-inspector .action-single-visual>.fields{
+  min-width:0;width:100%;max-width:100%;box-sizing:border-box
+}
+.action-layout-inspector .action-single-visual>.preview{width:98px;min-width:0}
+.action-layout-inspector .action-single-extra>.fields{padding-left:0}
+@media(max-width:950px){
+  .state-title-inspector .state-title-layout{grid-template-columns:minmax(0,1fr) 88px}
+  .state-title-inspector .state-title-toolbar{margin-left:0}
+  .state-title-inspector .state-title-extra-properties>.fields{padding-left:0}
+  .action-layout-inspector .action-single-extra>.fields{padding-left:0}
+}
+
+/* 1.1.94: compact clear control inside the original action search input. */
+.library .search{position:relative}
+.library .search #action-search{padding-right:60px}
+.library .search #action-search-clear{
+  position:absolute;right:43px;top:50%;transform:translateY(-50%);
+  width:23px;height:23px;padding:0;border:0;border-radius:50%;
+  background:transparent;color:#b5bdc7;font-size:19px;line-height:23px
+}
+.library .search #action-search-clear:hover{background:#515761;color:#fff}
+.library .search #action-search-clear[hidden]{display:none}
+.library .search #action-search-list{
+  position:absolute;right:18px;top:50%;transform:translateY(-50%);width:23px;height:23px;
+  padding:0;border:0;border-left:1px solid #555;border-radius:0 4px 4px 0;
+  background:transparent;color:#b5bdc7;font-size:15px;line-height:23px
+}
+.library .search #action-search-list:hover,.library .search #action-search-list[aria-expanded="true"]{background:#515761;color:#fff}
+#action-search-menu{position:absolute;top:calc(100% - 9px);left:14px;right:14px;z-index:110;
+  max-height:min(320px,50vh);overflow:auto;padding:4px;background:#303030;border:1px solid #60646b;
+  border-radius:5px;box-shadow:0 6px 18px #0008}
+#action-search-menu[hidden]{display:none}
+#action-search-menu button{display:block;width:100%;border:0;border-radius:3px;padding:6px 8px;background:transparent;text-align:left;color:#eee;overflow-wrap:anywhere}
+#action-search-menu button:hover,#action-search-menu button:focus-visible,#action-search-menu button[aria-pressed="true"]{background:#46566d}
+#action-search-menu>span{display:block;padding:8px;color:#aaa}
+
+/* Ordinary LCD key gesture assignment properties. Icon cards remain unchanged. */
+.action-layout-inspector .press-assignment-section{
+  box-sizing:border-box;width:100%;max-width:600px;margin:14px 0 5px;
+  padding-top:12px;border-top:1px solid #555;min-width:0
+}
+.press-assignment-section>strong{display:block;font-size:12px;margin-bottom:5px}
+.press-assignment-section>.hint{display:block;margin:0 0 10px;line-height:1.4}
+.press-assignment-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.press-assignment-card{min-width:0;padding:9px 8px;border:1px solid #525965;
+  border-radius:6px;background:#30343c;display:flex;flex-direction:column;gap:7px}
+.press-assignment-card>label{font-size:11px;font-weight:600;color:#d9e4f1;white-space:nowrap}
+.press-single-action{height:31px;display:flex;align-items:center;padding:0 8px;
+  border:1px solid #565e69;border-radius:4px;background:#3b4049;
+  color:#e4eaf1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.press-assignment-row{display:flex;align-items:center;gap:5px;min-width:0}
+.press-assignment-row>select{min-width:0;flex:1;height:31px;padding:4px 6px;
+  border:1px solid #606a78;border-radius:4px;background:#3b414a;color:#fff;font-size:11px}
+.press-assignment-settings{height:31px;padding:0 7px;flex:none;white-space:nowrap;
+  border:1px solid #687889;background:#424f5d;border-radius:4px;font-size:11px}
+.press-assignment-settings:disabled{opacity:.35;cursor:default}
+.press-assignment-summary{color:#afbfcd;font-size:10px;line-height:1.35;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:740px){
+  .press-assignment-grid{grid-template-columns:1fr}
+  .press-assignment-card{padding:7px}
+}
+
+/* Page indicator reuses its original native navigation controls inside the
+   common three-gesture row; original Key Up/Down cards are untouched. */
+.press-assignment-card .side-binding-column{min-width:0;width:100%}
+.press-assignment-card .side-binding-choice{display:grid;grid-template-columns:minmax(0,1fr) 31px;gap:5px;min-width:0}
+.press-assignment-card .side-binding-choice>label{display:none}
+.press-assignment-card .side-binding-choice>select{min-width:0;max-width:100%;height:31px}
+.press-assignment-card .side-binding-choice>button{margin:0;padding:0;min-width:31px;height:31px;font-size:11px}
+.press-assignment-card .side-binding-target{display:flex;align-items:center;gap:5px;min-width:0}
+.press-assignment-card .side-binding-target>label{font-size:10px}
+.press-assignment-card .side-binding-target>select{min-width:0;flex:1}
+
+/* Compact gesture tabs: edit a full action in the panel below, not an icon in the tab. */
+.press-tabs-section{margin:10px 0 14px;width:100%;min-width:0}
+.press-tabs-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.press-tab-tile{box-sizing:border-box;min-width:0;padding:9px 8px;border:1px solid #616b76;
+  background:#333942;border-radius:7px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer}
+.press-tab-tile.selected{border:2px solid #61aff9;padding:8px 7px;background:#354356}
+.press-tab-heading{width:100%;display:grid;grid-template-columns:18px minmax(0,1fr) 18px;
+  align-items:center;gap:3px}
+.press-tab-heading input{grid-column:1;justify-self:center;transform:translateX(3px);width:16px;height:16px;margin:0;accent-color:#3990dc}
+.press-tab-select{grid-column:2;text-align:center;border:0;background:transparent;color:#f5f7fa;
+  padding:3px 0;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap}
+.press-tab-tile.inactive .press-tab-select{color:#c1c8d0}
+.press-tab-name{font-size:11px;font-weight:500;text-align:center;min-height:16px;max-width:100%;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#e6edf4}
+.press-tab-tile.inactive .press-tab-name{color:#a7b0bb}
+.press-tab-tile.drag-over{outline:2px solid #77c6ff;outline-offset:2px}
+.press-tabs-controls{margin:11px 0 0;padding:8px 2px 0;border-top:1px solid #505b65;
+  display:flex;align-items:center;justify-content:space-between;gap:10px}
+.press-tabs-controls>strong{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.press-tab-delete{flex:none;border:1px solid #ad6b6b;background:#523637;color:#ffeded;
+  padding:6px 9px;border-radius:5px;cursor:pointer;font-size:11px}
+.press-tab-delete:disabled{opacity:.4;cursor:default}
+.press-empty-message{padding:18px 4px;color:#bbc9d8;font-size:12px;line-height:1.6}
+/* Number and representative selection sit on the existing upper icon preview.
+   These are editor overlays and do not become part of the D200X image. */
+.press-image-number,.deck-key-press-number{position:absolute;top:3px;left:3px;z-index:5;
+  display:flex;justify-content:center;align-items:center;min-width:17px;height:17px;
+  box-sizing:border-box;padding:0 3px;border:1px solid #83c2f5;border-radius:3px;
+  background:#152f4e;color:#fff;font-size:11px;font-weight:700;pointer-events:none}
+.deck-key-press-number{top:2px;left:2px;min-width:15px;height:15px;font-size:10px}
+.press-image-number{pointer-events:auto;cursor:pointer;margin:0!important;min-height:0!important;line-height:1}
+.press-image-number[data-representative=none]{background:#343b44;border-color:#8796a5;color:#e0e6ed}
+.press-image-number[data-representative=displayed]{background:#2474b0;border-color:#b4dcff;color:#fff}
+.press-image-number[data-representative=preferred]{background:#805b20;border-color:#f3ca82;color:#fff}
+.press-image-number:disabled{opacity:.5;cursor:default}
+.press-image-number:focus-visible{outline:2px solid #fff;outline-offset:1px}
+/* Keep the single preview's library picker unobstructed. */
+#icon-preview:has(.icon-preview-plus) .press-image-number{top:26px}
+.press-drop-picker{position:fixed;z-index:1200;display:grid;grid-template-columns:repeat(3,94px);
+  gap:5px;padding:6px;background:#222833;border:1px solid #76a2ca;border-radius:7px;
+  box-shadow:0 12px 28px #000b;box-sizing:border-box}
+.press-drop-choice{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:4px;min-width:0;padding:7px 4px;border:1px solid #536274;border-radius:5px;
+  background:#343d49;box-sizing:border-box}
+.press-drop-choice.drag-over{outline:2px solid #83c4ff;background:#385778}
+.press-drop-choice.disabled-action .press-drop-art{opacity:.5}
+.press-drop-choice>strong{font-size:11px;white-space:nowrap}
+.press-drop-choice>span{max-width:100%;font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.press-drop-art{position:relative;width:45px;height:45px;display:flex;align-items:center;justify-content:center;
+  border-radius:4px;background:#232b37}
+.press-drop-art .icon-image,.press-drop-art .icon-glyph{max-width:100%;max-height:100%;object-fit:contain;font-size:25px}
+.press-drop-number{position:absolute;top:1px;left:1px;min-width:12px;line-height:12px;
+  background:#205384;color:#fff;text-align:center;border-radius:2px;font-size:9px}
+@media(max-width:740px){.press-tabs-grid{gap:4px}.press-tab-tile{padding:6px 4px}
+  .press-tab-tile.selected{padding:5px 3px}.press-tab-select{font-size:10px}}
+
+/* 1.1.96: upper gesture tabs + existing Cancel/Save, no icon/preview resizing. */
+.action-layout-inspector>.action-layout-toolbar>.press-tabs-section{flex:1;min-width:0;margin:0}
+.action-layout-inspector>.action-layout-toolbar>.press-tabs-section .press-tabs-grid{gap:6px}
+.action-layout-inspector>.action-layout-toolbar>.press-tabs-section .press-tab-tile{padding:6px 4px}
+.action-layout-inspector>.action-layout-toolbar>.press-tabs-section .press-tab-tile.selected{padding:5px 3px}
+.action-layout-inspector .press-tabs-controls{justify-content:flex-end;margin:9px 0 0}
+.action-layout-inspector .inspector-properties-region>.action-layout-options{margin:8px 0 0;flex:none;max-width:100%}
+
+/* 1.1.97: independent B/C/D regions for ordinary LCD-button inspectors only.
+   B: fixed equal-width tabs and stable Cancel/Save; C: constant visual
+   footprint; D: independent options + detailed settings; F unchanged. */
+.inspector.action-layout-inspector.press-gesture-inspector{
+  padding-left:max(20px,calc((100% - 600px)/2));
+  padding-right:max(20px,calc((100% - 600px)/2));
+  scrollbar-gutter:stable;
+  overflow-x:hidden
+}
+.action-layout-inspector.press-gesture-inspector>.action-layout-toolbar{
+  display:grid;grid-template-columns:minmax(0,1fr) max-content;
+  width:100%;max-width:600px;gap:8px
+}
+.action-layout-inspector.press-gesture-inspector>.action-layout-toolbar>.press-tabs-section{
+  box-sizing:border-box;width:100%;min-width:0;max-width:100%;flex:none;margin:0
+}
+.action-layout-inspector.press-gesture-inspector>.action-layout-toolbar .press-tabs-grid{
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px
+}
+.action-layout-inspector.press-gesture-inspector>.action-layout-toolbar .press-tab-tile{
+  box-sizing:border-box;min-width:0;min-height:46px;height:46px;max-height:46px;
+  padding:4px 3px;gap:2px
+}
+.action-layout-inspector.press-gesture-inspector>.action-layout-toolbar .press-tab-tile.selected{
+  padding:3px 2px
+}
+.action-layout-inspector.press-gesture-inspector .press-tab-select{
+  min-width:0;max-width:100%;padding:1px 0;line-height:16px;overflow:hidden;text-overflow:ellipsis
+}
+.action-layout-inspector.press-gesture-inspector .press-tab-name{
+  box-sizing:border-box;width:100%;max-width:100%;height:14px;min-height:14px;
+  line-height:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.action-layout-inspector.press-gesture-inspector>.state-title-layout,
+.action-layout-inspector.press-gesture-inspector>.action-single-visual,
+.action-layout-inspector.press-gesture-inspector>.inspector-visual-placeholder{
+  box-sizing:border-box;width:100%;max-width:600px;min-width:0;min-height:225px
+}
+.action-layout-inspector.press-gesture-inspector>.state-title-layout{
+  grid-template-columns:minmax(0,1fr) 98px;column-gap:12px
+}
+.action-layout-inspector.press-gesture-inspector>.state-title-layout>.preview{
+  width:98px;transform:none
+}
+.action-layout-inspector.press-gesture-inspector>.inspector-properties-region{
+  box-sizing:border-box;width:100%;max-width:600px;min-width:0
+}
+.action-layout-inspector.inspector-action-drop-over{
+  box-shadow:inset 0 0 0 2px #5a9acb
+}
+
+/* Page-number button only: read-only gesture assignments, never shared with side keys. */
+.indicator-inspector .indicator-fixed-bindings{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;margin-top:6px;max-width:490px}
+.indicator-inspector .indicator-fixed-binding{grid-template-columns:82px minmax(0,1fr);gap:8px}
+.indicator-inspector .indicator-fixed-binding input[readonly]{cursor:default;opacity:1}
+.indicator-inspector .indicator-fixed-binding .action-preview-test{flex:0 0 30px;min-width:30px;margin:0}
+
+/* Native SDK dialogs reuse the common message button and field design. */
+.native-sdk-form{display:flex;flex-direction:column;gap:8px;min-width:0;color-scheme:dark}
+.native-sdk-form>.field{grid-template-columns:84px minmax(0,1fr);align-items:start;gap:8px}
+.native-sdk-form>.field>span{align-self:center;color:#d4d4d4;overflow-wrap:anywhere}
+.native-sdk-form .field select,.native-sdk-form .field input:not([type=checkbox]):not([type=radio]){min-width:0;width:100%;min-height:32px;background:#363636;color:#eee;border:1px solid #666;border-radius:4px;padding:6px 9px}
+.native-sdk-form .field input[type=checkbox],.native-sdk-form .field input[type=radio]{width:auto;min-height:0;accent-color:#2368bb}
+.native-sdk-form .field input[type=checkbox]{justify-self:start}
+.native-sdk-form .native-sdk-picker{display:flex;flex-direction:column;align-items:stretch;gap:6px;min-width:0}
+.native-sdk-form .native-sdk-picker>.deckforge-message-button{align-self:flex-start}
+.native-sdk-form .native-sdk-options:not(:empty){padding:6px 8px;border:1px solid #555;border-radius:4px;background:#303030}
+.native-sdk-form .native-sdk-options label{min-height:28px;text-align:left;cursor:pointer;color:#eee}
+.native-sdk-form .native-sdk-options label span{min-width:0;overflow-wrap:anywhere}
+.native-sdk-form .native-sdk-tools{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.native-sdk-form .native-sdk-tools>.deckforge-message-button{padding:5px 9px;min-width:0;white-space:nowrap;font-size:12px}
+.deckforge-message-help{background:transparent;padding:0;cursor:pointer}
+.deckforge-message-help:hover,.deckforge-message-help:focus-visible{color:#fff;border-color:#fff}
+.native-sdk-form .deckforge-message-button:disabled{opacity:.5;cursor:default}
+.native-sdk-form .native-sdk-connection{display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:130px;color:#ddd;font-size:12px;margin-right:auto}
+.native-sdk-form .native-sdk-connection>span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.native-sdk-status-dot{display:inline-block;width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#888}
+.native-sdk-connection[data-tone=success] .native-sdk-status-dot{background:#4bd18b}
+.native-sdk-connection[data-tone=error] .native-sdk-status-dot{background:#ef6b6b}
+.native-sdk-form .hint{margin:0;overflow-wrap:anywhere}
+
+/* Native SDK dynamic lists have stable dimensions independently of result count. */
+.native-sdk-form .native-sdk-options{height:200px;min-height:200px;max-height:200px;overflow-y:auto;scrollbar-gutter:stable;padding:6px 8px;border:1px solid #555;border-radius:4px;background:#303030}
+.native-sdk-form .native-sdk-picker>.hint{min-height:17px;line-height:17px}
+
+
+/* Shared title properties: viewport positioning escapes the inspector clip. */
+.title-style-popover,.state-title-inspector .state-title-control>.title-style-popover{position:fixed;left:8px;right:auto;top:8px;z-index:100;box-sizing:border-box;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);overflow-y:auto;color-scheme:dark}
+
+
+/* Circular check controls, retaining native checkbox semantics and keyboard input.
+   Scope to the built-in editor properties and its viewport-level palette. */
+.inspector input[type="checkbox"],.key-background-popover input[type="checkbox"]{
+  appearance:none;-webkit-appearance:none;box-sizing:border-box;
+  width:15px!important;height:15px!important;min-width:15px;min-height:0!important;
+  padding:0!important;flex-shrink:0;border:1px solid #8b99a8!important;
+  border-radius:50%!important;background:#272d35!important;
+  vertical-align:middle;cursor:pointer
+}
+.inspector .press-tab-heading input[type="checkbox"]{
+  width:16px!important;height:16px!important;min-width:16px;justify-self:center
+}
+.inspector input[type="checkbox"]:checked,.key-background-popover input[type="checkbox"]:checked{
+  border-color:#78b9f3!important;
+  background:#2676c1 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8l2.6 2.6L12 5.2' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/100% 100% no-repeat!important
+}
+.inspector input[type="checkbox"]:indeterminate,.key-background-popover input[type="checkbox"]:indeterminate{
+  border-color:#78b9f3!important;background:#2676c1 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8h8' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E") center/100% 100% no-repeat!important
+}
+.inspector input[type="checkbox"]:focus-visible,.key-background-popover input[type="checkbox"]:focus-visible{
+  outline:2px solid #a6d4ff;outline-offset:2px
+}
+.inspector input[type="checkbox"]:disabled,.key-background-popover input[type="checkbox"]:disabled{
+  opacity:.42;cursor:default
+}
+@media(forced-colors:active){
+  .inspector input[type="checkbox"],.key-background-popover input[type="checkbox"]{
+    appearance:auto!important;-webkit-appearance:auto!important;forced-color-adjust:auto
+  }
+}
+
+/* Icon card modal panels share the same viewport anchor as appearance popovers. */
+.icon-dialog-anchored > .icon-library-dialog,.icon-dialog-anchored > .icon-maker-dialog{position:fixed;left:8px;top:8px;max-width:calc(100vw - 16px);max-height:calc(100dvh - 16px);box-sizing:border-box}
+.icon-dialog-anchored > .icon-maker-dialog{overflow-y:auto}
+
+.native-selection-order{display:flex;flex-direction:column;gap:4px;min-width:0}
+.native-record-list-row{display:flex;flex-direction:column;gap:6px;min-width:0;margin:0;padding:8px;border:1px solid #555;border-radius:4px}
+.native-record-list-row legend{padding:0 4px;color:#ddd}
+.native-record-list-field{display:grid;grid-template-columns:84px minmax(0,1fr);align-items:center;gap:8px;min-width:0}
+.native-record-list-field>span{overflow-wrap:anywhere}
+.native-record-list-row>.native-sdk-tools{justify-content:flex-end}
+.native-selection-row{display:grid;grid-template-columns:minmax(0,1fr) 30px 30px;gap:5px;align-items:center;padding:4px 6px;border:1px solid #555;border-radius:4px;background:#303030}
+.native-selection-row.native-selection-removable{grid-template-columns:minmax(0,1fr) repeat(3,30px)}
+.native-selection-row>span{overflow-wrap:anywhere;min-width:0}
+.native-selection-row>.deckforge-message-button{min-width:0;width:30px;padding:3px 0}
+
+/* Single-state HA sensor uses the shared two-card geometry; Key Down is inert. */
+.state-title-inspector .state-title-layout .ha-sensor-disabled-card,
+.state-title-inspector .state-title-layout .single-basic-disabled-card{opacity:.42;pointer-events:none}
+.ha-sensor-title-row .title-line{flex:1;min-width:0;width:100%}
+.ha-sensor-title-row #key-title{box-sizing:border-box;width:100%;min-width:0;height:29px;background:#363636;color:#eee;border:1px solid #666;border-radius:4px;padding:3px 34px 3px 6px;font-size:12px}
+.ha-sensor-title-row #title-style-trigger{color:#eee;background:#434d5b;border:1px solid #626e7c;min-height:24px;padding:2px 5px;font-size:12px}
+
+.native-sdk-form>.field[hidden],.native-sdk-form>.native-sdk-group[hidden]{display:none}
+.native-sdk-form>.native-sdk-group{font-weight:600;color:#ddd;border-bottom:1px solid #555;padding:6px 0 4px}
+.native-sdk-form .native-sdk-slider{display:flex;align-items:center;gap:10px;min-width:0}
+.native-sdk-form .native-sdk-slider input[type=range]{flex:1;min-width:0;accent-color:#2368bb;padding:0;border:0;background:transparent}
+.native-sdk-form .native-sdk-slider output{min-width:4ch;text-align:right;font-variant-numeric:tabular-nums;color:#ddd}
+
+/* Missing SDK actions retain their artwork and editability. Editor-only marker. */
+#key-grid .sdk-unavailable{outline:2px dashed #e6ab56;outline-offset:-3px;}
+
+/* Distinct plugin sections, without changing action or launcher alignment. */
+.library .sdk-plugin-group{margin-bottom:6px;border-bottom:1px solid #535b66;background:#232323}
+.library .sdk-plugin-group>.group-title{background:#383e46;border-top:1px solid #65717e;border-bottom:1px solid #4d5661;color:#f0f2f5;padding:3px 12px}
+.library .sdk-plugin-group>.group-title:hover{background:#414955}
+.library .sdk-plugin-group>div:not(.group-title):not([hidden]){padding-bottom:3px}
+
+/* Compact, editor-owned Fusion command inspector. */
+dialog.deckforge-message-dialog:has(.fusion-command-properties){width:min(360px,calc(100vw - 16px))}
+.fusion-command-properties{display:flex;flex-direction:column;gap:8px;min-width:0}
+.fusion-command-summary{display:grid;grid-template-columns:62px minmax(0,1fr);gap:9px;align-items:start;padding:8px;background:#24272c;border:1px solid #525b66;border-radius:5px;overflow-wrap:anywhere}
+.fusion-command-art{width:62px;height:62px;display:grid;place-items:center;background:#14171b;border-radius:4px;font-size:10px;color:#bbb;text-align:center}
+.fusion-command-art img{width:100%;height:100%;object-fit:contain}
+.fusion-command-description{font-size:12px;line-height:1.35;margin:5px 0 0;color:#d0d4db;white-space:pre-wrap;overflow-wrap:anywhere}
+
+.fusion-command-english{font-size:12px;color:#d3d7de;margin:3px 0;overflow-wrap:anywhere}
+
+/* Compact category bands and distinct action cells; shared by basic and plugin tabs. */
+.library .group>.group-title{background:#3c4653;color:#f0f3f7;border-top:1px solid #556477;border-bottom:1px solid #303a46}
+.library .group>.group-title:hover{background:#485565}
+.library .sdk-plugin-group:not(.basic-ha-group)>.group-title{background:#424b61;border-top-color:#606b84}
+.library .sdk-plugin-group:not(.basic-ha-group)>.group-title:hover{background:#4e5972}
+.library .group .action-item{background:#292d33;border-bottom:1px solid #353a42;color:#e1e5eb}
+.library .group .action-item:hover{background:#39434f}
+.library .basic-ha-group .action-item{display:flex;flex-direction:row;align-items:center}
+.library .basic-ha-group .native-ha-caption{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.library .basic-ha-group .action-icon{flex:0 0 30px}
+
+/* HA linked switch event controls share one row; radio controls retain native semantics. */
+.native-sdk-form .ha-link-flags{display:flex;align-items:center;gap:16px;min-width:0;flex-wrap:wrap}
+.native-sdk-form .ha-link-flags label{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;cursor:pointer}
+.native-sdk-form .ha-link-flags input[type=checkbox]{margin:0;flex:none}
+
+.ha-native-settings input[type="checkbox"]{
+  appearance:none;-webkit-appearance:none;box-sizing:border-box;
+  width:15px!important;height:15px!important;min-width:15px;min-height:0!important;
+  padding:0!important;flex-shrink:0;border:1px solid #8b99a8!important;
+  border-radius:50%!important;background:#272d35!important;
+  vertical-align:middle;cursor:pointer
+}
+.ha-native-settings input[type="checkbox"]:checked{
+  border-color:#78b9f3!important;
+  background:#2676c1 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 8l2.6 2.6L12 5.2' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/100% 100% no-repeat!important
+}
+
+/* Compact HA sensor options, no other plugin forms affected. */
+.ha-sensor-settings{--sensor-label:84px;--sensor-gap:8px;--sensor-second-label:54px}
+.ha-sensor-settings>.ha-sensor-entities>span{align-self:start;padding-top:7px}
+.ha-native-settings .ha-sensor-compact{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sensor-gap);align-items:center}
+.ha-native-settings .ha-sensor-compact>.field{grid-template-columns:32px minmax(0,1fr);gap:var(--sensor-gap);min-width:0}
+.ha-native-settings .ha-sensor-compact>.field:first-child{grid-template-columns:var(--sensor-label) minmax(0,1fr)}
+.ha-native-settings .ha-sensor-mode>.field:nth-child(2){grid-template-columns:var(--sensor-second-label) minmax(0,1fr)}
+.ha-native-settings .ha-sensor-compact>.field>span{white-space:nowrap}
+.ha-native-settings .ha-sensor-decimals{grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(0,1fr))}
+.ha-native-settings .ha-sensor-labels>.field{display:flex;align-items:center;padding-left:calc(var(--sensor-label) + var(--sensor-gap))}
+.ha-native-settings .ha-sensor-labels>.field:nth-child(2){padding-left:calc(var(--sensor-second-label) + var(--sensor-gap))}
+.ha-native-settings .ha-sensor-labels label{display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap;min-width:0}
+.ha-native-settings .ha-sensor-labels input[type=checkbox]{margin:0}
+.ha-native-settings .ha-sensor-compact>.field[hidden]{display:none}
+@media(max-width:480px){
+  .ha-native-settings .ha-sensor-mode,.ha-native-settings .ha-sensor-labels,.ha-native-settings .ha-sensor-decimals{grid-template-columns:minmax(0,1fr)}
+  .ha-native-settings .ha-sensor-compact>.field,.ha-native-settings .ha-sensor-mode>.field:nth-child(2){grid-template-columns:var(--sensor-label) minmax(0,1fr)}
+  .ha-native-settings .ha-sensor-labels>.field:nth-child(2){padding-left:calc(var(--sensor-label) + var(--sensor-gap))}
+}
+
+/* HA switch properties: compact closed pickers; only the selected list expands. */
+.ha-switch-settings{gap:12px}
+.ha-switch-settings>.field{align-items:center}
+.ha-switch-settings>.field.ha-link-enable{display:block;padding:3px 0}
+.ha-switch-settings>.field.ha-link-enable[hidden]{display:none}
+.ha-switch-settings .ha-link-enable>label{display:flex;align-items:center;gap:8px;cursor:pointer}
+.ha-switch-settings .ha-link-flags{flex-wrap:nowrap;gap:clamp(7px,2vw,16px)}
+.ha-switch-settings .ha-device-dropdown{min-width:0}
+.ha-switch-settings .ha-device-trigger{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:34px;padding:6px 10px;border:1px solid #666;border-radius:4px;background:#363636;color:#eee;cursor:pointer;list-style:none;overflow-wrap:anywhere}
+.ha-switch-settings .ha-device-trigger::-webkit-details-marker{display:none}
+.ha-switch-settings .ha-device-trigger::after{content:'▾';flex:none;color:#b9c4d1}
+.ha-switch-settings .ha-device-dropdown[open]>.ha-device-trigger::after{content:'▴'}
+.ha-switch-settings .ha-device-trigger:focus-visible{outline:2px solid #78b9f3;outline-offset:2px}
+.ha-switch-settings .ha-device-dropdown>.native-sdk-picker{margin-top:5px}
+.ha-switch-settings .ha-device-dropdown:not([open])>.native-sdk-picker{display:none}
+.ha-switch-settings .native-sdk-options{height:156px;min-height:0;max-height:156px}
+.ha-switch-settings>p.hint:empty{display:none}
+
+/* Fusion manager replaces only the sidebar body; the profile header stays live. */
+#app.fusion-inline-open{grid-template-columns:minmax(0,1fr) min(699px,max(320px,calc(100vw - 640px)))}
+#app.fusion-inline-open>.library>.search,#app.fusion-inline-open>.library>.ai-launch-row,#app.fusion-inline-open>.library>.library-tabs,#app.fusion-inline-open>.library>.library-list,#app.fusion-inline-open>.library>#plugin-install-toolbar,#app.fusion-inline-open>.library>#action-appearance-toolbar{display:none!important}
+#fusion-inline-panel{display:flex;flex-direction:column;flex:1;min-height:0;min-width:0;background:#111820}
+#fusion-inline-panel[hidden]{display:none}
+.fusion-inline-header{display:flex;align-items:center;justify-content:space-between;padding:6px 12px;min-height:35px;background:#172230;border-bottom:1px solid #3a4757}
+#fusion-inline-close{background:transparent;border:0;font-size:20px;line-height:1;padding:3px 7px;color:#eee}
+#fusion-inline-close:hover{background:#3a4757;border-radius:4px}
+#fusion-inline-content{flex:1;min-width:0;min-height:0}
+
+.fusion-inline-header strong{font-size:15px}
+.fusion-data-tools{display:grid;gap:8px;padding:12px;margin:0 0 12px;border:1px solid #46505b;border-radius:6px}
+.fusion-data-tools p{margin:0;font-size:12px;line-height:1.5}
+.fusion-data-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.fusion-data-buttons button{min-width:0;white-space:normal}
+.fusion-data-result{white-space:pre-wrap;overflow-wrap:anywhere}
+.fusion-data-result:empty{display:none}
+.fusion-data-tools details p{margin-top:6px}
+
+/* A small matching CAD cube glyph, limited to the Fusion manager entry and header. */
+.fusion-inline-header strong,.fusion-command-launch{display:inline-flex;align-items:center;gap:7px}
+.fusion-inline-header strong::before,.fusion-command-launch::before{content:'';display:inline-block;flex:0 0 17px;width:17px;height:17px;background:currentColor;mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg fill='none' stroke='black' stroke-width='1.8' stroke-linejoin='round' stroke-linecap='round'%3E%3Cpath d='M12 2.5 21 7.5v9L12 21.5 3 16.5v-9Z M3 7.5l9 5 9-5 M12 12.5v9'/%3E%3C/g%3E%3C/svg%3E") center/contain no-repeat}
+
+/* Offline Store catalogue: isolated from the editor/icon library geometry. */
+.store-catalog-dialog{width:min(900px,calc(100vw - 36px));height:min(720px,calc(100vh - 36px));max-width:none;max-height:none;padding:0;border:1px solid #555;border-radius:8px;background:#252525;color:#eee;box-shadow:0 16px 50px #000b;overflow:hidden}
+.store-catalog-dialog[open]{display:flex;flex-direction:column;gap:0}
+.store-catalog-dialog::backdrop{background:#0008}
+.store-catalog-header,.store-catalog-toolbar,.store-catalog-filters{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid #444}
+.store-catalog-header strong{font-size:17px;flex:1}.store-catalog-header span{color:#aaa;font-size:12px}
+.store-catalog-header button{font-size:20px;line-height:1;padding:5px 9px}
+.store-catalog-toolbar input{min-width:0;flex:1}
+.store-catalog-filters{flex-wrap:wrap}
+.store-catalog-dialog button,.store-catalog-dialog input,.store-catalog-dialog select{font:inherit;color:#eee;background:#383838;border:1px solid #555;border-radius:5px;padding:7px 10px}
+.store-catalog-dialog button:not(:disabled){cursor:pointer}
+.store-catalog-dialog button:focus-visible,.store-catalog-dialog input:focus-visible,.store-catalog-dialog select:focus-visible{outline:2px solid #75a9ee;outline-offset:2px}
+.store-catalog-dialog button:disabled{opacity:.5}
+.store-catalog-status,.store-catalog-footer{font-size:12px;color:#bbb;padding:8px 14px;margin:0}
+.store-catalog-footer{border-top:1px solid #444}
+.store-catalog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));align-content:start;gap:12px;overflow:auto;min-height:0;flex:1;padding:12px 14px}
+.store-catalog-dialog .store-pack-card{display:flex;flex-direction:column;align-items:stretch;gap:6px;text-align:left;min-width:0;padding:8px;background:#303030}
+.store-pack-card:hover{border-color:#75a9ee}.store-pack-card strong{overflow-wrap:anywhere;font-size:14px}
+.store-pack-artwork,.store-detail-artwork{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;background:#000;border-radius:4px;padding:7px}
+.store-preview-white .store-pack-artwork,.store-preview-white .store-detail-artwork{background:#fff}
+.store-icon-tile{min-width:0;aspect-ratio:1;display:grid;place-items:center;color:#888}
+.store-icon-tile img{width:100%;height:100%;object-fit:contain}
+.store-pack-meta{font-size:11px;color:#bbb;overflow-wrap:anywhere}
+.store-catalog-empty{grid-column:1/-1;color:#bbb}
+.store-catalog-detail{display:flex;flex-direction:column;align-items:stretch}.store-catalog-detail h2,.store-catalog-detail p{margin:0}.store-catalog-detail>button{align-self:flex-start}.store-detail-artwork{grid-template-columns:repeat(auto-fill,minmax(54px,1fr));gap:10px;padding:12px}
+
+/* Store tabs use the existing dark catalogue; no changes to action-panel tabs. */
+.store-catalog-tabs{display:flex;gap:6px;padding:7px 14px 0;border-bottom:1px solid #444}
+.store-catalog-dialog .store-catalog-tabs button{border-radius:5px 5px 0 0;min-width:105px;border-bottom:0;background:#303030}
+.store-catalog-dialog .store-catalog-tabs button[aria-pressed=true]{background:#43474e;border-color:#75a9ee;color:#fff}
+.store-catalog-dialog .store-catalog-filters[hidden]{display:none}
+.store-plugin-actions{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px}
+.store-plugin-action{display:flex;align-items:center;gap:8px;min-width:0;border:1px solid #444;border-radius:5px;padding:7px}
+.store-plugin-action span{overflow-wrap:anywhere}
+.store-plugin-action-icon{flex:0 0 42px;width:42px;background:#000;border-radius:3px}
+.store-preview-white .store-plugin-action-icon{background:#fff}
+.store-plugin-placeholder{min-height:75px;display:grid;place-items:center;background:#000;color:#aaa;border-radius:4px;font-size:12px}
+.store-plugin-warning{color:#edbd78;font-size:12px;overflow-wrap:anywhere}
+
+.store-catalog-dialog.store-connection-dialog{width:min(460px,calc(100vw - 36px));height:auto;max-height:calc(100vh - 36px)}
+.store-connection-fields{display:grid;gap:12px;padding:16px;overflow:auto}
+.store-connection-fields label{display:grid;gap:6px;color:#ddd}
+.store-connection-fields input{width:100%;min-width:0}
+.store-connection-buttons{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.store-connection-login{display:grid;gap:10px;border-top:1px solid #444;padding-top:12px}
+.store-connection-state,.store-connection-message{margin:0;color:#ddd;overflow-wrap:anywhere}
+.store-connection-message{min-height:18px;color:#b7d6f5}
+
+.store-remote-cover,.store-remote-detail-preview{background:#000;border-radius:4px;padding:8px;display:grid;gap:8px;align-items:center;justify-items:center}
+.store-remote-cover{min-height:100px;aspect-ratio:4/3}
+.store-remote-cover img{max-width:100%;max-height:100%;object-fit:contain}
+.store-remote-detail-preview{grid-template-columns:repeat(auto-fit,minmax(92px,1fr))}
+.store-remote-detail-preview img{width:100%;max-width:160px;aspect-ratio:1;object-fit:contain}
+
+.store-preview-white .store-remote-cover,.store-preview-white .store-remote-detail-preview{background:#fff}
+
+.icon-library-footer #icon-pack-check-updates{border:1px solid #606060;border-radius:4px;padding:3px 7px;background:#383838;color:#eee;white-space:nowrap;font-size:11px}.icon-library-footer #icon-pack-check-updates:disabled{opacity:.45}
+
+.store-connect-form{display:grid;gap:10px}.store-connection-fields .store-remember{display:flex;align-items:center;gap:8px}.store-connection-fields .store-remember input{width:auto;accent-color:#5286d5}.store-connection-buttons [data-login]{background:#2858b8;border-color:#4679c9;color:#fff;flex:1}.store-connection-advanced{border-top:1px solid #444;padding-top:10px}.store-connection-advanced summary{cursor:pointer;color:#ddd;margin-bottom:10px}.store-connection-advanced textarea{width:100%;background:#333;color:#eee;border:1px solid #555;border-radius:5px;padding:8px}.store-connection-buttons [hidden]{display:none}
+
+/* Concise, aligned Store card summaries; detail retains full metadata. */
+.store-catalog-dialog .store-pack-card{gap:8px;padding:10px}.store-card-name{line-height:1.35;min-height:2.7em;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}.store-card-version{font-size:12px;color:#d5dfed;font-weight:500}.store-card-format{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.store-card-format-label{font-size:11px;font-weight:650;color:#b6d4ff;background:#32445e;padding:3px 7px;border-radius:4px}.store-card-tags{display:flex;gap:4px;flex-wrap:wrap}.store-card-tag{font-size:11px;font-weight:400;line-height:1.4;padding:2px 6px;border-radius:4px;background:#414141;color:#ddd}.store-card-footer{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:auto;border-top:1px solid #484848;padding-top:8px}.store-card-install{font-size:11px;color:#ccc;font-weight:600}.store-card-install.is-installed{color:#9bdaa9}
+
+/* Detail action groups: balanced minimum width with natural label sizing. */
+.store-detail-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;width:100%;flex-shrink:0}.store-catalog-dialog .store-detail-actions>button{flex:0 1 auto;min-width:min(96px,100%);max-width:100%;min-height:34px;padding:7px 18px;text-align:center;white-space:normal;overflow-wrap:anywhere}.store-catalog-dialog .store-detail-back{min-width:96px;min-height:34px}
+
+/* Detail is a single scroll surface, separate from catalogue tools. */
+.store-detail-view .store-catalog-tabs,.store-detail-view .store-catalog-toolbar,.store-detail-view .store-catalog-filters{display:none}.store-detail-view .store-catalog-status:empty{display:none}.store-catalog-dialog .store-catalog-detail{display:block;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;scrollbar-gutter:stable;min-height:0;flex:1 1 0;padding:16px}.store-catalog-detail>*{margin-bottom:12px}.store-catalog-detail .store-detail-title{font-size:19px;line-height:1.35;overflow-wrap:anywhere;margin:0 0 8px}.store-catalog-detail .store-detail-summary{color:#c2ccda;font-size:12px;line-height:1.6;margin:0 0 14px}.store-detail-top{display:flex;justify-content:space-between;align-items:center;gap:8px}.store-detail-gallery-title{font-size:14px;margin:14px 0 8px}.store-remote-gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px;padding:10px;background:#111;border-radius:6px}.store-gallery-cell{display:grid;grid-template-rows:60px auto;gap:5px;padding:6px;min-width:0;text-align:center;background:#ffffff0a;border-radius:5px}.store-gallery-cell img{width:100%;height:60px;object-fit:contain}.store-gallery-cell span{font-size:11px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;color:#ddd}.store-preview-white .store-remote-gallery{background:#f5f5f5}.store-preview-white .store-gallery-cell{background:#00000008}.store-preview-white .store-gallery-cell span{color:#333}.store-detail-tech{padding:10px 0;border-top:1px solid #444;color:#bbb}.store-detail-tech summary{cursor:pointer;font-size:12px}.store-detail-tech p{margin:8px 0;overflow-wrap:anywhere}.store-detail-more{display:block;margin:8px auto}.store-catalog-detail .store-detail-actions{margin:12px 0 16px}.store-detail-description{white-space:pre-wrap;overflow-wrap:anywhere;color:#ddd;font-size:12px}
+
+/* Keep detail thumbnail dimensions unchanged before and after gallery loading. */
+.store-gallery-placeholder-image{width:100%;height:60px;border-radius:4px;background:#ffffff09}.store-gallery-placeholder{pointer-events:none}.store-preview-white .store-gallery-placeholder-image{background:#00000008}.store-gallery-cell span{min-height:1.4em;line-height:1.4}
+
+/* Catalogue artwork matches the web Store: six individual thumbnails, never enlarged cover. */
+.store-remote-cover{grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(2,minmax(0,1fr));gap:6px;aspect-ratio:2/1;height:auto;min-height:104px;padding:8px}.store-remote-cover img{display:block;width:100%;height:100%;min-width:0;min-height:0;max-width:100%;max-height:100%;object-fit:contain}

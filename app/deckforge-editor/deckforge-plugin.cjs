@@ -1,0 +1,196 @@
+'use strict';
+// DeckForge native v2 packages and external compatibility v1 packages.
+// Native packaging must not require the external compatibility host.
+const fs=require('node:fs/promises');
+const path=require('node:path');
+const {createHash}=require('node:crypto');
+const JSZip=require('jszip');
+const {validateNativeManifest,LIMIT:NATIVE_LIMIT}=require('./deckforge-native-sdk.cjs');
+
+const FORMAT='deckforge-plugin';
+const FORMAT_VERSION=1;
+const MAX_ARCHIVE=40*1024*1024;
+const MAX_FILES=2500;
+const MAX_EXPANDED=100*1024*1024;
+const ID=/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,180}$/;
+const safePart=value=>typeof value==='string'&&value.length>0&&value.length<1024&&
+  !/[\\\\:\x00-\x1f\x7f]/.test(value)&&!value.startsWith('/')&&
+  value.split('/').every(part=>part&&part!=='.'&&part!=='..');
+const conversionId=id=>typeof id==='string'&&id.startsWith('com.deckforge.native.ulanzi-');
+const hash=x=>createHash('sha256').update(x).digest('hex');
+const hex=v=>typeof v==='string'&&/^[a-f0-9]{64}$/.test(v);
+function validConversionSource(source,id){
+  return source?.kind==='ulanzi-converted'&&Object.keys(source).length===5&&
+    typeof source.originalId==='string'&&/^com\.[a-zA-Z0-9-]+\.ulanzistudio\.[a-zA-Z0-9-]+$/.test(source.originalId)&&
+    id==='com.deckforge.native.ulanzi-'+hash(source.originalId).slice(0,24)&&
+    ['sourceTreeSha256','candidateSha256','reviewSha256'].every(k=>hex(source[k]));
+}
+const safeName=value=>String(value).replace(/[^a-zA-Z0-9._-]+/g,'-').replace(/^-+|-+$/g,'').slice(0,90)||'plugin';
+
+function validatePackageManifest(meta){
+  if(!meta||typeof meta!=='object'||Array.isArray(meta)||
+    meta.format!==FORMAT||![FORMAT_VERSION,2].includes(meta.formatVersion))
+    throw Error('지원하지 않는 DeckForge 플러그인 패키지 규격입니다.');
+  const p=meta.plugin;
+  if(!p||!ID.test(p.id)||typeof p.name!=='string'||!p.name.trim()||
+    typeof p.version!=='string'||!p.version.trim()||p.name.length>180||p.version.length>64)
+    throw Error('DeckForge 플러그인 식별 정보가 올바르지 않습니다.');
+  if(meta.formatVersion===2){
+    if(meta.runtime?.type!=='deckforge-sdk'||meta.runtime?.directory!=='payload'||![1,2].includes(meta.runtime?.apiVersion)||(conversionId(p.id)?!validConversionSource(meta.source,p.id):meta.source?.kind!=='deckforge'))
+      throw Error('지원하지 않는 DeckForge 독자 SDK 런타임 또는 원본입니다.');
+    return meta;
+  }
+  if(meta.runtime?.type!=='streamdeck-sdk'||meta.runtime?.directory!=='payload')
+    throw Error('지원하지 않는 DeckForge 플러그인 런타임입니다. v1은 streamdeck-sdk만 허용합니다.');
+  if(!['streamdeck','deckforge'].includes(meta.source?.kind))
+    throw Error('Ulanzi 플러그인은 코드/API 호환성 검증과 변환을 완료한 뒤에만 설치 패키지를 만들 수 있습니다.');
+  return meta;
+}
+
+async function parseDeckForgePackage(data){
+  if(!Buffer.isBuffer(data)||data.length<50||data.length>MAX_ARCHIVE)
+    throw Error('DeckForge 플러그인 파일은 40MB 이하여야 합니다.');
+  // Inspect declared bounds before requesting CRC verification (which inflates entries).
+  const zip=await JSZip.loadAsync(data);
+  const entries=Object.values(zip.files);
+  const files=entries.filter(entry=>!entry.dir);
+  if(!files.length||files.length>MAX_FILES+1)
+    throw Error('DeckForge 플러그인 파일 개수가 허용 범위를 벗어났습니다.');
+  const descriptor=zip.file('deckforge-plugin.json');
+  if(!descriptor||descriptor.dir)throw Error('DeckForge 전용 manifest(deckforge-plugin.json)가 없습니다.');
+  let declared=0;
+  for(const entry of files){
+    const size=Number(entry._data?.uncompressedSize);
+    if(!Number.isSafeInteger(size)||size<0||(declared+=size)>MAX_EXPANDED)
+      throw Error('DeckForge 패키지 압축 해제 크기 제한 초과');
+  }
+  if(Number(descriptor._data?.uncompressedSize)>32768)throw Error('DeckForge 패키지 매니페스트가 너무 큽니다.');
+  const descriptorBytes=await descriptor.async('nodebuffer');
+  if(descriptorBytes.length>32768)throw Error('DeckForge 패키지 매니페스트가 너무 큽니다.');
+  let meta;
+  try{meta=validatePackageManifest(JSON.parse(descriptorBytes.toString('utf8')));}
+  catch(error){throw Error('DeckForge 패키지 검증 실패: '+error.message);}
+  if(meta.formatVersion===2){
+    if(data.length>NATIVE_LIMIT||files.length!==2||!zip.file('payload/native.json'))throw Error('독자 SDK 패키지에는 native.json만 허용합니다.');
+    for(const entry of entries){
+      const name=entry.dir?entry.name.replace(/\/$/,''):entry.name;
+      if(!safePart(name)||(entry.unixPermissions&0xf000)===0xa000||
+        (entry.unsafeOriginalName&&entry.unsafeOriginalName!==entry.name)||
+        !['payload','payload/native.json','deckforge-plugin.json'].includes(name))throw Error('독자 SDK 패키지 경로 오류');
+    }
+    const item=zip.file('payload/native.json');
+    if(Number(item._data?.uncompressedSize)>NATIVE_LIMIT)throw Error('독자 SDK 프로그램 크기 제한');
+    await JSZip.loadAsync(data,{checkCRC32:true});
+    const raw=await item.async('nodebuffer');
+    if(raw.length>NATIVE_LIMIT)throw Error('독자 SDK 프로그램 크기 제한');
+    const native=validateNativeManifest(JSON.parse(raw.toString('utf8')));
+    if(native.apiVersion!==meta.runtime.apiVersion||native.id!==meta.plugin.id||native.name!==meta.plugin.name||native.version!==meta.plugin.version)throw Error('독자 SDK 패키지 식별 정보가 일치하지 않습니다.');
+    if(conversionId(native.id)&&(native.apiVersion!==1||hash(JSON.stringify(native))!==meta.source.candidateSha256))throw Error('Ulanzi 변환 후보 무결성 오류');
+    return {meta,native};
+  }
+  await JSZip.loadAsync(data,{checkCRC32:true});
+  const targetRoot=meta.plugin.id+'.sdPlugin/';
+  const converted=new JSZip();
+  let fileCount=0,total=0;
+  for(const entry of entries){
+    const entryPath=entry.dir&&entry.name.endsWith('/')?entry.name.slice(0,-1):entry.name;
+    if(entry.unsafeOriginalName&&entry.unsafeOriginalName!==entry.name)
+      throw Error('DeckForge 패키지에서 경로 정규화가 필요한 파일을 거부했습니다.');
+    if(!safePart(entryPath)||(entry.unixPermissions&0xf000)===0xa000)
+      throw Error('DeckForge 패키지에 허용되지 않는 경로/심볼릭 링크가 있습니다.');
+    if(entry.dir)continue;
+    if(entry.name==='deckforge-plugin.json')continue;
+    if(!entry.name.startsWith('payload/'))
+      throw Error('DeckForge 패키지에 정의되지 않은 파일이 포함되어 있습니다.');
+    const relative=entry.name.slice('payload/'.length);
+    if(!safePart(relative)||++fileCount>MAX_FILES)
+      throw Error('DeckForge 플러그인 파일 경로나 개수가 허용 범위를 벗어났습니다.');
+    const advertised=Number(entry._data?.uncompressedSize);
+    if(Number.isFinite(advertised)&&advertised>=0&&total+advertised>MAX_EXPANDED)
+      throw Error('DeckForge 패키지 압축 해제 크기 제한 초과');
+    const bytes=await entry.async('nodebuffer');
+    total+=bytes.length;
+    if(total>MAX_EXPANDED)throw Error('DeckForge 패키지 압축 해제 크기 제한 초과');
+    converted.file(targetRoot+relative,bytes);
+  }
+  if(fileCount===0)throw Error('DeckForge 플러그인 실행 파일이 없습니다.');
+  const archive=await converted.generateAsync({type:'nodebuffer',compression:'DEFLATE'});
+  const {parseArchive}=require('./sd-plugin-host.cjs');
+  const parsed=await parseArchive(archive);
+  if(parsed.manifest.UUID!==meta.plugin.id||
+    parsed.manifest.Name!==meta.plugin.name||
+    parsed.manifest.Version!==meta.plugin.version)
+    throw Error('DeckForge 패키지 정보와 내부 SDK 매니페스트가 일치하지 않습니다.');
+  return {meta,archive};
+}
+
+async function packageSdPluginDirectory(folder){
+  const dir=path.resolve(folder),folderName=path.basename(dir);
+  const stat=await fs.lstat(dir);
+  if(!stat.isDirectory()||!folderName.endsWith('.sdPlugin')||
+    !ID.test(folderName.slice(0,-'.sdPlugin'.length)))
+    throw Error('패키징할 *.sdPlugin 폴더를 선택하세요.');
+  const content=new JSZip();
+  const payload=new JSZip();
+  let count=0,total=0,manifestBytes=null;
+  async function walk(current,relative=''){
+    for(const entry of await fs.readdir(current,{withFileTypes:true})){
+      if(entry.isSymbolicLink()||(!entry.isDirectory()&&!entry.isFile()))
+        throw Error('플러그인에 심볼릭 링크나 특수 파일이 포함되어 있습니다.');
+      const name=relative?relative+'/'+entry.name:entry.name;
+      if(!safePart(name)||name.split('/').includes('.git')||entry.name==='.env')
+        throw Error('플러그인 패키징이 허용되지 않는 파일/경로: '+name);
+      if(entry.isDirectory()){await walk(path.join(current,entry.name),name);continue;}
+      if(++count>MAX_FILES)throw Error('플러그인 파일 개수 제한 초과');
+      const itemPath=path.join(current,entry.name);
+      const info=await fs.stat(itemPath);
+      total+=info.size;
+      if(total>MAX_EXPANDED)throw Error('플러그인 크기 제한 초과');
+      const bytes=await fs.readFile(itemPath);
+      if(name==='manifest.json')manifestBytes=bytes;
+      content.file('payload/'+name,bytes);
+      payload.file(folderName+'/'+name,bytes);
+    }
+  }
+  await walk(dir);
+  if(!manifestBytes||manifestBytes.length>32768)
+    throw Error('플러그인 manifest.json이 없거나 너무 큽니다.');
+  const {parseArchive,validateManifest}=require('./sd-plugin-host.cjs');
+  const manifest=validateManifest(JSON.parse(manifestBytes.toString('utf8')));
+  if(folderName!==manifest.UUID+'.sdPlugin')
+    throw Error('플러그인 폴더 이름과 manifest UUID가 일치하지 않습니다.');
+  // The original, trusted SDK validator checks entrypoint and archive contents.
+  await parseArchive(await payload.generateAsync({type:'nodebuffer',compression:'DEFLATE'}));
+  const meta={
+    format:FORMAT,formatVersion:FORMAT_VERSION,
+    plugin:{id:manifest.UUID,name:manifest.Name,version:manifest.Version},
+    source:{kind:'streamdeck',originalId:manifest.UUID},
+    runtime:{type:'streamdeck-sdk',directory:'payload'}
+  };
+  validatePackageManifest(meta);
+  content.file('deckforge-plugin.json',JSON.stringify(meta,null,2));
+  const archive=await content.generateAsync({type:'nodebuffer',compression:'DEFLATE'});
+  if(archive.length>MAX_ARCHIVE)throw Error('DeckForge 패키지 크기 제한 40MB 초과');
+  await parseDeckForgePackage(archive);
+  const filename=safeName(manifest.Name)+'-'+safeName(manifest.Version)+'.deckforgePlugin';
+  return {archive,meta,filename};
+}
+
+// Authoring SDK: build a native manifest, not an original Ulanzi archive.
+// The same installer parser validates the resulting archive before publication.
+async function packageNativeManifest(manifest,source={kind:'deckforge'}){
+  const native=validateNativeManifest(manifest);
+  const bytes=Buffer.from(JSON.stringify(native,null,2),'utf8');
+  if(bytes.length>NATIVE_LIMIT)throw Error('독자 SDK 프로그램 크기 제한');
+  const meta={format:FORMAT,formatVersion:2,
+    plugin:{id:native.id,name:native.name,version:native.version},
+    source,runtime:{type:'deckforge-sdk',directory:'payload',apiVersion:native.apiVersion}};
+  validatePackageManifest(meta);
+  const zip=new JSZip();
+  zip.file('deckforge-plugin.json',JSON.stringify(meta,null,2));
+  zip.file('payload/native.json',bytes);
+  const archive=await zip.generateAsync({type:'nodebuffer',compression:'DEFLATE'});
+  await parseDeckForgePackage(archive);
+  return {archive,meta,filename:safeName(native.id)+'-'+safeName(native.version)+'.deckforgePlugin'};
+}
+module.exports={FORMAT,FORMAT_VERSION,validatePackageManifest,parseDeckForgePackage,packageSdPluginDirectory,packageNativeManifest};

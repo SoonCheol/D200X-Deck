@@ -79,7 +79,7 @@
       addItem('와이드 키 설정', () => renderInspector());
     } else if (!assigned) {
       addItem('폴더 생성', () => addSubpage(page));
-      addItem('다중 동작 생성', () => assign('multi', { mode: 'sequence', steps: [] }), pinned);
+      addItem('순차 동작 생성', () => assign('multi', { mode: 'sequence', steps: [] }), pinned);
       addItem('동작 전환 생성', () => assign('toggle'), pinned);
       separator();
       addItem('복사', copySelectedKey, !key);
