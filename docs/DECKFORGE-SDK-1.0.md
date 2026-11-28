@@ -19,7 +19,14 @@ DeckForge는 개인용 편집기로서 Ulanzi Studio의 UI·기능 제한을 극
 - 플러그인당 작업 1개·전체 8개 동시, context/설정 변경·절전·종료/철회 시 직접 child 취소 및 늦은 결과 폐기, 실패 재실행 없음. 신뢰 코드의 파일·프로세스·네트워크 접근은 샌드박스가 아니며 하위 프로세스 트리나 이미 실행된 외부 부수 효과의 취소를 보장하지 않는다. 지속 프로세스/Windows Job Object 검토 후속. stdout은 결과 전용, console 로그는 stderr로 분리하고 일반 로그에 원문 미출력.
 - 독립 Linux Node 22 시험에서 파일·로컬 모듈·하위 프로세스·결과·timeout·abort·크기 제한 및 모의 vault 승인 상태 통과. 전체 Windows/실제 COM·PowerShell·Electron/실기 검증은 별도. 기존 API 1/2 플러그인 데이터와 실행 계약 유지.
 
-## JavaScript API 27개 (API 2, 1.0 기준선 19개 + 확장 8개)
+## 독자 사용자 정의 창 (2.0.149 후보)
+
+- API 2 선택 권한 `view.open`과 `views:{id:{title,mode,html,width?,height?}}` (최대 16개, 각 HTML 64KiB, mode `window` 또는 `modal`, 기본 560×480, 너비 320–1600/높이 220–1200) 선언. `api.openView(id,input={})`는 등록된 창을 입력 이벤트에서 요청. HTML/CSS/JavaScript를 별도 Electron renderer에 표시한다. 모달은 편집기 부모 창, 일반 창은 독립. 플러그인당 1개·전체 8개 활성; 동일 context의 기존 창은 활성화, 중복 요청은 busy.
+- 전용 preload `window.deckforgeView.getInput()`, `.submit(object)`, `.close()` 제공. 입력/결과 JSON 객체 8KiB, 소유 webContents와 mainFrame 검사, editor bridge/Node 접근 없음. inline HTML/CSS/JS, data 이미지 허용. 외부 네트워크·탐색·팝업·파일 접근은 이 UI 경로에서 미지원; 운영체제 기능은 기존 승인 Node 경로. 원본 UI 리소스/별도 파일/지속 양방향 메시지 및 속성창 직접 연결은 후속.
+- `event.type==='viewResult'`, `event.response={view,status,value?}`. submitted/closed/busy/unavailable/error 결과, context/설정 변경·절전/종료 시 취소 및 늦은 결과 폐기. submitted 결과에 한해 별도 settings.write 권한으로 기존 receipt 저장 경로 사용 가능; 자동 외부 효과 및 창 재호출 금지. 기존 API 1/2·외부 속성창 유지.
+- Windows 2.0.148 #152에서 PowerShell/COM·27개 API 통과 로그 확인. 2.0.149의 실제 Electron 창 입력/결과/모달/취소 및 28개 API 테스트는 추가했고 실행 결과 별도 확인.
+
+## JavaScript API 28개 (API 2, 1.0 기준선 19개 + 확장 9개)
 
 | 함수 | 권한 | 계약 |
 |---|---|---|
@@ -50,6 +57,7 @@ DeckForge는 개인용 편집기로서 Ulanzi Studio의 UI·기능 제한을 극
 | publishSharedState(object) | background.run | 전역 서비스만 상태 발행 |
 | sendServiceMessage(object) | background.run | 입력 이벤트에서 같은 플러그인의 서비스에 메시지 전송 |
 | runNode(id,input={}) | node.run | 승인된 manifest Node 작업 별도 프로세스 실행, nodeResult |
+| openView(id,input={}) | view.open | 사용자 정의 독립 창/모달 표시, viewResult |
 
 함수는 동기적으로 명령을 제출한다. 반환값은 저장/실행 성공이 아니다. display 및 읽기 외 부수 효과는 입력 이벤트당 한 개, 예외적으로 승인 GET polling을 허용한다. API 1은 별도 선언형 6개 op(title/titleFromSetting/state/stateFromSetting/toggleState/image) 유지.
 

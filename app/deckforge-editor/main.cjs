@@ -183,7 +183,7 @@ const pluginAudit=require('./plugin-audit.cjs').createPluginAudit({userData:app.
 function sdk(){
   if(!sdkHost){
     const userData=app.getPath('userData'),update=payload=>send('d200x:sdk-event',payload);
-    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href),nodeApprove:approveNodePlugin}));
+    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href),nodeApprove:approveNodePlugin,viewManager:new (require('./deckforge-native-view.cjs').NativeViewManager)(()=>window)}));
   }
   return sdkHost;
 }
@@ -512,7 +512,7 @@ ipcMain.on('d200x:fusion-panel-bounds',(event,rect)=>{
 
 async function installNativePackage(packageData,audit,{forceConfirm=false,requireUpdate=false,source='',beforeExecute}={}){
       const native=packageData.native;audit.identify(native);
-      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','wide.overlay':'와이드 화면 임시 이미지·레이아웃 표시','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기','network.request':'승인된 HTTPS 주소로 네트워크 요청','timer.tick':'활성 화면에서 주기적 표시 갱신','network.poll':'승인된 HTTPS GET 주소 주기적 조회','network.websocket':'승인된 WSS 실시간 연결 및 메시지 송수신','background.run':'페이지와 무관하게 독립 서비스 실행 및 상태 공유','browser.open':'버튼을 눌렀을 때 기본 브라우저에서 HTTP/HTTPS 주소 열기','node.run':'Node.js 운영체제 접근 (파일·외부 라이브러리·프로세스·네트워크; 최초 실행 승인 필요)'};
+      const labels={'settings.write':'현재 버튼 설정 저장','navigation':'프로필·페이지·덱폴더 이동','wide.mode':'와이드 화면 모드 전환','wide.overlay':'와이드 화면 임시 이미지·레이아웃 표시','global.settings':'플러그인 전역 암호화 설정 읽기·쓰기','network.request':'승인된 HTTPS 주소로 네트워크 요청','timer.tick':'활성 화면에서 주기적 표시 갱신','network.poll':'승인된 HTTPS GET 주소 주기적 조회','network.websocket':'승인된 WSS 실시간 연결 및 메시지 송수신','background.run':'페이지와 무관하게 독립 서비스 실행 및 상태 공유','browser.open':'버튼을 눌렀을 때 기본 브라우저에서 HTTP/HTTPS 주소 열기','node.run':'Node.js 운영체제 접근 (파일·외부 라이브러리·프로세스·네트워크; 최초 실행 승인 필요)','view.open':'플러그인 독립 창 또는 모달 표시 및 사용자 입력 반환'};
       const plan=await sdk().planNativeInstall(native);if(requireUpdate&&plan.kind!=='update')throw Error('최신 버전 업데이트만 허용됩니다.');audit.identify(plan);audit.operation(plan.kind);audit.stage('confirm');
       const extra=native.permissions.filter(p=>p!=='display');
       const dependencies=Object.entries(native.dependencies||{}).map(([id,range])=>id+' '+range);

@@ -96,12 +96,12 @@ async function verifyVectorRendering(){
 async function verifyPublicApi(runner){
   const {NativePluginHost,validateNativeManifest}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
   const id='com.deckforge.native.api-contract';
-  const permissions=['display','settings.write','global.settings','navigation','wide.mode','wide.overlay','network.request','network.websocket','background.run','browser.open','node.run'];
+  const permissions=['display','settings.write','global.settings','navigation','wide.mode','wide.overlay','network.request','network.websocket','background.run','browser.open','node.run','view.open'];
   const endpoints=[{id:'status',url:'https://example.com/status',method:'GET'},{id:'live',url:'wss://example.com/events',method:'WSS'},{id:'entity',url:'https://example.com/entities/',method:'PATCH',pathKeys:['id'],queryKeys:['view'],headerKeys:['if-match']}];
   const action={id:id+'.key',name:'Contract',controllers:['Keypad'],states:2,script:'api.setTitle("contract");'};
-  const manifest=validateNativeManifest({apiVersion:2,id,name:'Contract',version:'1.0.0',permissions,networkEndpoints:endpoints,service:{script:'void 0;'},nodeTasks:{test:{source:'return input;'}},actions:[action]});
+  const manifest=validateNativeManifest({apiVersion:2,id,name:'Contract',version:'1.0.0',permissions,networkEndpoints:endpoints,service:{script:'void 0;'},nodeTasks:{test:{source:'return input;'}},views:{form:{title:'Form',mode:'window',html:'<p>Form</p>'}},actions:[action]});
   const host=new NativePluginHost('/unused');
-  const ctx={slot:0,pluginUUID:id,action,permissions,networkEndpoints:endpoints,nodeManifest:manifest,settings:{count:1,keep:true}};
+  const ctx={slot:0,pluginUUID:id,action,permissions,networkEndpoints:endpoints,nodeManifest:manifest,viewManifest:manifest,settings:{count:1,keep:true}};
   const gif='data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
   const png='data:image/png;base64,'+require('../app/deckforge-editor/ulanzi-media-analysis.cjs').gifPngFrames(Buffer.from(gif.slice(22),'base64')).frames[0].png.toString('base64');
   const frame={kind:'layout',background:'#000000',elements:[]};
@@ -124,6 +124,7 @@ async function verifyPublicApi(runner){
     ['setWideMode','api.setWideMode("clock")','wideMode','wide.mode'],
     ['openUrl','api.openUrl("https://example.com/build/123")','openUrl','browser.open'],
     ['runNode','api.runNode("test",{n:1})','runNode','node.run'],
+    ['openView','api.openView("form",{n:1})','openView','view.open'],
     ['setWideOverlay','api.setWideOverlay('+JSON.stringify(frame)+')','wideOverlay','wide.overlay'],
     ['clearWideOverlay','api.clearWideOverlay()','wideOverlay','wide.overlay'],
     ['request','api.request("status")','networkRequest','network.request'],
@@ -158,8 +159,56 @@ async function verifyPublicApi(runner){
     }
     const extended=await runner.run('api.request("entity",{state:1},{view:"full"},{path:{id:"light"},headers:{"if-match":"rev"}});',input);
     assert.deepEqual(host.validateScriptOps(ctx,'press',extended.ops).effects,[{op:'networkRequest',endpoint:'entity',body:{state:1},query:{view:'full'},options:{path:{id:'light'},headers:{'if-match':'rev'}}}]);
-    console.log('DeckForge native SDK 27-function renderer/host contract passed (browser and Node effects gated)');
+    console.log('DeckForge native SDK 28-function renderer/host contract passed (browser, Node and view effects gated)');
   }finally{host.close();}
+}
+
+
+async function verifyNativeViews(){
+ const {BrowserWindow}=require('electron');
+ const {NativeViewManager}=require('../app/deckforge-editor/deckforge-native-view.cjs');
+ const {NativePluginHost,validateNativeManifest}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+ const parent=new BrowserWindow({show:false});
+ const manager=new NativeViewManager(()=>parent,{visible:false});
+ const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-native-view-'));
+ const id='com.deckforge.native.view-test',updates=[];
+ const html='<style>input{color:rgb(12,34,56)}</style><input id="name"><script>window.ready=typeof deckforgeView==="object";</script>';
+ const manifest=validateNativeManifest({apiVersion:2,id,name:'View test',version:'1.0.0',permissions:['display','view.open'],
+   views:{form:{title:'Form',mode:'window',width:440,height:360,html},modal:{title:'Modal',mode:'modal',html}},
+   actions:[{id:id+'.key',name:'View',controllers:['Keypad'],states:1,script:"if(event.type==='press')api.openView('form',{label:'입력'});if(event.type==='viewResult')api.setTitle(event.response.status==='submitted'?event.response.value.label:event.response.status);"}]});
+ const host=new NativePluginHost(root,e=>updates.push(e),null,{viewManager:manager});
+ const cfg={context:'view-1',slot:0,pluginUUID:id,actionUUID:manifest.actions[0].id,settings:{}};
+ const until=async predicate=>{
+   const deadline=Date.now()+10000;
+   while(!predicate()&&Date.now()<deadline)await new Promise(r=>setTimeout(r,20));
+   assert.ok(predicate(),'native view did not complete');
+ };
+ try{
+   host.sync([cfg],[manifest]);await host.contexts.get(cfg.context).queue;
+   assert.equal(host.key(cfg.context,'down'),true);await host.contexts.get(cfg.context).queue;
+   await until(()=>manager.records.size===1);
+   const record=[...manager.records.values()][0],wc=record.win.webContents;
+   const state=await wc.executeJavaScript('(async()=>({ready:window.ready,input:await deckforgeView.getInput(),node:typeof require,editor:typeof deckBridge,css:getComputedStyle(document.querySelector("#name")).color}))()');
+   assert.deepEqual(state,{ready:true,input:{label:'입력'},node:'undefined',editor:'undefined',css:'rgb(12, 34, 56)'});
+   assert.equal(record.win.isModal(),false);
+   assert.equal((await manager.open(record.ctx,{op:'openView',view:'form',input:{}},()=>true)).status,'busy');
+   await wc.executeJavaScript("deckforgeView.submit({label:'완료'}).catch(()=>{}); true").catch(()=>{});
+   await until(()=>updates.some(e=>e.kind==='setTitle'&&e.payload?.title==='완료'));
+   assert.equal(manager.records.size,0);
+   const ctx=host.contexts.get(cfg.context);
+   const modal=manager.open(ctx,{op:'openView',view:'modal',input:{n:1}},()=>true);
+   await until(()=>manager.records.size===1);
+   const modalRecord=[...manager.records.values()][0];
+   assert.equal(modalRecord.win.isModal(),true);
+   assert.equal(modalRecord.win.getParentWindow(),parent);
+   assert.deepEqual(await modalRecord.win.webContents.executeJavaScript('deckforgeView.getInput()'),{n:1});
+   modalRecord.win.close();assert.deepEqual(await modal,{status:'closed'});
+   host.key(cfg.context,'up');await ctx.queue;
+   host.key(cfg.context,'down');await ctx.queue;await until(()=>manager.records.size===1);
+   host.sync([],[manifest]);await until(()=>manager.records.size===0);
+   assert.equal(updates.filter(e=>e.kind==='setTitle'&&e.payload?.title==='완료').length,1);
+   console.log('DeckForge native custom view Electron round trip, modal and cancellation passed');
+ }finally{host.close();if(!parent.isDestroyed())parent.destroy();await fs.rm(root,{recursive:true,force:true});}
 }
 
 async function verifyHomeAssistant(runner){
@@ -931,6 +980,7 @@ app.whenReady().then(async()=>{
     await verifyTrustedDrawOps(b);
     await verifyModel2SerializationBoundary();
     await verifyPublicApi(b);
+    await verifyNativeViews();
     await verifyHomeAssistant(b);
     await verifyHaBurst();
     await verifyWindowsEncryption();

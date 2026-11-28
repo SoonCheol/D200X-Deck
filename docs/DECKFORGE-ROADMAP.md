@@ -6,8 +6,8 @@
 1. 개발 지침 및 SDK 설계 기준 갱신 — 본 문서 변경으로 완료(코드 변경 없음).
 2. 기존 SDK 제한 정밀 점검 — [소스 기반 점검](DECKFORGE-SDK-EXPANSION-AUDIT.md), 1차 실행 경계 확인; 전체 API 대응·추가 테스트 경로 검토 병행.
 3. Ulanzi·Elgato 공식 SDK 기능별 1차 비교 기록 완료; 세부 API/실제 패키지 추가 검토.
-4. Node.js·PowerShell·COM·파일 접근·외부 라이브러리 지원 — 2.0.146 공통 Node launcher Windows 성공, 2.0.147 신뢰 Node 작업/최초 승인/결과/권한 관리 구현. Windows/COM/PowerShell 실측 및 원본 의존성·지속 서비스 후속.
-5. 독립 창·모달·사용자 정의 UI 지원.
+4. Node.js·PowerShell·COM·파일 접근·외부 라이브러리 지원 — 2.0.146 공통 Node launcher Windows 성공, 2.0.147 신뢰 Node 작업/최초 승인/결과/권한 관리 구현. 2.0.148 Windows #152에서 실제 PowerShell/COM 통과; Excel 실기·원본 의존성·지속 서비스/하위 프로세스 수명 후속.
+5. 독립 창·모달·사용자 정의 UI 지원 — 2.0.149 독자 HTML/CSS/JS 창 및 모달/입력·결과 구현, Windows Electron 검증 대기. 원본 UI 자산/속성창 직접 연결·지속 통신 후속.
 6. Elgato 원본 플러그인 호환 개선.
 7. Ulanzi 원본 실행 호환 엔진 개발(변환은 보조, PrivateAPI 기능별 판단).
 8. 독자 SDK 개발 도구 및 디버깅 개선.

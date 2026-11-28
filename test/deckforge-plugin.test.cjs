@@ -3625,3 +3625,24 @@ test('approved native Node task reaches button result; Windows executes actual P
     assert.equal(results[2].status,'denied');assert.equal(prompts,1);
   }finally{host?.close();await fs.rm(temp,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
 });
+
+test('native custom view package requires declared permission and validates input and result effect',async()=>{
+  const m={...scriptManifest,permissions:['display','view.open','settings.write'],views:{form:{title:'Form',mode:'modal',html:'<input>',width:500,height:360}}};
+  validateNativeManifest(m);
+  assert.deepEqual((await parseDeckForgePackage(await nativeArchive(m))).native,m);
+  assert.throws(()=>validateNativeManifest({...m,permissions:['display']}),/views requires/);
+  assert.throws(()=>validateNativeManifest({...m,views:{form:{...m.views.form,mode:'invalid'}}}),/invalid native view/);
+  const host=new NativePluginHost('/unused',()=>{},()=>({close(){}}));
+  const ctx={pluginUUID:m.id,slot:0,action:m.actions[0],permissions:m.permissions,viewManifest:m,settings:{old:true}};
+  const op={op:'openView',view:'form',input:{n:1}};
+  try{
+    assert.deepEqual(host.validateScriptOps(ctx,'press',[op]).effects,[op]);
+    assert.throws(()=>host.validateScriptOps(ctx,'appear',[op]),/input event/);
+    assert.throws(()=>host.validateScriptOps(ctx,'press',[{...op,view:'constructor'}]),/unknown native view/);
+    assert.throws(()=>host.validateScriptOps(ctx,'press',[{...op,input:{text:'x'.repeat(9000)}}]),/invalid global settings/);
+    const patch={op:'settingsPatch',value:{n:2}};
+    assert.deepEqual(host.validateScriptOps(ctx,'viewResult',[patch],{status:'submitted'}).effects,[{op:'settings',value:{old:true,n:2}}]);
+    assert.throws(()=>host.validateScriptOps(ctx,'viewResult',[patch],{status:'closed'}),/input event/);
+    assert.throws(()=>host.validateScriptOps(ctx,'viewResult',[op],{status:'submitted'}),/input event/);
+  }finally{host.close();}
+});
