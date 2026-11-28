@@ -3673,3 +3673,27 @@ test('custom property view edits an unmounted draft and preserves existing setti
     await assert.rejects(router.customSettings(m.id,m.actions[0].id,original),/invalid global settings/);
   }finally{await router.close();await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('DeckForge SDK CLI creates, validates and inspects native manifest without executing code',async()=>{
+  const {validateFile,inspectFile,initManifest,packageFile}=require('../app/deckforge-editor/deckforge-sdk-cli.cjs');
+  const {spawnSync}=require('node:child_process');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-cli-authoring-'));
+  const id='com.deckforge.native.example.authoring';
+  try{
+    const file=await initManifest(id,root);
+    assert.equal((await validateFile(file)).id,id);
+    const info=await inspectFile(file);assert.deepEqual(info.permissions,['display']);assert.equal(info.actions.length,1);assert.equal(info.actions[0].states,1);
+    await assert.rejects(initManifest(id,root),/EEXIST/);
+    await assert.rejects(initManifest('../escape',root),/plugin ID/);
+    await assert.rejects(initManifest('com.deckforge.native.ulanzi-test',root),/plugin ID/);
+    const m=JSON.parse(await fs.readFile(file,'utf8'));m.actions[0].script="throw Error('must not execute');";
+    await fs.writeFile(file,JSON.stringify(m));assert.equal((await validateFile(file)).valid,true);assert.ok(!(JSON.stringify(await inspectFile(file))).includes('must not execute'));
+    const cli=path.resolve(__dirname,'../app/deckforge-editor/deckforge-sdk-cli.cjs');
+    const result=spawnSync(process.execPath,[cli,'inspect',file],{encoding:'utf8',timeout:30000});
+    assert.equal(result.status,0,result.stderr);assert.equal(JSON.parse(result.stdout).id,id);
+    m.actions[0].script='if (';await fs.writeFile(file,JSON.stringify(m));await assert.rejects(validateFile(file),/syntax/);
+    const bad=spawnSync(process.execPath,[cli,'validate',file],{encoding:'utf8',timeout:30000});assert.equal(bad.status,1);
+    assert.equal(spawnSync(process.execPath,[cli,'unknown'],{encoding:'utf8',timeout:30000}).status,2);
+    m.actions[0].script="api.setTitle('Hello');";await fs.writeFile(file,JSON.stringify(m));assert.ok((await packageFile(file,root)).endsWith('.deckforgePlugin'));
+  }finally{await fs.rm(root,{recursive:true,force:true});}
+});
