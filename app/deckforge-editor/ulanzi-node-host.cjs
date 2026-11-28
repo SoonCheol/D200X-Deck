@@ -28,7 +28,7 @@ function validateOriginalNodeManifest(m){
 }
 class UlanziNodeHost{
   constructor(directory,onUpdate=()=>{}){
-    this.directory=directory;this.onUpdate=onUpdate;this.mounts=new Map();this.socket=null;this.server=null;this.child=null;this.closed=false;this.started=false;this.mainWindow=null;this.inspectors=new Map();this.visuals=new Map();this.globalSettings={};this.globalWrite=null;this.globalQueue=Promise.resolve();this.views=new Set();this.pickerBusy=false;
+    this.directory=directory;this.onUpdate=onUpdate;this.mounts=new Map();this.socket=null;this.server=null;this.child=null;this.closed=false;this.started=false;this.mainWindow=null;this.inspectors=new Map();this.visuals=new Map();this.feedback=new Map();this.globalSettings={};this.globalWrite=null;this.globalQueue=Promise.resolve();this.views=new Set();this.pickerBusy=false;
     this.animations=new NativeAnimationPlayer((id,image)=>{const ctx=[...this.mounts.values()].find(c=>c.actionid===id);if(ctx&&!this.closed)this.emit({kind:'setImage',context:ctx.context,payload:{image,clear:true}});});this.getParent=()=>null;
     this.pickDialog=(parent,options)=>require('electron').dialog.showOpenDialog(parent,options);
     this.makeView=(entry,options)=>require('./ulanzi-original-window.cjs').createOriginalWindow(this.directory,entry,options);
@@ -139,7 +139,7 @@ class UlanziNodeHost{
       const same=old&&['actionUUID','slot','gesture','instanceId','mountGeneration'].every(k=>old[k]===cfg[k]);
       desired.set(cfg.context,{...cfg,settings,key:same?old.key:cfg.slot>=16?'dial_'+(cfg.slot-16):cfg.slot%4+'_'+Math.floor(cfg.slot/4),actionid:same?old.actionid:randomUUID()});
     }
-    for(const [id,old] of this.mounts)if(desired.get(id)?.actionid!==old.actionid){this.closeInspector(id);this.closeViews(r=>r.context===id);this.animations.stop(old.actionid);this.visuals.delete(old.actionid);this.send({cmd:'clear',param:[this.address(old)]});}
+    for(const [id,old] of this.mounts)if(desired.get(id)?.actionid!==old.actionid){this.closeInspector(id);this.closeViews(r=>r.context===id);this.animations.stop(old.actionid);this.visuals.delete(old.actionid);this.feedback.delete(old.actionid);this.send({cmd:'clear',param:[this.address(old)]});}
     const previous=this.mounts;this.mounts=desired;
     for(const [id,ctx] of desired){
       const old=previous.get(id);
@@ -258,6 +258,23 @@ class UlanziNodeHost{
         const action=this.manifest.Actions.find(a=>a.UUID===ctx.actionUUID);
         try{const next=applyImage(this.directory,action,this.visual(ctx),address);this.displayImage(ctx,next);this.visuals.set(ctx.actionid,next);}catch{ack(1);return;}break;
       }
+      case 'setFeedbackLayout':{
+        if(ctx.slot<16||ctx.slot>18||msg.layout!=='$UA1'){ack(1);return;}
+        const next={layout:msg.layout};this.feedback.set(ctx.actionid,next);
+        this.emit({kind:'ulanziFeedback',context:ctx.context,payload:{...next}});break;
+      }
+      case 'setFeedback':{
+        if(ctx.slot<16||ctx.slot>18||!object(msg.layout)){ack(1);return;}
+        const prior=this.feedback.get(ctx.actionid)||{layout:'$UA1'},next={...prior};
+        for(const [key,value] of Object.entries(msg.layout)){
+          if(key==='title'&&object(value)&&typeof value.text==='string'&&value.text.length<=256)next.title=value.text;
+          else if(key==='icon'&&object(value)&&typeof value.value==='string'){
+            if(value.value==='')delete next.icon;
+            else {const image=pathImage(this.directory,value.value)||base64Image(value.value);if(!image||image.startsWith('data:image/gif;')){ack(1);return;}next.icon=image;}
+          }else {ack(1);return;}
+        }
+        this.feedback.set(ctx.actionid,next);this.emit({kind:'ulanziFeedback',context:ctx.context,payload:{...next}});break;
+      }
       case 'getSettings':
         this.send({cmd:'didReceiveSettings',...this.address(ctx),settings:ctx.settings},ws);return;
       case 'setSettings':case 'paramfromplugin':
@@ -281,7 +298,7 @@ class UlanziNodeHost{
   async close(){
     if(this.closed)return;this.closed=true;
     for(const ctx of this.mounts.values())this.send({cmd:'clear',param:[this.address(ctx)]});
-    this.mounts.clear();this.visuals.clear();this.animations.close();this.closeViews();await this.globalQueue;for(const context of [...this.inspectors.keys()])this.closeInspector(context);
+    this.mounts.clear();this.visuals.clear();this.feedback.clear();this.animations.close();this.closeViews();await this.globalQueue;for(const context of [...this.inspectors.keys()])this.closeInspector(context);
     if(this.mainWindow&&!this.mainWindow.isDestroyed())this.mainWindow.destroy();this.mainWindow=null;
     const child=this.child;this.child=null;
     if(child&&child.exitCode===null&&child.signalCode===null){

@@ -69,6 +69,12 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - GIF legacy state type 3/4 및 V3.1 이미지에 기존 NativeAnimationPlayer를 재사용. 검증된 GIF 32프레임/최대 144px/256KiB, 정상 키만, 500ms 최소 프레임 간격, 호스트별 기존 재생 예산. PNG 프레임 전달/대상 슬롯 갱신, 상태 변경·정적 이미지·context 해제/종료 시 정리. 실제 하드웨어 프레임 속도 미검증.
 - fixture JPEG/WebP/GIF 검사·GIF 프레임 전환·정지/해제, Electron Chromium 디코드 시험 추가. 노브 feedback은 와이드 표시 매핑 확인 후 구현.
 
+## Ulanzi 노브 피드백 (2.0.162 후보)
+
+- 공식 SDK setFeedbackLayout(context,'$UA1') 및 setFeedback(context,{title:{text},icon:{value}})를 현재 활성 Encoder context에만 지원. title/icon 부분 업데이트 및 icon 빈 문자열 제거. 기존 이미지 검증 경로 재사용, GIF 피드백 미지원. 다른 레이아웃/그래프/기타 속성은 오류 응답.
+- D200X 와이드의 기존 노브 정보 모드에만 현재 노브별 최근 feedback을 제목과 하단 30px 이내 아이콘으로 투영. 기본 노브 이름/held 설명 보존, 피드백 없는 노브 및 시계/날짜/시스템 모드/독자 SDK overlay 유지. 설정·프로필에 저장하지 않고 context 제거/권한 철회/소켓 종료 시 폐기. 실제 장치 표시 검증 별도.
+- 공식 SDK README https://github.com/UlanziTechnology/plugin-common-node/blob/main/README.md . 호스트/gesture 소유권/부분 갱신/경로 검증/노브별 격리 시험 추가, 자동 검증 대기.
+
 ## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.

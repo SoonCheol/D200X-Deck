@@ -338,7 +338,7 @@
       wideNotice:item.wideNotice===true,wideOverlay:item.wideOverlay?JSON.parse(JSON.stringify(item.wideOverlay)):undefined}:null;
     const pressed=Boolean(item&&(keyPressed(index)||previewPressed||item.previewPressed===true)&&!item.keyPressAlternate);
     const time=wideMode==='clock'?Math.floor(Date.now()/1000)*1000:wideMode==='datetime'?Math.floor(Date.now()/60000)*60000:0;
-    const knobs=wideMode==='knobs'?(window.D200XKnobInfo?.()||[]).map(k=>({name:k.name,title:k.title,detail:k.detail})):null;
+    const knobs=wideMode==='knobs'?(window.D200XKnobInfo?.()||[]).map(k=>({name:k.name,title:k.title,detail:k.detail,icon:k.icon})):null;
     return {version:1,fontEpoch,wide,visual,pressed,panelArtwork,fallback:item?ACTIONS.get(item.type)?.icon||'•':'•',wideMode,time,knobs};
   }
   function prepareDeckKeyImage(item,index,previewPressed=false){
@@ -367,7 +367,18 @@
     if(item?.type==='wide-display'){
       // The custom knobs screen is rendered as PNG; the device-native mode must stay blank.
       if(item.wideNotice||!item.wideOverlay||!await drawNativeWide(ctx,item.wideOverlay))
+      {
         drawWidePanel(ctx,width,height,wideMode,new Date(time),knobs);
+        if(wideMode==='knobs'&&!item.wideNotice){
+          for(const [i,knob] of (knobs||[]).slice(0,3).entries()){
+            if(!knob.icon)continue;
+            const icon=await imageLoaded(knob.icon);
+            if(!icon||!icon.width||!icon.height)continue;
+            const ratio=Math.min(30/icon.width,30/icon.height),w=icon.width*ratio,h=icon.height*ratio;
+            ctx.drawImage(icon,65+i*131-w/2,162-h/2,w,h);
+          }
+        }
+      }
       return canvas.toDataURL('image/png').split(',')[1];
     }
     if (item) {

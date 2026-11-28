@@ -920,3 +920,40 @@ test('Ulanzi original JPEG WebP and GIF playback reuse bounded bitmap pipeline',
     assert.equal(host.animations.entries.size,1);host.sync([]);assert.equal(host.animations.entries.size,0);
   }finally{host.socket=null;await host.close();await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('Ulanzi encoder feedback maps current $UA1 title and icon to only its own knob column',async()=>{
+  const {UlanziNodeHost}=require('../app/deckforge-editor/ulanzi-node-host.cjs');
+  const core=require('../app/deckforge-editor/deck-core.js');
+  const {crc32,deflateSync}=require('node:zlib');
+  const chunk=(type,data)=>{const h=Buffer.alloc(8);h.writeUInt32BE(data.length);h.write(type,4);const c=Buffer.alloc(4);c.writeUInt32BE(crc32(Buffer.concat([h.subarray(4),data])));return Buffer.concat([h,data,c]);};
+  const hdr=Buffer.alloc(13);hdr.writeUInt32BE(1,0);hdr.writeUInt32BE(1,4);hdr[8]=8;hdr[9]=6;
+  const png=Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',hdr),chunk('IDAT',deflateSync(Buffer.from([0,50,60,70,255]))),chunk('IEND',Buffer.alloc(0))]);
+  const icon='data:image/png;base64,'+png.toString('base64');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-ulanzi-feedback-'));
+  const id='com.ulanzi.ulanzistudio.feedbackfixture',action=id+'.dial',key=id+'.key',updates=[],sent=[];
+  const host=new UlanziNodeHost(root,e=>updates.push(e)),ws={readyState:1,send:raw=>sent.push(JSON.parse(raw))};
+  const mounts=[{context:'first',slot:16,gesture:'left',pluginUUID:id,actionUUID:action,settings:{}},{context:'second',slot:16,gesture:'right',pluginUUID:id,actionUUID:action,settings:{}},{context:'key',slot:0,pluginUUID:id,actionUUID:key,settings:{}}];
+  try{
+    await fs.writeFile(path.join(root,'icon.png'),png);
+    host.manifest={UUID:id,Actions:[{UUID:action,Name:'Dial',Controllers:['Encoder']},{UUID:key,Name:'Key'}]};host.socket=ws;
+    host.sync(mounts);
+    const send=(context,cmd,layout)=>host.receive({cmd,...host.address(host.mounts.get(context)),layout},ws);
+    send('first','setFeedbackLayout','$UA1');
+    send('first','setFeedback',{title:{text:'Ready'},icon:{value:'icon.png'}});
+    assert.deepEqual(updates.at(-1).payload,{layout:'$UA1',title:'Ready',icon});
+    send('first','setFeedback',{title:{text:'45%'}});
+    assert.deepEqual(updates.at(-1).payload,{layout:'$UA1',title:'45%',icon});
+    send('first','setFeedbackLayout','custom-layout.json');assert.equal(sent.at(-1).code,1);
+    send('key','setFeedback',{title:{text:'Denied'}});assert.equal(sent.at(-1).code,1);
+    send('first','setFeedback',{icon:{value:'../outside.png'}});assert.equal(sent.at(-1).code,1);
+    send('second','setFeedback',{title:{text:'Second'}});
+    const visuals=new Map();let sequence=0;
+    for(const e of updates.filter(e=>e.kind==='ulanziFeedback'))visuals.set(e.context,{feedback:{...e.payload,sequence:++sequence}});
+    const plugins=[{uuid:id,runtime:'ulanzi-original'}];
+    assert.deepEqual(core.originalKnobFeedback(16,mounts,visuals,plugins),{title:'Second'});
+    assert.equal(core.originalKnobFeedback(17,mounts,visuals,plugins),null);
+    assert.deepEqual(core.originalKnobFeedback(16,mounts.filter(m=>m.context!=='second'),visuals,plugins),{title:'45%',icon});
+    assert.equal(core.originalKnobFeedback(16,[],visuals,plugins),null);
+    host.sync([]);assert.equal(host.feedback.size,0);
+  }finally{host.socket=null;await host.close();await fs.rm(root,{recursive:true,force:true});}
+});

@@ -943,9 +943,19 @@ function wideKnobLabels(binding,position){
   }
   return {title,detail:unique(held)};
 }
-window.D200XKnobInfo=()=>[16,17,18].map((index,i)=>({
-  name:'노브 '+(i+1),...wideKnobLabels(DeckCore.controlBinding(state,index),stackPositions[i])
-}));
+let originalFeedbackSequence=0;
+window.D200XKnobInfo=()=>{
+  const mounts=sdkActionInstances();
+  return [16,17,18].map((index,i)=>({
+    name:'노브 '+(i+1),...wideKnobLabels(DeckCore.controlBinding(state,index),stackPositions[i]),
+    ...DeckCore.originalKnobFeedback(index,mounts,sdkVisuals,sdkPlugins)
+  }));
+};
+function refreshOriginalKnobFeedback(){
+  if(wideDisplayAvailable()&&state.wideDisplay?.current==='knobs'&&!activeNativeWide()){
+    renderGrid([13]);window.scheduleDeckSync?.(0);
+  }
+}
 window.renderGridWideClock=()=>{if(wideDisplayAvailable())renderGrid([13]);};
 window.getD200XWideMode=()=>wideDisplayAvailable()&&!activeNativeWide()
   ?(state.wideDisplay?.current==='clock'?'clock':state.wideDisplay?.current==='stats'?'stats':'blank'):'blank';
@@ -9106,7 +9116,20 @@ function applyNativeSdkEffect(message){
 if(window.deckBridge?.onSdkEvent){
   window.deckBridge.onSdkEvent(message=>{
     const ctx=message?.context;
-    if(message.kind==='nativeWideReleased'){
+    if(message.kind==='ulanziFeedback'){
+      const active=sdkActionInstances().find(x=>x.context===ctx&&x.slot>=16&&x.slot<=18);
+      if(!active||!sdkPlugins.some(p=>p.uuid===active.pluginUUID&&p.runtime==='ulanzi-original'))return;
+      const value=message.payload;
+      if(value?.layout!=='$UA1')return;
+      const feedback={layout:value.layout,sequence:++originalFeedbackSequence};
+      if(typeof value.title==='string')feedback.title=value.title.slice(0,256);
+      if(typeof value.icon==='string'&&/^data:image\/(png|jpeg|webp|svg\+xml);base64,/.test(value.icon)&&value.icon.length<1024*1024)feedback.icon=value.icon;
+      sdkVisuals.set(ctx,{...(sdkVisuals.get(ctx)||{}),feedback});
+      refreshOriginalKnobFeedback();
+    }else if(message.kind==='pluginConnection'&&!message.connected&&sdkPlugins.some(p=>p.uuid===message.pluginUUID&&p.runtime==='ulanzi-original')){
+      for(const entry of sdkActionInstances())if(entry.pluginUUID===message.pluginUUID)sdkVisuals.delete(entry.context);
+      refreshOriginalKnobFeedback();
+    }else if(message.kind==='nativeWideReleased'){
       clearNativeWide(ctx);
     }else if(message.kind==='nativeUnavailable'){
       clearNativeWide(ctx,false);sdkVisuals.delete(ctx);renderGrid();window.scheduleDeckSync?.();
