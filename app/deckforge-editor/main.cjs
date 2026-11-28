@@ -609,8 +609,10 @@ ipcMain.handle('d200x:ulanzi-original-permission',async(event,id)=>{
   const {legacy,native}=await router.catalog();
   if(legacy.some(p=>p.uuid.toLowerCase()===String(id).toLowerCase())||native.some(p=>p.id.toLowerCase()===String(id).toLowerCase()))throw Error('다른 플러그인과 ID가 중복됩니다.');
   const info=await store.info(id);
+  const diagnostics=store.active.get(id)?.diagnosticSummary()||[];
+  const summary=diagnostics.length?'\n\n현재 실행 진단 (내용 제외):\n'+diagnostics.slice(0,12).map(d=>d.key+' × '+d.count).join('\n'):'';
   const choice=await dialog.showMessageBox(window,{type:'warning',title:'Ulanzi 원본 실행 권한 관리',message:info.manifest.Name+' '+info.manifest.Version,
-    detail:(info.approved?'승인됨':'승인되지 않음')+'\n'+originalPermissionDetail,buttons:['닫기',info.approved?'권한 철회':'권한 승인'],defaultId:0,cancelId:0,noLink:true});
+    detail:(info.approved?'승인됨':'승인되지 않음')+'\n'+originalPermissionDetail+summary,buttons:['닫기',info.approved?'권한 철회':'권한 승인'],defaultId:0,cancelId:0,noLink:true});
   if(choice.response!==1)return null;
   return router.serial(()=>store.setPermission(id,info.revision,!info.approved));
 });

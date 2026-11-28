@@ -957,3 +957,35 @@ test('Ulanzi encoder feedback maps current $UA1 title and icon to only its own k
     host.sync([]);assert.equal(host.feedback.size,0);
   }finally{host.socket=null;await host.close();await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('Ulanzi openurl respects one-use input, confirmation, scope and diagnostic privacy',async()=>{
+  const {UlanziNodeHost}=require('../app/deckforge-editor/ulanzi-node-host.cjs');
+  const {externalUrl}=require('../app/deckforge-editor/ulanzi-original-dialog.cjs');
+  assert.equal(externalUrl({url:'https://example.com/help',param:{q:'a b'}}),'https://example.com/help?q=a+b');
+  for(const url of ['file:///C:/test','javascript:alert(1)','https://user:password@example.com/'])assert.throws(()=>externalUrl({url}));
+  const id='com.ulanzi.ulanzistudio.linkfixture',action=id+'.key',sent=[],updates=[],opened=[],ws={readyState:1,send:raw=>sent.push(JSON.parse(raw))};
+  const host=new UlanziNodeHost('/unused',e=>updates.push(e));
+  host.manifest={UUID:id,Name:'Fixture',Actions:[{UUID:action,Name:'Key'}]};
+  host.socket=ws;host.alive=()=>true;host.getParent=()=>({isDestroyed:()=>false});
+  let confirms=0,choice=0;
+  host.confirmExternal=async()=>{confirms++;return {response:choice};};
+  host.openExternal=async href=>opened.push(href);
+  const tick=()=>new Promise(r=>setImmediate(r));
+  try{
+    host.sync([{context:'key',slot:0,pluginUUID:id,actionUUID:action,settings:{}}]);
+    const request={cmd:'openurl',uuid:id,url:'https://example.com/',local:false};
+    host.receive(request,ws);await tick();assert.equal(confirms,1);assert.equal(opened.length,0);
+    assert.equal(host.key('key','down'),true);
+    host.receive(request,ws);await tick();assert.equal(confirms,1);assert.deepEqual(opened,['https://example.com/']);
+    host.receive(request,ws);await tick();assert.equal(confirms,2);assert.equal(opened.length,1);
+    choice=1;host.receive(request,ws);await tick();assert.equal(opened.length,2);
+    host.receive({...request,uuid:'wrong'},ws);await tick();assert.equal(opened.length,2);
+    host.receive({cmd:'toast',uuid:id,msg:'Ready'},ws);assert.equal(updates.at(-1).message,'Ready');
+    host.receive({cmd:'logMessage',uuid:id,level:'warn',message:'secret fixture'},ws);
+    const address=host.address(host.mounts.get('key'));
+    host.receive({cmd:'unknownPrivateApi',...address,param:{secret:'private fixture'}},ws);
+    assert.deepEqual(host.diagnosticSummary(),[{key:'warn:logMessage',count:1},{key:'unsupported:unknownPrivateApi',count:1}]);
+    assert.ok(!JSON.stringify(host.diagnosticSummary()).includes('secret'));
+    assert.equal(sent.at(-1).code,1);
+  }finally{host.socket=null;await host.close();}
+});

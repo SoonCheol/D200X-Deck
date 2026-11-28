@@ -9116,7 +9116,10 @@ function applyNativeSdkEffect(message){
 if(window.deckBridge?.onSdkEvent){
   window.deckBridge.onSdkEvent(message=>{
     const ctx=message?.context;
-    if(message.kind==='ulanziFeedback'){
+    if(message.kind==='ulanziToast'){
+      const plugin=sdkPlugins.find(p=>p.uuid===message.pluginUUID&&p.runtime==='ulanzi-original');
+      if(plugin&&typeof message.message==='string')window.d200xActionStatus?.(plugin.name+' · '+message.message.slice(0,256));
+    }else if(message.kind==='ulanziFeedback'){
       const active=sdkActionInstances().find(x=>x.context===ctx&&x.slot>=16&&x.slot<=18);
       if(!active||!sdkPlugins.some(p=>p.uuid===active.pluginUUID&&p.runtime==='ulanzi-original'))return;
       const value=message.payload;

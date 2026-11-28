@@ -24,4 +24,13 @@ function viewOptions(msg){
   const params=msg.param===undefined?{}:validateValue(msg.param);
   return {entry,params:Object.fromEntries(Object.entries(params).filter(([,v])=>v!==null)),width:integer(msg.width,200),height:integer(msg.height,200),x:integer(msg.x,undefined),y:integer(msg.y,undefined)};
 }
-module.exports={pickerOptions,viewOptions};
+function externalUrl(msg){
+  if(msg.local===true||typeof msg.url!=='string'||msg.url.length>2048||/[\x00-\x1f\x7f]/.test(msg.url))throw Error('invalid external URL');
+  const url=new URL(msg.url);
+  if(!['http:','https:'].includes(url.protocol)||!url.hostname||url.username||url.password)throw Error('invalid external URL');
+  const params=msg.param==null?{}:validateValue(msg.param);
+  for(const [key,value] of Object.entries(params))if(value!==null)url.searchParams.set(key,String(value));
+  if(url.href.length>4096)throw Error('external URL too long');
+  return url.href;
+}
+module.exports={pickerOptions,viewOptions,externalUrl};

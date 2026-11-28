@@ -75,6 +75,12 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - D200X 와이드의 기존 노브 정보 모드에만 현재 노브별 최근 feedback을 제목과 하단 30px 이내 아이콘으로 투영. 기본 노브 이름/held 설명 보존, 피드백 없는 노브 및 시계/날짜/시스템 모드/독자 SDK overlay 유지. 설정·프로필에 저장하지 않고 context 제거/권한 철회/소켓 종료 시 폐기. 실제 장치 표시 검증 별도.
 - 공식 SDK README https://github.com/UlanziTechnology/plugin-common-node/blob/main/README.md . 호스트/gesture 소유권/부분 갱신/경로 검증/노브별 격리 시험 추가, 자동 검증 대기.
 
+## Ulanzi 원본 링크·알림·기능별 진단 (2.0.163 후보)
+
+- 공개 SDK openurl: HTTP/S 및 param 쿼리, 현재 입력 직후 1회 허용 또는 사용자 확인, 소켓/context 생존 재확인. local=true는 기존 패키지 내부 HTML 독립 창 경로 사용(임의 로컬 파일 실행 미지원). toast는 기존 편집기 상태 표시 및 1.5초 속도 제한.
+- logMessage 및 미지원 명령은 세션당 최대 64종류 카운트(최대 100만)만 보관하여 권한 관리 창에서 표시. 로그 본문/설정/토큰은 보관하지 않으며 원본 SDK의 파일 로그 기능을 완전히 구현한 것은 아님. PrivateAPI는 표시 자체와 기능을 구분; 공개 SDK 기능부터 연결, 확인되지 않은 비공개 명령은 오류 반환. hotkey는 별도 계약 확인 후.
+- 공식 자료 https://github.com/UlanziTechnology/plugin-common-node/blob/main/libs/ulanziApi.js . 확인/거부·입력 1회·URL 검사·토스트/진단 시험 추가, 자동 검증 대기.
+
 ## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.

@@ -8,7 +8,7 @@ const {WebSocketServer}=require('ws');
 const {nodeRuntime,spawnNodePlugin}=require('./deckforge-node-runtime.cjs');
 const {validateValue}=require('./deckforge-native-settings.cjs');
 const {base64Image,pathImage,applyImage,currentImage}=require('./ulanzi-original-image.cjs');
-const {pickerOptions,viewOptions}=require('./ulanzi-original-dialog.cjs');
+const {pickerOptions,viewOptions,externalUrl}=require('./ulanzi-original-dialog.cjs');
 const {NativeAnimationPlayer}=require('./deckforge-native-animation.cjs');
 const ID=/^[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+){3}$/;
 const relative=s=>typeof s==='string'&&s.length<1024&&s.split('/').every(p=>p&&p!=='.'&&p!=='..'&&!/[:\\\x00-\x1f\x7f]/.test(p)&&!/[. ]$/.test(p));
@@ -28,7 +28,9 @@ function validateOriginalNodeManifest(m){
 }
 class UlanziNodeHost{
   constructor(directory,onUpdate=()=>{}){
-    this.directory=directory;this.onUpdate=onUpdate;this.mounts=new Map();this.socket=null;this.server=null;this.child=null;this.closed=false;this.started=false;this.mainWindow=null;this.inspectors=new Map();this.visuals=new Map();this.feedback=new Map();this.globalSettings={};this.globalWrite=null;this.globalQueue=Promise.resolve();this.views=new Set();this.pickerBusy=false;
+    this.directory=directory;this.onUpdate=onUpdate;this.mounts=new Map();this.socket=null;this.server=null;this.child=null;this.closed=false;this.started=false;this.mainWindow=null;this.inspectors=new Map();this.visuals=new Map();this.feedback=new Map();this.globalSettings={};this.globalWrite=null;this.globalQueue=Promise.resolve();this.views=new Set();this.pickerBusy=false;this.linkBusy=false;this.linkGrant=null;this.lastToast=0;this.diagnostics=new Map();
+    this.openExternal=href=>require('electron').shell.openExternal(href);
+    this.confirmExternal=(parent,options)=>require('electron').dialog.showMessageBox(parent,options);
     this.animations=new NativeAnimationPlayer((id,image)=>{const ctx=[...this.mounts.values()].find(c=>c.actionid===id);if(ctx&&!this.closed)this.emit({kind:'setImage',context:ctx.context,payload:{image,clear:true}});});this.getParent=()=>null;
     this.pickDialog=(parent,options)=>require('electron').dialog.showOpenDialog(parent,options);
     this.makeView=(entry,options)=>require('./ulanzi-original-window.cjs').createOriginalWindow(this.directory,entry,options);
@@ -85,7 +87,7 @@ class UlanziNodeHost{
         let registered=false,inspector=null;
         const timer=setTimeout(()=>{if(!registered)ws.terminate();},5000);
         ws.on('error',()=>{});
-        ws.on('close',()=>{clearTimeout(timer);this.closeViews(r=>r.ws===ws);if(inspector?.ws===ws)inspector.ws=null;if(this.socket===ws){this.socket=null;this.animations.close();this.emit({kind:'pluginConnection',pluginUUID:this.manifest.UUID,connected:false});}});
+        ws.on('close',()=>{clearTimeout(timer);this.closeViews(r=>r.ws===ws);if(inspector?.ws===ws)inspector.ws=null;if(this.socket===ws){this.socket=null;this.linkGrant=null;this.animations.close();this.emit({kind:'pluginConnection',pluginUUID:this.manifest.UUID,connected:false});}});
         ws.on('message',raw=>{
           try{
             const msg=JSON.parse(String(raw));
@@ -158,13 +160,22 @@ class UlanziNodeHost{
     }
     if(!['down','up'].includes(gesture))return false;
     const cmd=ctx.slot>=16?'dial'+gesture:'key'+gesture;
+    if(gesture==='down')this.linkGrant={actionid:ctx.actionid,expires:Date.now()+1500};
     const sent=this.event(ctx,cmd);
+    if(!sent&&gesture==='down')this.linkGrant=null;
     if(sent&&gesture==='down'&&ctx.slot<16)this.event(ctx,'run');
     return sent;
   }
   closeViews(predicate=()=>true){
     for(const record of [...this.views])if(predicate(record)){this.views.delete(record);if(!record.win.isDestroyed())record.win.destroy();}
   }
+  recordDiagnostic(command,level='unsupported'){
+    if(!/^[a-zA-Z0-9_.-]{1,80}$/.test(command))command='invalid';
+    const key=level+':'+command;
+    if(!this.diagnostics.has(key)&&this.diagnostics.size>=64)return;
+    this.diagnostics.set(key,Math.min(1000000,(this.diagnostics.get(key)||0)+1));
+  }
+  diagnosticSummary(){return [...this.diagnostics].map(([key,count])=>({key,count}));}
   interactiveRequest(msg,ws,inspector){
     const main=!inspector&&ws===this.socket&&msg.uuid===this.manifest.UUID;
     const ctx=[...this.mounts.values()].find(c=>c.actionUUID===msg.uuid&&c.key===msg.key&&c.actionid===msg.actionid);
@@ -173,9 +184,40 @@ class UlanziNodeHost{
       (inspector?this.inspectors.get(ctx.context)===inspector&&inspector.ws===ws:this.socket===ws));
     const error=()=>{if(active())this.send({cmd:msg.cmd,cmdType:'NOTIFY',code:1},ws);};
     if(!active())return;
+    if(msg.cmd==='logMessage'){
+      if(typeof msg.message!=='string'||msg.message.length>4096||!['info','debug','warn','error'].includes(msg.level||'info')){error();return;}
+      // Keep only diagnostic counts: plugin logs may contain tokens or private paths.
+      this.recordDiagnostic('logMessage',msg.level||'info');
+      this.send({cmd:msg.cmd,cmdType:'NOTIFY',code:0},ws);return;
+    }
+    if(msg.cmd==='toast'){
+      if(typeof msg.msg!=='string'||!msg.msg.trim()||msg.msg.length>256){error();return;}
+      if(Date.now()-this.lastToast>=1500){
+        this.lastToast=Date.now();this.emit({kind:'ulanziToast',pluginUUID:this.manifest.UUID,...(ctx?{context:ctx.context}:{}),message:msg.msg});
+      }
+      this.send({cmd:msg.cmd,cmdType:'NOTIFY',code:0},ws);return;
+    }
     const parent=inspector?.win||this.getParent();
     if(!parent||parent.isDestroyed()){error();return;}
     const title=String(this.manifest.Name).slice(0,120);
+    if(msg.cmd==='openurl'&&msg.local!==true){
+      let href;try{href=externalUrl(msg);}catch{error();return;}
+      if(this.linkBusy){error();return;}
+      this.linkBusy=true;
+      const grant=this.linkGrant;
+      const direct=!inspector&&grant&&Date.now()<=grant.expires&&[...this.mounts.values()].some(c=>c.actionid===grant.actionid)&&(main||ctx?.actionid===grant.actionid);
+      if(direct)this.linkGrant=null;
+      Promise.resolve().then(async()=>{
+        if(!active())return;
+        if(!direct){
+          const result=await this.confirmExternal(parent,{type:'question',title:'Ulanzi 원본 외부 링크',message:title+'에서 웹사이트를 열려고 합니다.',detail:href,buttons:['취소','브라우저에서 열기'],defaultId:0,cancelId:0,noLink:true});
+          if(result.response!==1){error();return;}
+        }
+        if(!active()||direct&&!([...this.mounts.values()].some(c=>c.actionid===grant.actionid)&&Date.now()<=grant.expires))return;
+        await this.openExternal(href);
+        if(active())this.send({cmd:msg.cmd,cmdType:'NOTIFY',code:0},ws);
+      }).catch(error).finally(()=>{this.linkBusy=false;});return;
+    }
     if(msg.cmd==='selectdialog'){
       if(this.pickerBusy){error();return;}
       let options;try{options=pickerOptions(msg,title+' · '+(msg.type==='folder'?'폴더 선택':'파일 선택'));}catch{error();return;}
@@ -190,19 +232,19 @@ class UlanziNodeHost{
     let record;
     try{
       if(this.views.size>=4)throw Error('view capacity');
-      const {entry,...options}=viewOptions(msg);
+      const {entry,...options}=viewOptions({...msg,param:msg.param??{}});
       const {win,url}=this.makeView(entry,{...options,parent,title,visible:true});
       record={win,ws,context:ctx?.context,actionid:ctx?.actionid};
       this.views.add(record);win.on('closed',()=>this.views.delete(record));
       Promise.resolve(win.loadURL(url)).then(()=>{
         if(!active()||!this.views.has(record)){this.closeViews(r=>r===record);return;}
         if(!win.isDestroyed())win.show();
-        this.send({cmd:'openview',cmdType:'NOTIFY',code:0},ws);
+        this.send({cmd:msg.cmd,cmdType:'NOTIFY',code:0},ws);
       }).catch(()=>{this.closeViews(r=>r===record);error();});
     }catch{if(record)this.closeViews(r=>r===record);error();}
   }
   receive(msg,ws=this.socket,inspector=null){
-    if(msg.cmd==='selectdialog'||msg.cmd==='openview'){this.interactiveRequest(msg,ws,inspector);return;}
+    if(['selectdialog','openview','openurl','toast','logMessage'].includes(msg.cmd)){this.interactiveRequest(msg,ws,inspector);return;}
     if(['getGlobalSettings','setGlobalSettings'].includes(msg.cmd)){
       const main=!inspector&&ws===this.socket&&msg.uuid===this.manifest.UUID;
       const ctx=[...this.mounts.values()].find(c=>c.actionUUID===msg.uuid&&c.key===msg.key&&c.actionid===msg.actionid);
@@ -291,14 +333,14 @@ class UlanziNodeHost{
         const pi=this.inspectors.get(ctx.context);if(!pi?.ws){ack(1);return;}this.send({cmd:msg.cmd,...this.address(ctx),payload:snapshot(msg.payload)},pi.ws);break;
       }
       case 'showAlert':this.emit({kind:'showAlert',context:ctx.context});break;
-      default:this.emit({kind:'unsupportedUlanziCommand',pluginUUID:this.manifest.UUID,command:String(msg.cmd).slice(0,80)});ack(1);return;
+      default:this.recordDiagnostic(String(msg.cmd));this.emit({kind:'unsupportedUlanziCommand',pluginUUID:this.manifest.UUID,command:String(msg.cmd).slice(0,80)});ack(1);return;
     }
     ack(0);
   }
   async close(){
     if(this.closed)return;this.closed=true;
     for(const ctx of this.mounts.values())this.send({cmd:'clear',param:[this.address(ctx)]});
-    this.mounts.clear();this.visuals.clear();this.feedback.clear();this.animations.close();this.closeViews();await this.globalQueue;for(const context of [...this.inspectors.keys()])this.closeInspector(context);
+    this.mounts.clear();this.visuals.clear();this.feedback.clear();this.linkGrant=null;this.animations.close();this.closeViews();await this.globalQueue;for(const context of [...this.inspectors.keys()])this.closeInspector(context);
     if(this.mainWindow&&!this.mainWindow.isDestroyed())this.mainWindow.destroy();this.mainWindow=null;
     const child=this.child;this.child=null;
     if(child&&child.exitCode===null&&child.signalCode===null){
