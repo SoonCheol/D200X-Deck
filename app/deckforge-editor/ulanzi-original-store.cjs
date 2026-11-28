@@ -5,6 +5,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {createHash,randomUUID}=require('node:crypto');
 const {validateOriginalNodeManifest,UlanziNodeHost}=require('./ulanzi-node-host.cjs');
+const {validateValue}=require('./deckforge-native-settings.cjs');
 const ID=/^[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+){3}$/;
 const MAX_FILES=2500,MAX_BYTES=100*1024*1024;
 const hash=b=>createHash('sha256').update(b).digest('hex');
@@ -44,6 +45,7 @@ class UlanziOriginalStore{
   constructor(userData,{storage,hostFactory=(dir,emit)=>new UlanziNodeHost(dir,emit)}={}){
     this.root=path.join(userData,'Plugins','UlanziOriginal');
     this.grants=path.join(userData,'Plugins','UlanziOriginalApprovals');
+    this.settings=path.join(userData,'Plugins','UlanziOriginalSettings');
     this.storage=storage;this.hostFactory=hostFactory;this.queue=Promise.resolve();this.active=new Map();this.closed=false;
   }
   serial(fn){const work=this.queue.then(()=>{if(this.closed)throw Error('original store closed');return fn();});this.queue=work.catch(()=>{});return work;}
@@ -119,6 +121,25 @@ class UlanziOriginalStore{
     const host=this.active.get(id);this.active.delete(id);await host?.close();
     return {approved};
   });}
+  globalFile(id){this.directory(id);return path.join(this.settings,hash(id)+'.encrypted');}
+  async readGlobal(id){
+    const file=this.globalFile(id);let st;
+    try{st=await fs.lstat(file);}catch(e){if(e.code==='ENOENT')return {};throw e;}
+    if(!st.isFile()||st.isSymbolicLink()||st.size>65536||!this.storage?.isEncryptionAvailable())throw Error('original global settings unavailable');
+    const value=JSON.parse(this.storage.decryptString(await fs.readFile(file)));
+    if(value.id!==id||value.version!==1)throw Error('original global identity mismatch');
+    return validateValue(value.settings);
+  }
+  async writeGlobal(id,value,active){
+    validateValue(value);
+    if(!active()||this.closed||!this.storage?.isEncryptionAvailable())return false;
+    await this.readGlobal(id);await this.prepareRoot(this.settings);
+    const file=this.globalFile(id),tmp=file+'.'+randomUUID()+'.tmp';
+    const bytes=this.storage.encryptString(JSON.stringify({id,version:1,settings:value}));
+    if(bytes.length>65536)throw Error('original global size limit');
+    try{await fs.writeFile(tmp,bytes,{flag:'wx'});if(!active()||this.closed)return false;await fs.rename(tmp,file);return true;}
+    finally{await fs.rm(tmp,{force:true});}
+  }
   startApproved(id,onUpdate=()=>{},language='ko'){return this.serial(async()=>{
     const info=await this.info(id);
     if(!info.approved){const existing=this.active.get(id);this.active.delete(id);await existing?.close();throw Error('original plugin approval required');}
@@ -127,6 +148,7 @@ class UlanziOriginalStore{
     if(existing){this.active.delete(id);await existing.close();}
     const host=this.hostFactory(this.directory(id),onUpdate);
     try{
+      host.globalSettings=await this.readGlobal(id);host.globalWrite=(value,active)=>this.writeGlobal(id,value,active);
       await host.start({approved:true,language,verifyBeforeSpawn:async()=>{
         const current=await this.info(id);
         return current.approved&&current.revision===info.revision&&!this.closed;

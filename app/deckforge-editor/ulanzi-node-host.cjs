@@ -7,6 +7,7 @@ const {randomUUID}=require('node:crypto');
 const {WebSocketServer}=require('ws');
 const {nodeRuntime,spawnNodePlugin}=require('./deckforge-node-runtime.cjs');
 const {validateValue}=require('./deckforge-native-settings.cjs');
+const {base64Image,pathImage,applyImage,currentImage}=require('./ulanzi-original-image.cjs');
 const ID=/^[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+){3}$/;
 const relative=s=>typeof s==='string'&&s.length<1024&&s.split('/').every(p=>p&&p!=='.'&&p!=='..'&&!/[:\\\x00-\x1f\x7f]/.test(p)&&!/[. ]$/.test(p));
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -25,7 +26,7 @@ function validateOriginalNodeManifest(m){
 }
 class UlanziNodeHost{
   constructor(directory,onUpdate=()=>{}){
-    this.directory=directory;this.onUpdate=onUpdate;this.mounts=new Map();this.socket=null;this.server=null;this.child=null;this.closed=false;this.started=false;this.mainWindow=null;this.inspectors=new Map();
+    this.directory=directory;this.onUpdate=onUpdate;this.mounts=new Map();this.socket=null;this.server=null;this.child=null;this.closed=false;this.started=false;this.mainWindow=null;this.inspectors=new Map();this.visuals=new Map();this.globalSettings={};this.globalWrite=null;this.globalQueue=Promise.resolve();
   }
   emit(update){this.onUpdate(update);}
   send(message,ws=this.socket){
@@ -35,6 +36,8 @@ class UlanziNodeHost{
   address(ctx){return {uuid:ctx.actionUUID,key:ctx.key,actionid:ctx.actionid};}
   event(ctx,cmd,extra={}){return this.send({cmd,...this.address(ctx),param:ctx.settings,...extra});}
   appear(ctx){this.event(ctx,'add');this.event(ctx,'paramfromapp');}
+  visual(ctx){let v=this.visuals.get(ctx.actionid);if(!v){const a=this.manifest.Actions.find(a=>a.UUID===ctx.actionUUID);v={state:Number.isInteger(a.state)&&a.state>=0&&a.state<(a.States?.length||1)?a.state:0,temporary:null,defaults:new Map()};this.visuals.set(ctx.actionid,v);}return v;}
+  displayImage(ctx,visual){const action=this.manifest.Actions.find(a=>a.UUID===ctx.actionUUID);this.emit({kind:'setImage',context:ctx.context,payload:{image:currentImage(this.directory,action,visual),clear:true}});}
   alive(){return !this.closed&&(this.child?this.child.exitCode===null&&this.child.signalCode===null&&!this.child.killed:!!this.mainWindow&&!this.mainWindow.isDestroyed());}
   closeInspector(context){const pi=this.inspectors.get(context);if(!pi)return;this.inspectors.delete(context);pi.ws?.terminate();if(!pi.win.isDestroyed())pi.win.destroy();}
   async openInspector(context,parent){
@@ -122,7 +125,7 @@ class UlanziNodeHost{
       const same=old&&['actionUUID','slot','gesture','instanceId','mountGeneration'].every(k=>old[k]===cfg[k]);
       desired.set(cfg.context,{...cfg,settings,key:same?old.key:cfg.slot>=16?'dial_'+(cfg.slot-16):cfg.slot%4+'_'+Math.floor(cfg.slot/4),actionid:same?old.actionid:randomUUID()});
     }
-    for(const [id,old] of this.mounts)if(desired.get(id)?.actionid!==old.actionid){this.closeInspector(id);this.send({cmd:'clear',param:[this.address(old)]});}
+    for(const [id,old] of this.mounts)if(desired.get(id)?.actionid!==old.actionid){this.closeInspector(id);this.visuals.delete(old.actionid);this.send({cmd:'clear',param:[this.address(old)]});}
     const previous=this.mounts;this.mounts=desired;
     for(const [id,ctx] of desired){
       const old=previous.get(id);
@@ -146,6 +149,41 @@ class UlanziNodeHost{
     return sent;
   }
   receive(msg,ws=this.socket,inspector=null){
+    if(['getGlobalSettings','setGlobalSettings'].includes(msg.cmd)){
+      const main=!inspector&&ws===this.socket&&msg.uuid===this.manifest.UUID;
+      const ctx=[...this.mounts.values()].find(c=>c.actionUUID===msg.uuid&&c.key===msg.key&&c.actionid===msg.actionid);
+      if(!main&&(!ctx||inspector&&this.inspectors.get(ctx.context)!==inspector))return;
+      const active=()=>!this.closed&&(main?this.socket===ws:!inspector?this.socket===ws&&this.mounts.get(ctx.context)?.actionid===ctx.actionid:this.inspectors.get(ctx.context)===inspector&&inspector.ws===ws);
+      const work=this.globalQueue.then(async()=>{
+        if(!active())return;
+        if(msg.cmd==='setGlobalSettings'){
+          const next=snapshot(msg.settings);
+          if(!this.globalWrite||!await this.globalWrite(next,active)||!active())throw Error('global settings save failed');
+          this.globalSettings=next;
+          this.send({cmd:'didReceiveGlobalSettings',uuid:this.manifest.UUID,key:'',actionid:'',settings:next});
+          for(const [context,pi] of this.inspectors){const target=this.mounts.get(context);if(target&&pi.ws)this.send({cmd:'didReceiveGlobalSettings',...this.address(target),settings:next},pi.ws);}
+        }else this.send({cmd:'didReceiveGlobalSettings',uuid:msg.uuid,key:msg.key,actionid:msg.actionid,settings:this.globalSettings},ws);
+      });
+      this.globalQueue=work.catch(()=>{if(active())this.send({cmd:msg.cmd,cmdType:'NOTIFY',code:1},ws);});return;
+    }
+    if(msg.cmd==='state'){
+      if(inspector||!Array.isArray(msg.param?.statelist)||!msg.param.statelist.length||msg.param.statelist.length>32)return;
+      let ok=true;
+      for(const item of msg.param.statelist){
+        const ctx=[...this.mounts.values()].find(c=>c.actionUUID===item?.uuid&&c.key===item.key&&c.actionid===item.actionid);
+        if(!ctx){ok=false;continue;}
+        const action=this.manifest.Actions.find(a=>a.UUID===ctx.actionUUID),visual=this.visual(ctx);
+        if(item.type===0&&Number.isInteger(item.state)&&item.state>=0&&item.state<(action.States?.length||1)){
+          visual.state=item.state;visual.temporary=null;this.emit({kind:'setState',context:ctx.context,payload:{state:item.state}});
+        }else if(item.type===1||item.type===2){
+          const image=item.type===1?base64Image(item.data):pathImage(this.directory,item.path);
+          if(!image){ok=false;continue;}visual.temporary=image;
+        }else{ok=false;continue;}
+        this.displayImage(ctx,visual);
+        if(item.showtext===true&&typeof item.textData==='string')this.emit({kind:'setTitle',context:ctx.context,payload:{title:item.textData.slice(0,256)}});
+      }
+      this.send({cmd:'state',cmdType:'NOTIFY',code:ok?0:1},ws);return;
+    }
     const address=msg.cmd==='setTitle'||msg.cmd==='setState'||msg.cmd==='setImage'?msg.param:msg;
     const ctx=object(address)&&[...this.mounts.values()].find(c=>c.actionUUID===address.uuid&&c.key===address.key&&c.actionid===address.actionid);
     const ack=code=>this.send({cmd:msg.cmd,cmdType:'NOTIFY',code},ws);
@@ -158,7 +196,12 @@ class UlanziNodeHost{
       case 'setState':{
         const action=this.manifest.Actions.find(a=>a.UUID===ctx.actionUUID);
         if(!Number.isInteger(address.state)||address.state<0||address.state>=Math.max(1,action.States?.length||1)){ack(1);return;}
-        this.emit({kind:'setState',context:ctx.context,payload:{state:address.state}});break;
+        const visual=this.visual(ctx);visual.state=address.state;visual.temporary=null;
+        this.emit({kind:'setState',context:ctx.context,payload:{state:address.state}});this.displayImage(ctx,visual);break;
+      }
+      case 'setImage':{
+        const action=this.manifest.Actions.find(a=>a.UUID===ctx.actionUUID);
+        try{const next=applyImage(this.directory,action,this.visual(ctx),address);this.visuals.set(ctx.actionid,next);this.displayImage(ctx,next);}catch{ack(1);return;}break;
       }
       case 'getSettings':
         this.send({cmd:'didReceiveSettings',...this.address(ctx),settings:ctx.settings},ws);return;
@@ -183,7 +226,7 @@ class UlanziNodeHost{
   async close(){
     if(this.closed)return;this.closed=true;
     for(const ctx of this.mounts.values())this.send({cmd:'clear',param:[this.address(ctx)]});
-    this.mounts.clear();for(const context of [...this.inspectors.keys()])this.closeInspector(context);
+    this.mounts.clear();this.visuals.clear();await this.globalQueue;for(const context of [...this.inspectors.keys()])this.closeInspector(context);
     if(this.mainWindow&&!this.mainWindow.isDestroyed())this.mainWindow.destroy();this.mainWindow=null;
     const child=this.child;this.child=null;
     if(child&&child.exitCode===null&&child.signalCode===null){

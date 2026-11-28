@@ -820,3 +820,51 @@ test('editor routes only approved original Ulanzi mounts without affecting exist
     await router.sync([old]);assert.equal(router.key(mount.context,'down'),false);assert.equal(router.key(old.context,'down'),true);
   }finally{await router.close();await fs.rm(root,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
 });
+
+test('Ulanzi runtime images support per-state defaults, temporary override and clear',async()=>{
+  const {applyImage,currentImage,base64Image,pathImage}=require('../app/deckforge-editor/ulanzi-original-image.cjs');
+  const {crc32,deflateSync}=require('node:zlib');
+  function png(red){
+    const chunk=(type,data)=>{const h=Buffer.alloc(8);h.writeUInt32BE(data.length);h.write(type,4);const crc=Buffer.alloc(4);crc.writeUInt32BE(crc32(Buffer.concat([h.subarray(4),data])));return Buffer.concat([h,data,crc]);};
+    const ihdr=Buffer.alloc(13);ihdr.writeUInt32BE(1,0);ihdr.writeUInt32BE(1,4);ihdr[8]=8;ihdr[9]=6;
+    return Buffer.concat([Buffer.from('89504e470d0a1a0a','hex'),chunk('IHDR',ihdr),chunk('IDAT',deflateSync(Buffer.from([0,red,0,0,255]))),chunk('IEND',Buffer.alloc(0))]);
+  }
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-ulanzi-image-'));
+  try{
+    const a=png(10),b=png(20),c=png(30),data=x=>'data:image/png;base64,'+x.toString('base64');
+    await fs.writeFile(path.join(root,'off.png'),a);await fs.writeFile(path.join(root,'on.png'),b);
+    const action={States:[{Image:'off.png'},{Image:'on.png'}]};
+    let v={state:0,temporary:null,defaults:new Map()};
+    assert.equal(currentImage(root,action,v),data(a));
+    v=applyImage(root,action,v,{isDefault:true,icons:[{state:1,source:'base64',base64:data(c)}]});
+    v.state=1;assert.equal(currentImage(root,action,v),data(c));
+    v=applyImage(root,action,v,{isDefault:false,icons:{source:'path',path:'./off.png'}});
+    assert.equal(currentImage(root,action,v),data(a));
+    v=applyImage(root,action,v,{clear:true});assert.equal(currentImage(root,action,v),data(b));
+    assert.equal(pathImage(root,'../off.png'),null);assert.equal(base64Image('invalid'),null);
+    assert.throws(()=>applyImage(root,action,v,{isDefault:true,icons:[{state:9,source:'clear'}]}),/invalid image state/);
+  }finally{await fs.rm(root,{recursive:true,force:true});}
+});
+test('Ulanzi global settings persist separately and reject stale or unreadable writes',async()=>{
+  const {UlanziOriginalStore}=require('../app/deckforge-editor/ulanzi-original-store.cjs');
+  const {UlanziNodeHost}=require('../app/deckforge-editor/ulanzi-node-host.cjs');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-ulanzi-global-'));
+  const id='com.ulanzi.ulanzistudio.globalfixture';
+  const storage={isEncryptionAvailable:()=>true,encryptString:v=>Buffer.from(v),decryptString:b=>b.toString()};
+  const store=new UlanziOriginalStore(root,{storage}),host=new UlanziNodeHost(root);
+  try{
+    host.manifest={UUID:id};const ws={readyState:1},messages=[];host.socket=ws;
+    host.send=(m,target)=>{messages.push(m);return true;};
+    host.globalWrite=(v,active)=>store.writeGlobal(id,v,active);
+    host.receive({cmd:'setGlobalSettings',uuid:id,settings:{value:'fixture'}},ws);
+    await host.globalQueue;
+    assert.deepEqual(await store.readGlobal(id),{value:'fixture'});
+    assert.equal(messages.at(-1).cmd,'didReceiveGlobalSettings');
+    host.receive({cmd:'getGlobalSettings',uuid:id},ws);await host.globalQueue;
+    assert.deepEqual(messages.at(-1).settings,{value:'fixture'});
+    assert.equal(await store.writeGlobal(id,{value:'stale'},()=>false),false);
+    await fs.writeFile(store.globalFile(id),'corrupt');
+    await assert.rejects(store.writeGlobal(id,{value:'overwrite'},()=>true));
+    assert.equal(await fs.readFile(store.globalFile(id),'utf8'),'corrupt');
+  }finally{host.socket=null;await host.close();await store.close();await fs.rm(root,{recursive:true,force:true});}
+});

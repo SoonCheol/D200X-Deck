@@ -9197,6 +9197,7 @@ if(window.deckBridge?.onSdkEvent){
         /^data:image\/(png|jpeg|webp|svg\+xml);/.test(message.payload.image)&&
         message.payload.image.length<1024*1024;
       if(validImage)old.image=message.payload.image;
+      else if(message.kind==='setImage'&&message.payload?.clear===true&&sdkPlugins.some(p=>p.uuid===active.pluginUUID&&p.runtime==='ulanzi-original'))delete old.image;
       if(message.kind==='setState')old.state=message.payload?.state;
       sdkVisuals.set(ctx,old);
       renderGrid();

@@ -51,6 +51,12 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - 원본 서비스와 PI의 연결을 별도 socket으로 등록하고 활성 actionid에 묶음. paramfromapp/설정 조회·저장/paramfromplugin/sendToPlugin/sendToPropertyInspector 전달 및 해제 시 창 닫기. PI는 등록 버튼만 지원(미저장 신규 버튼은 후속), 기존 외부 호환 설정 저장 경로 사용. 승인/패키지 해시 재확인 후 PI 열기. 기존 Fusion/HA 창은 변경하지 않는다.
 - 실제 Electron HTML main/PI fixture의 원본 파일/설정/메시지 왕복 및 제거 시 닫힘 시험 추가. 실제 공식/상용 플러그인 및 실기 미검증. 이미지/전역 설정·파일 대화창·openView 등 미지원 API 후속.
 
+## Ulanzi 원본 이미지 및 전역 설정 (2.0.159 후보)
+
+- 공식 V3.1 setImage 기본/임시/clear 및 source path/base64/state/clear, 기존 state statelist type 0/1/2 초기 지원. 활성 상태의 이미지 출력 및 제거를 기존 편집기 렌더러로 전달. 패키지 내부 realpath 및 제한 PNG/SVG 검증 재사용. PNG는 기존 검증기의 144px/256KiB 제한, SVG 제한 문법; JPEG/WebP/GIF·feedback·모든 이미지 형식 호환은 아직 미지원. 원본 파일은 변경하지 않음.
+- getGlobalSettings/setGlobalSettings/didReceiveGlobalSettings: 원본 승인 패키지의 별도 Plugins/UlanziOriginalSettings 암호화 저장, 8KiB JSON 검증, 동일 프로세스 쓰기 직렬화·수명 검사, 승인 변경 후 프로세스 종료. 읽기 오류가 있을 때 덮어쓰지 않고 평문 fallback 없음. PI/서비스 공유 및 재시작 복원. 백업/완전 제거 정책은 후속.
+- 상태별 기본/임시/clear 및 위조 경로, 전역 설정 저장/재조회/오염 파일 보존 시험 추가. 실제 Windows 결과 대기. 공식 자료 https://github.com/UlanziTechnology/plugin-common-node/blob/main/README.md .
+
 ## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.
