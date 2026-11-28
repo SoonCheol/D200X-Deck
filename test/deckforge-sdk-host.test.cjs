@@ -893,3 +893,30 @@ test('Ulanzi original dialog options and request ownership, result and cancellat
   host.receive(request,ws);await tick();const count=sent.length;host.socket=null;finish({canceled:false,filePaths:['C:\\stale.txt']});await tick();assert.equal(sent.length,count);
   await host.close();
 });
+
+test('Ulanzi original JPEG WebP and GIF playback reuse bounded bitmap pipeline',async()=>{
+  const {base64Image,rasterDimensions}=require('../app/deckforge-editor/ulanzi-original-image.cjs');
+  const {UlanziNodeHost}=require('../app/deckforge-editor/ulanzi-node-host.cjs');
+  const jpeg='/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAACAAIDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDi6KKK+ZP3E//Z',webp='UklGRjwAAABXRUJQVlA4IDAAAADQAQCdASoCAAIAAUAmJaACdLoB+AADsAD+8ut//NgVzXPv9//S4P0uD9Lg/9KQAAA=',gif='R0lGODlhAgACAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQAMgAAACwAAAAAAgACAAAIBgABCAQQEAAh+QQBMgABACwAAAAAAgACAIEAAP8AAAAAAAAAAAAIBgABCAQQEAA7';
+  assert.deepEqual(rasterDimensions(Buffer.from(jpeg,'base64')),{mime:'jpeg',width:2,height:2});
+  assert.deepEqual(rasterDimensions(Buffer.from(webp,'base64')),{mime:'webp',width:2,height:2});
+  assert.equal(base64Image(jpeg),'data:image/jpeg;base64,'+jpeg);
+  assert.equal(base64Image(webp),'data:image/webp;base64,'+webp);
+  assert.equal(base64Image(gif),'data:image/gif;base64,'+gif);
+  assert.equal(base64Image(webp.slice(0,-12)),null);
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-original-gif-'));
+  const id='com.ulanzi.ulanzistudio.giffixture',action=id+'.key',events=[],host=new UlanziNodeHost(root,e=>events.push(e)),ws={readyState:1,send(){}};
+  try{
+    await fs.writeFile(path.join(root,'anim.gif'),Buffer.from(gif,'base64'));
+    host.manifest={UUID:id,Actions:[{UUID:action,Name:'Key'}]};host.socket=ws;
+    host.sync([{context:'gif',slot:0,pluginUUID:id,actionUUID:action,settings:{}}]);
+    const address=host.address(host.mounts.get('gif'));let now=0;host.animations.now=()=>now;
+    host.receive({cmd:'state',param:{statelist:[{...address,type:4,gifpath:'anim.gif'}]}},ws);
+    const first=events.at(-1).payload.image;assert.match(first,/^data:image\/png;base64,/);
+    now=500;host.animations.tick();assert.notEqual(events.at(-1).payload.image,first);
+    host.receive({cmd:'setImage',param:{...address,icons:{source:'base64',base64:webp}}},ws);
+    assert.equal(host.animations.entries.size,0);assert.equal(events.at(-1).payload.image,'data:image/webp;base64,'+webp);
+    host.receive({cmd:'state',param:{statelist:[{...address,type:3,gifdata:gif}]}},ws);
+    assert.equal(host.animations.entries.size,1);host.sync([]);assert.equal(host.animations.entries.size,0);
+  }finally{host.socket=null;await host.close();await fs.rm(root,{recursive:true,force:true});}
+});

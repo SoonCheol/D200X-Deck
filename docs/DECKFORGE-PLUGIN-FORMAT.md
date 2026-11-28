@@ -63,6 +63,12 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - openView(url,width,height,x,y,param)의 openview 요청을 패키지 내부 HTML/HTM 독립 창에 연결. 쿼리 매개변수·위치·크기를 작업 영역에 제한. 원본 파일 및 기존 속성창 유지. 창 4개/플러그인, context/소켓 해제·종료 시 닫기. 외부 URL 및 별도 추가 SDK socket 등록은 후속. 기존 scoped origin 재사용.
 - 공식 자료 https://github.com/UlanziTechnology/plugin-common-node/blob/main/README.md 및 UlanziDeckSimulator/static/assets/index.js. 모의 picker/경로 검증 및 실제 Electron 창 테스트 추가, 결과 대기.
 
+## Ulanzi 원본 추가 이미지 (2.0.161 후보)
+
+- JPEG/WebP의 헤더·크기·최대 1024px/256KiB 검사 후 기존 bitmap renderer에 전달. 정적 이미지 지원, animated WebP 미지원. 전체 JPEG/WebP 디코드 검증은 Chromium 시험으로 별도. 원본 데이터 불변.
+- GIF legacy state type 3/4 및 V3.1 이미지에 기존 NativeAnimationPlayer를 재사용. 검증된 GIF 32프레임/최대 144px/256KiB, 정상 키만, 500ms 최소 프레임 간격, 호스트별 기존 재생 예산. PNG 프레임 전달/대상 슬롯 갱신, 상태 변경·정적 이미지·context 해제/종료 시 정리. 실제 하드웨어 프레임 속도 미검증.
+- fixture JPEG/WebP/GIF 검사·GIF 프레임 전환·정지/해제, Electron Chromium 디코드 시험 추가. 노브 feedback은 와이드 표시 매핑 확인 후 구현.
+
 ## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.

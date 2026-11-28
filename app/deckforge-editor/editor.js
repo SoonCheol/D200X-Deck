@@ -9200,6 +9200,7 @@ if(window.deckBridge?.onSdkEvent){
       else if(message.kind==='setImage'&&message.payload?.clear===true&&sdkPlugins.some(p=>p.uuid===active.pluginUUID&&p.runtime==='ulanzi-original'))delete old.image;
       if(message.kind==='setState')old.state=message.payload?.state;
       sdkVisuals.set(ctx,old);
+      if(sdkPlugins.some(p=>p.uuid===active.pluginUUID&&p.runtime==='ulanzi-original')){queueNativeVisualRefresh(active);return;}
       renderGrid();
       const selectedItem=DeckCore.visibleActions(state)[state.selected];
       if(!haPreviewStates.has(selectedItem))void refreshSelectedVisual();
