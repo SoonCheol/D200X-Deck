@@ -167,7 +167,7 @@ async function verifyPublicApi(runner){
 async function verifyNativeViews(){
  const {BrowserWindow}=require('electron');
  const {NativeViewManager}=require('../app/deckforge-editor/deckforge-native-view.cjs');
- const {NativePluginHost,validateNativeManifest}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+ const {NativePluginHost,PluginRouter,validateNativeManifest}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
  const parent=new BrowserWindow({show:false});
  const manager=new NativeViewManager(()=>parent,{visible:false});
  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-native-view-'));
@@ -175,7 +175,7 @@ async function verifyNativeViews(){
  const html='<style>input{color:rgb(12,34,56)}</style><input id="name"><script>window.ready=typeof deckforgeView==="object";</script>';
  const manifest=validateNativeManifest({apiVersion:2,id,name:'View test',version:'1.0.0',permissions:['display','view.open'],
    views:{form:{title:'Form',mode:'window',width:440,height:360,html},modal:{title:'Modal',mode:'modal',html}},
-   actions:[{id:id+'.key',name:'View',controllers:['Keypad'],states:1,script:"if(event.type==='press')api.openView('form',{label:'입력'});if(event.type==='viewResult')api.setTitle(event.response.status==='submitted'?event.response.value.label:event.response.status);"}]});
+   actions:[{id:id+'.key',name:'View',controllers:['Keypad'],states:1,settingsView:'modal',script:"if(event.type==='press')api.openView('form',{label:'입력'});if(event.type==='viewResult')api.setTitle(event.response.status==='submitted'?event.response.value.label:event.response.status);"}]});
  const host=new NativePluginHost(root,e=>updates.push(e),null,{viewManager:manager});
  const cfg={context:'view-1',slot:0,pluginUUID:id,actionUUID:manifest.actions[0].id,settings:{}};
  const until=async predicate=>{
@@ -207,7 +207,16 @@ async function verifyNativeViews(){
    host.key(cfg.context,'down');await ctx.queue;await until(()=>manager.records.size===1);
    host.sync([],[manifest]);await until(()=>manager.records.size===0);
    assert.equal(updates.filter(e=>e.kind==='setTitle'&&e.payload?.title==='완료').length,1);
-   console.log('DeckForge native custom view Electron round trip, modal and cancellation passed');
+   await host.install(manifest);
+   const router=new PluginRouter({list:async()=>[],close:async()=>{}},host);
+   const editing=router.customSettings(id,manifest.actions[0].id,{label:'draft',keep:true});
+   await until(()=>manager.records.size===1);
+   const editorView=[...manager.records.values()][0];
+   assert.deepEqual(await editorView.win.webContents.executeJavaScript('deckforgeView.getInput()'),{label:'draft',keep:true});
+   await editorView.win.webContents.executeJavaScript("deckforgeView.submit({label:'changed'}).catch(()=>{});true").catch(()=>{});
+   assert.deepEqual(await editing,{status:'submitted',settings:{label:'changed',keep:true}});
+   assert.equal(host.contexts.size,0);
+   console.log('DeckForge native custom view Electron round trip, modal, cancellation and unmounted draft passed');
  }finally{host.close();if(!parent.isDestroyed())parent.destroy();await fs.rm(root,{recursive:true,force:true});}
 }
 

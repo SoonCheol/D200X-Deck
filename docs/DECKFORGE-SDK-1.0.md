@@ -22,9 +22,15 @@ DeckForge는 개인용 편집기로서 Ulanzi Studio의 UI·기능 제한을 극
 ## 독자 사용자 정의 창 (2.0.149 후보)
 
 - API 2 선택 권한 `view.open`과 `views:{id:{title,mode,html,width?,height?}}` (최대 16개, 각 HTML 64KiB, mode `window` 또는 `modal`, 기본 560×480, 너비 320–1600/높이 220–1200) 선언. `api.openView(id,input={})`는 등록된 창을 입력 이벤트에서 요청. HTML/CSS/JavaScript를 별도 Electron renderer에 표시한다. 모달은 편집기 부모 창, 일반 창은 독립. 플러그인당 1개·전체 8개 활성; 동일 context의 기존 창은 활성화, 중복 요청은 busy.
-- 전용 preload `window.deckforgeView.getInput()`, `.submit(object)`, `.close()` 제공. 입력/결과 JSON 객체 8KiB, 소유 webContents와 mainFrame 검사, editor bridge/Node 접근 없음. inline HTML/CSS/JS, data 이미지 허용. 외부 네트워크·탐색·팝업·파일 접근은 이 UI 경로에서 미지원; 운영체제 기능은 기존 승인 Node 경로. 원본 UI 리소스/별도 파일/지속 양방향 메시지 및 속성창 직접 연결은 후속.
+- 전용 preload `window.deckforgeView.getInput()`, `.submit(object)`, `.close()` 제공. 입력/결과 JSON 객체 8KiB, 소유 webContents와 mainFrame 검사, editor bridge/Node 접근 없음. inline HTML/CSS/JS, data 이미지 허용. 외부 네트워크·탐색·팝업·파일 접근은 이 UI 경로에서 미지원; 운영체제 기능은 기존 승인 Node 경로. 원본 UI 리소스/별도 파일/지속 양방향 메시지는 후속.
 - `event.type==='viewResult'`, `event.response={view,status,value?}`. submitted/closed/busy/unavailable/error 결과, context/설정 변경·절전/종료 시 취소 및 늦은 결과 폐기. submitted 결과에 한해 별도 settings.write 권한으로 기존 receipt 저장 경로 사용 가능; 자동 외부 효과 및 창 재호출 금지. 기존 API 1/2·외부 속성창 유지.
 - Windows 2.0.148 #152에서 PowerShell/COM·27개 API 통과 로그 확인. 2.0.149의 실제 Electron 창 입력/결과/모달/취소 및 28개 API 테스트는 추가했고 실행 결과 별도 확인.
+
+## 사용자 정의 속성창 연결 (2.0.150 후보)
+
+- API 2 action의 선택 `settingsView`는 선언된 modal view ID를 가리킨다. 기존 플러그인 속성 열기 버튼에서 해당 HTML 폼을 표시하고, `getInput()`에 현재 초안 설정과 schema 기본값을 전달한다. `submit(object)`는 초안에 병합할 값이다. 권한 `view.open` 필요; 수동 편집은 `settings.write` 효과 권한과 별개다.
+- 기존 설정 키를 보존하고 schema/JSON/크기를 검증한다. 플러그인 변경·제거·절전 시 창 취소, 제출 후 manifest digest/의존성 재검증. 편집기 세션/기존 초안 값이 달라지면 폐기. 등록되지 않은 버튼도 속성 편집 가능. 결과는 기존 저장 버튼 전까지 실기/프로필에 자동 반영하지 않는다. 기존 선언형 속성 및 HA/Fusion 유지.
+- 실제 Electron 및 모의 호스트 테스트 추가, 실행 결과 대기. 예제 `examples/deckforge-sdk/custom-view.native.json`.
 
 ## JavaScript API 28개 (API 2, 1.0 기준선 19개 + 확장 9개)
 

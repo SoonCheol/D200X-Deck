@@ -131,13 +131,14 @@ function validateNativeManifest(m){
   check(Array.isArray(m.actions)&&m.actions.length>0&&m.actions.length<=64,'invalid actions');
   const ids=new Set();
   for(const a of m.actions){
-    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','settingsUI','titlePolicy','visualPolicy','stateImages']:['id','name','controllers','states','script','settingsSchema','settingsUI','titlePolicy','visualPolicy','tickIntervalMs','stateImages','sharedStateView','tickWhen','pollIntervalMs'])&&typeof a.id==='string'&&
+    check(exact(a,m.apiVersion===1?['id','name','controllers','states','events','settingsSchema','settingsUI','titlePolicy','visualPolicy','stateImages']:['id','name','controllers','states','script','settingsSchema','settingsUI','titlePolicy','visualPolicy','tickIntervalMs','stateImages','sharedStateView','tickWhen','pollIntervalMs','settingsView'])&&typeof a.id==='string'&&
       a.id.startsWith(m.id+'.')&&/^[a-z0-9.-]+$/.test(a.id)&&a.id.length<=180&&
       !a.id.endsWith('.')&&!a.id.includes('..')&&!ids.has(a.id)&&validText(a.name,180),'invalid action');
     ids.add(a.id);
     validateNativeSettingsSchema(a.settingsSchema);
     validateNativeSettingsUI(a.settingsSchema,a.settingsUI);
     validateNativeTitlePolicy(a.settingsSchema,a.titlePolicy);
+    if(a.settingsView!==undefined)check(m.apiVersion===2&&m.permissions.includes('view.open')&&typeof a.settingsView==='string'&&Object.hasOwn(m.views||{},a.settingsView)&&m.views[a.settingsView].mode==='modal','settingsView requires a declared modal view');
     if(a.sharedStateView!==undefined){check(m.apiVersion===2&&m.permissions.includes('background.run'),'shared state view requires background service');validateSharedView(a.sharedStateView,a.settingsSchema);}
     check(Array.isArray(a.controllers)&&a.controllers.length>0&&a.controllers.length<=2&&
       new Set(a.controllers).size===a.controllers.length&&a.controllers.every(c=>['Keypad','Encoder'].includes(c))&&
@@ -185,7 +186,7 @@ function validateNativeManifest(m){
 }
 function catalog(m){return {uuid:m.id,name:m.name,version:m.version,runtime:'deckforge-sdk',permissions:[...m.permissions],dependencies:{...(m.dependencies||{})},background:!!m.service,...(m.capabilities?{capabilities:[...m.capabilities]}:{}),
   actions:m.actions.map(a=>({uuid:a.id,name:a.name,states:a.states,controllers:a.controllers,
-    propertyInspectorPath:'',defaultImages:{off:a.stateImages?.[0]||null,on:a.stateImages?.[1]||null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{}),...(a.settingsUI?{settingsUI:a.settingsUI}:{}),...(a.titlePolicy?{titlePolicy:a.titlePolicy}:{}),...(a.visualPolicy?{visualPolicy:a.visualPolicy}:{})}))};}
+    propertyInspectorPath:'',defaultImages:{off:a.stateImages?.[0]||null,on:a.stateImages?.[1]||null},...(a.settingsSchema?{settingsSchema:a.settingsSchema}:{}),...(a.settingsUI?{settingsUI:a.settingsUI}:{}),...(a.settingsView?{settingsView:a.settingsView}:{}),...(a.titlePolicy?{titlePolicy:a.titlePolicy}:{}),...(a.visualPolicy?{visualPolicy:a.visualPolicy}:{})}))};}
 class NativePluginHost{
   constructor(userData,onUpdate=()=>{},runnerFactory=null,options={}){
     this.root=path.join(userData,'Plugins');this.onUpdate=onUpdate;
@@ -360,6 +361,7 @@ class NativePluginHost{
     await this.checkDependencies(m);
     const retired=[];
     const stop=()=>{
+      this.viewManager?.cancelPlugin?.(m.id);
       for(const [id,ctx] of this.contexts)if(ctx.pluginUUID===m.id){
         this.resetScript(ctx);ctx.pressed=false;
         retired.push([id,ctx]);this.contexts.delete(id);
@@ -472,7 +474,7 @@ class NativePluginHost{
       if(effects.length>1)check(effects.reduce((sum,e)=>sum+Buffer.byteLength(JSON.stringify(e.value)),0)<=16384,'socket batch send budget');
       return {normal,effects};
     }
-    const {script,tickIntervalMs,stateImages,sharedStateView,tickWhen,pollIntervalMs,...action}=ctx.action;
+    const {script,tickIntervalMs,stateImages,sharedStateView,tickWhen,pollIntervalMs,settingsView,...action}=ctx.action;
     validateNativeManifest({apiVersion:1,id:ctx.pluginUUID,name:'Runtime',version:'1',
       permissions:['display'],actions:[{...action,events:{press:normal.filter(op=>!['animation','stopAnimation'].includes(op.op))}}]});
     return {normal,effects};
@@ -1248,7 +1250,7 @@ class NativePluginHost{
     return true;
   }
   closeRetired(){for(const runner of this.retired)runner.close();this.retired.clear();}
-  suspend(){if(this.closed)return;this.suspended=true;this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}this.runnerPool?.clear();this.reconcileTickTimer();}
+  suspend(){if(this.closed)return;this.suspended=true;this.viewManager?.cancelAll?.();this.closeRetired();for(const ctx of this.contexts.values()){ctx.pressed=false;this.resetScript(ctx);}this.runnerPool?.clear();this.reconcileTickTimer();}
   resume(){
     if(this.closed)return;
     // A wake notification need not have a matching suspend notification.
@@ -1477,6 +1479,7 @@ class PluginRouter{
     check(plan.revision===revision,'installed revision changed; reopen removal');
     check(!plan.dependents.length,'installed dependents must be removed or updated first');
     return this.native.versions.removeKeepingData(id,revision,()=>{
+      this.native.viewManager?.cancelPlugin?.(id);
       for(const [context,ctx] of this.native.contexts)if(ctx.pluginUUID===id){
         this.native.contexts.delete(context);this.native.retire(ctx);
       }
@@ -1501,6 +1504,28 @@ class PluginRouter{
     check(spec,'sensor preview unavailable');
     return require('./deckforge-draw-ops.cjs').validateDrawSpec(spec);
   });}
+  async customSettings(pluginId,actionId,stored){
+    // A property editor operates on a draft, which may not have a mounted key.
+    // Never keep the host/catalogue queue locked while the user edits a form.
+    const plan=await this.serial(async()=>{
+      const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
+      const action=manifest?.actions.find(a=>a.id===actionId);
+      check(action?.settingsView&&manifest.permissions.includes('view.open')&&resolveDependencies(native).ready.has(pluginId),'custom settings view unavailable');
+      validateValue(stored);const initial=nativeEffectiveSettings(action.settingsSchema,stored);validateValue(initial);
+      return {manifest,action,initial,digest:nodeManifestDigest(manifest)};
+    });
+    const manager=this.native.viewManager;
+    if(!manager||this.closed||this.native.suspended)return {status:'unavailable'};
+    const ctx={pluginUUID:pluginId,viewManifest:plan.manifest};
+    const result=await manager.open(ctx,{op:'openView',view:plan.action.settingsView,input:plan.initial},()=>!this.closed&&!this.native.suspended);
+    if(result.status!=='submitted')return {status:result.status};
+    return this.serial(async()=>{
+      const {native}=await this.catalog(),current=native.find(m=>m.id===pluginId);
+      if(!current||nodeManifestDigest(current)!==plan.digest||!resolveDependencies(native).ready.has(pluginId)||this.native.suspended)return {status:'cancelled'};
+      validateValue(result.value);const next=nativeEffectiveSettings(plan.action.settingsSchema,{...plan.initial,...result.value});validateValue(next);
+      return {status:'submitted',settings:next};
+    });
+  }
   dynamicOptions(pluginId,actionId){return this.serial(async()=>{
     const {native}=await this.catalog(),manifest=native.find(m=>m.id===pluginId);
     const action=manifest?.actions.find(a=>a.id===actionId);

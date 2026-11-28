@@ -48,9 +48,11 @@ class NativeViewManager{
   cancel(ctx){
     for(const record of [...this.records.values()])if(record.ctx===ctx)record.finish({status:'cancelled'});
   }
+  cancelPlugin(id){for(const record of [...this.records.values()])if(record.ctx.pluginUUID===id)record.finish({status:'cancelled'});}
+  cancelAll(){for(const record of [...this.records.values()])record.finish({status:'cancelled'});}
   close(){
     if(this.closed)return;this.closed=true;
-    for(const record of [...this.records.values()])record.finish({status:'cancelled'});
+    this.cancelAll();
     for(const channel of Object.values(channels))this.ipcMain.removeHandler(channel);
   }
   async open(ctx,op,active){

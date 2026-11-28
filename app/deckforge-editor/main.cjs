@@ -385,6 +385,9 @@ ipcMain.handle('d200x:native-node-permission',async(event,id)=>{
   if(choice.response!==1)return null;
   return sdk().setNodePermission(id,info.digest,!info.approved);
 });
+ipcMain.handle('d200x:native-custom-settings',async(event,pluginId,actionId,settings)=>{
+  assertEditor(event);return sdk().customSettings(pluginId,actionId,settings);
+});
 ipcMain.handle('d200x:native-credential-info',async(event,id)=>{assertEditor(event);return sdk().credentialInfo(id);});
 ipcMain.handle('d200x:native-credential-write',async(event,id,binding,revision,token)=>{
   assertEditor(event);

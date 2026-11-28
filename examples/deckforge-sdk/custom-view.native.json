@@ -3,7 +3,7 @@
   "id": "com.deckforge.native.custom-view",
   "name": "사용자 정의 창 예제",
   "version": "1.0.0",
-  "requiresDeckForge": ">=2.0.149",
+  "requiresDeckForge": ">=2.0.150",
   "permissions": [
     "display",
     "view.open",
@@ -26,7 +26,8 @@
         "Keypad"
       ],
       "states": 1,
-      "script": "if(event.type==='appear'||event.type==='settings')api.setTitle(settings.label||'제목 편집');if(event.type==='press')api.openView('form',{label:settings.label||''});if(event.type==='viewResult'&&event.response.status==='submitted')api.patchSettings({label:event.response.value.label});"
+      "script": "if(event.type==='appear'||event.type==='settings')api.setTitle(settings.label||'제목 편집');if(event.type==='press')api.openView('form',{label:settings.label||''});if(event.type==='viewResult'&&event.response.status==='submitted')api.patchSettings({label:event.response.value.label});",
+      "settingsView": "form"
     }
   ]
 }

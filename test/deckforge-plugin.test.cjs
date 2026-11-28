@@ -3646,3 +3646,30 @@ test('native custom view package requires declared permission and validates inpu
     assert.throws(()=>host.validateScriptOps(ctx,'viewResult',[op],{status:'submitted'}),/input event/);
   }finally{host.close();}
 });
+
+test('custom property view edits an unmounted draft and preserves existing settings without auto-saving',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-custom-settings-'));
+  const legacy={list:async()=>[],close:async()=>{}};
+  const original={label:'old',keep:true};
+  const m={...scriptManifest,permissions:['display','view.open'],views:{form:{title:'Form',mode:'modal',html:'<input>'}},
+    actions:[{...scriptManifest.actions[0],settingsView:'form'}]};
+  let presented=null,answer={status:'submitted',value:{label:'new'}};
+  const manager={open:async(ctx,op,active)=>{assert.equal(active(),true);assert.equal(ctx.pluginUUID,m.id);presented=op.input;return answer;},close(){}};
+  const host=new NativePluginHost(root,()=>{},()=>({close(){}}),{viewManager:manager});
+  const router=new PluginRouter(legacy,host);
+  try{
+    validateNativeManifest(m);
+    assert.throws(()=>validateNativeManifest({...m,views:{form:{...m.views.form,mode:'window'}}}),/settingsView/);
+    await router.installNative(m);
+    assert.equal((await router.list())[0].actions[0].settingsView,'form');
+    assert.equal(host.contexts.size,0);
+    assert.deepEqual(await router.customSettings(m.id,m.actions[0].id,original),{status:'submitted',settings:{label:'new',keep:true}});
+    assert.deepEqual(presented,original);assert.deepEqual(original,{label:'old',keep:true});
+    assert.equal(host.contexts.size,0);
+    answer={status:'closed'};
+    assert.deepEqual(await router.customSettings(m.id,m.actions[0].id,original),{status:'closed'});
+    await assert.rejects(router.customSettings(m.id,m.actions[0].id+'.missing',original),/unavailable/);
+    answer={status:'submitted',value:{label:'x'.repeat(9000)}};
+    await assert.rejects(router.customSettings(m.id,m.actions[0].id,original),/invalid global settings/);
+  }finally{await router.close();await fs.rm(root,{recursive:true,force:true});}
+});

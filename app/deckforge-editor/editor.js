@@ -4573,6 +4573,27 @@ function collectNativeSettingDraft(inputs,fieldRows,original,haSensor){
   return {next};
 }
 async function openNativeSettings(item,action,plugin){
+  if(action?.settingsView){
+    const session=inspectorSession;if(!inspectorPickerCurrent(session,item))return;
+    const original=clone(item.settings?.pluginSettings||{});
+    const result=await window.deckBridge.nativeCustomSettings(plugin.uuid,action.uuid,original);
+    if(!inspectorPickerCurrent(session,item))return;
+    if(result?.status!=='submitted'){
+      if(result?.status!=='closed'&&result?.status!=='cancelled')window.d200xActionStatus?.('사용자 정의 속성창을 열 수 없습니다.');
+      return;
+    }
+    if(JSON.stringify(item.settings.pluginSettings||{})!==JSON.stringify(original)){
+      window.d200xActionStatus?.('다른 설정 변경이 발생했습니다. 속성창을 다시 열어 주세요.');return;
+    }
+    if(action.titlePolicy){const migrated=nativeTitleView(item,action.titlePolicy);if(migrated!==item)Object.assign(item,migrated);}
+    item.settings.pluginSettings=result.settings;
+    if(action.titlePolicy?.selectionLabel){
+      const key=action.titlePolicy.selectionLabel;
+      if(JSON.stringify(original[key])!==JSON.stringify(result.settings[key]))delete item.settings.nativeTitleSelection;
+    }
+    persistInspectorChange();renderGrid();renderInspector();
+    window.d200xActionStatus?.('플러그인 설정 변경 · 아래 저장 버튼을 누르면 기기에 반영됩니다.');return;
+  }
   const schema=action?.settingsSchema,credentialCapable=plugin?.permissions?.some(p=>['network.request','network.websocket'].includes(p));
   if(!Array.isArray(schema)||!schema.length){
     if(credentialCapable)return openNativeCredentials(item,plugin);
