@@ -13,6 +13,7 @@ const {BrowserWindow,safeStorage,screen,dialog,shell}=require('electron');
 const UUID=/^[a-zA-Z0-9][a-zA-Z0-9._-]{2,180}$/;
 const MAX_ARCHIVE=40*1024*1024,MAX_FILES=2500,MAX_EXPANDED=100*1024*1024;
 const DEVICE='d200x-device';
+const deviceInfo=()=>({name:'D200X',size:{columns:4,rows:4},type:0});
 const HA_PLUGIN='de.perdoctus.streamdeck.homeassistant';
 const HA_DUAL_ACTION=HA_PLUGIN+'.dual-state-entity';
 const HA_SWITCH_ENTITY=/^(switch|light|fan|input_boolean)\.[a-z0-9_]+$/;
@@ -423,7 +424,10 @@ class StreamDeckPluginHost{
           if(msg.event==='registerPlugin'){
             owner=[...this.instances.values()].find(x=>x.uuid===msg.uuid&&((x.window&&!x.window.isDestroyed())||(x.process&&!x.process.killed&&x.process.exitCode===null)));
             if(!owner)return ws.close();
-            owner.ws=ws;this.onUpdate({kind:'pluginConnection',pluginUUID:owner.uuid,connected:true});this.send(ws,{event:'applicationDidLaunch'});
+            owner.ws=ws;this.onUpdate({kind:'pluginConnection',pluginUUID:owner.uuid,connected:true});
+            this.send(ws,{event:'deviceDidConnect',device:DEVICE,deviceInfo:deviceInfo()});
+            // Keep the legacy startup notification for existing plugins.
+            this.send(ws,{event:'applicationDidLaunch'});
             for(const ctx of this.contexts.values())if(ctx.pluginUUID===owner.uuid)this.willAppear(ctx);
             for(const pi of this.inspectors.values())if(pi.pluginUUID===owner.uuid)this.notifyInspectorReady(pi);
             return;
@@ -481,8 +485,8 @@ class StreamDeckPluginHost{
       if(old)this.disconnect(old);
       const inst=await this.ensure(uuid);
       const deadline=Date.now()+5000;
-      while(!this.closing&&!this.suspended&&this.instances.get(uuid)===inst&&inst.ws?.readyState!==1&&Date.now()<deadline)await new Promise(r=>setTimeout(r,100));
-      const ok=inst.ws?.readyState===1;
+      while(inst&&!this.closing&&!this.suspended&&this.instances.get(uuid)===inst&&inst.ws?.readyState!==1&&Date.now()<deadline)await new Promise(r=>setTimeout(r,100));
+      const ok=inst?.ws?.readyState===1;
       this.diagnostic(uuid,ok?'registered':'registration-timeout');
       return ok;
     })().catch(()=>{this.diagnostic(uuid,'recovery-failed');return false;}).finally(()=>this.recoveries.delete(uuid));
@@ -735,10 +739,12 @@ class StreamDeckPluginHost{
   key(context,gesture,ticks=1){
     const ctx=this.contexts.get(context);
     if(!ctx)return false;
-    const event=gesture==='left'||gesture==='right'?'dialRotate':
-      ctx.slot>=16?(gesture==='up'?'dialUp':'dialDown'):(gesture==='up'?'keyUp':'keyDown');
-    const payload={...this.payload(ctx),...(event==='dialRotate'?{ticks:gesture==='left'?-Math.max(1,ticks):Math.max(1,ticks),pressed:false}: {})};
+    const rotation=['left','right','hold-left','hold-right'].includes(gesture);
+    if(!rotation&&!['down','up'].includes(gesture)||rotation&&(ctx.slot<16||!Number.isInteger(ticks)||ticks<1||ticks>32))return false;
+    const event=rotation?'dialRotate':ctx.slot>=16?(gesture==='up'?'dialUp':'dialDown'):(gesture==='up'?'keyUp':'keyDown');
     const inst=this.instances.get(ctx.pluginUUID);
+    const held=gesture.startsWith('hold-')||['hold-left','hold-right'].includes(ctx.gesture)||!!(inst?.ws&&this.pressed.get(context)===inst.ws);
+    const payload={...this.payload(ctx),...(rotation?{ticks:gesture.endsWith('left')?-ticks:ticks,pressed:held}: {})};
     if(this.closing||this.suspended||this.recoveries.has(ctx.pluginUUID)||(ctx.pluginUUID===HA_PLUGIN&&this.resumeTimer)){return false;}
     if(inst?.ws?.readyState!==1){this.pressed.delete(context);this.recover(ctx.pluginUUID);return false;}
     if(event==='keyUp'||event==='dialUp'){if(this.pressed.get(context)!==inst.ws)return false;this.pressed.delete(context);}
@@ -813,6 +819,7 @@ class StreamDeckPluginHost{
   async message(msg,inst,pi,ws){
     const uuid=inst?.uuid||pi?.pluginUUID;
     const ctx=this.contexts.get(msg.context);
+    if(!uuid||ctx&&ctx.pluginUUID!==uuid||pi&&msg.context&&msg.context!==pi.context&&msg.context!==uuid)return;
     switch(msg.event){
       case 'getGlobalSettings':
         this.send(ws,{event:'didReceiveGlobalSettings',context:msg.context,payload:{settings:await this.readGlobal(uuid)}});break;
@@ -836,8 +843,8 @@ class StreamDeckPluginHost{
           this.send(this.instances.get(uuid)?.ws,{event:'didReceiveSettings',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload});
           this.send(this.inspectors.get(ctx.context)?.ws,{event:'didReceiveSettings',action:ctx.actionUUID,context:ctx.context,device:DEVICE,payload});
         }break;
-      case 'sendToPlugin':if(ctx)this.send(this.instances.get(uuid)?.ws,msg);break;
-      case 'sendToPropertyInspector':if(ctx)this.send(this.inspectors.get(ctx.context)?.ws,msg);break;
+      case 'sendToPlugin':if(ctx&&pi&&this.inspectors.get(ctx.context)===pi)this.send(this.instances.get(uuid)?.ws,msg);break;
+      case 'sendToPropertyInspector':if(ctx&&inst)this.send(this.inspectors.get(ctx.context)?.ws,msg);break;
       case 'setTitle':case 'setImage':case 'setState':
         if(ctx&&ctx.pluginUUID===uuid){
           if(msg.event==='setImage'){
@@ -855,7 +862,7 @@ class StreamDeckPluginHost{
           }
         }break;
       case 'showAlert':case 'showOk':
-        this.onUpdate({kind:msg.event,context:msg.context});break;
+        if(ctx)this.onUpdate({kind:msg.event,context:msg.context});break;
       case 'logMessage':break;
       case 'openUrl':{
         // User-initiated links may open once without a prompt; unsolicited links still require approval.

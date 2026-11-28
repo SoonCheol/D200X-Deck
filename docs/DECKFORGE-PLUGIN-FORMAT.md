@@ -22,6 +22,12 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - DefaultWindowSize는 메인 속성창이 아닌 window.open() 자식 창에 적용. 기본 500×650, 명시 width/height 우선, 화면 작업 영역 내 제한. 기존 Fusion 메인 속성창 위치/크기 및 로컬 origin·opener 통신 유지. 외부 URL/로컬 파일 차단 정책 유지.
 - 공통 경로 카탈로그/원본 보존/크기 계산 및 실제 Electron 팝업 검증 추가, 자동 빌드 대기. 공식 자료 https://docs.elgato.com/streamdeck/sdk/references/manifest/ .
 
+## 외부 이벤트 및 EXE 통합 검증 (2.0.153 후보)
+
+- 공식 이벤트 계약 https://docs.elgato.com/streamdeck/sdk/references/websocket/plugin/ : 회전 입력 left/right/hold-left/hold-right를 dialRotate와 signed ticks/pressed로 매핑. 기존 버튼과 dialDown/dialUp 유지. 등록 직후 가상 D200X deviceDidConnect 전송(실제 USB 연결 감시는 별도). 기존 시작 알림 유지.
+- 다른 플러그인의 context 설정 조회/변경·메시지·화면 알림 금지, 속성창 context 소유권 확인. 거부된 EXE 복구 시 인스턴스 없음 안전 처리.
+- 테스트용 C# EXE를 Windows에서 컴파일하여 실제 WebSocket 등록·장치 이벤트·keyDown·누른 채 회전·제목 응답·철회 검증 예정. 테스트 코드 추가 단계이며 실행 결과 미확인. 실제 상용 EXE 전체 지원 선언 아님.
+
 ## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.

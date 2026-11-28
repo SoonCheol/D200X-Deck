@@ -619,3 +619,81 @@ test('property inspector popup dimensions respect manifest default, feature over
   assert.deepEqual(inspectorPopupSize([620,540],'width=9999,height=10',area),{width:1200,height:240});
   assert.deepEqual(inspectorPopupSize(['bad',540],'width=0',area),{width:500,height:650});
 });
+
+test('compatibility dial rotation preserves signed ticks and held state, rejects unsupported gestures',()=>{
+  const host=new StreamDeckPluginHost('/unused');
+  const uuid='com.deckforge.test.dial',context='dial',ws={readyState:1};
+  host.contexts.set(context,{pluginUUID:uuid,actionUUID:uuid+'.key',slot:16,gesture:'left',settings:{}});
+  host.instances.set(uuid,{uuid,ws});
+  const sent=[];host.send=(_ws,msg)=>{sent.push(msg);return true;};
+  assert.equal(host.key(context,'left',3),true);
+  assert.equal(host.key(context,'hold-right',2),true);
+  assert.equal(host.key(context,'down'),true);
+  assert.equal(host.key(context,'right',4),true);
+  assert.equal(host.key(context,'up'),true);
+  assert.equal(host.key(context,'hold-left',1),true);
+  assert.equal(host.key(context,'left',0),false);
+  assert.equal(host.key(context,'left',33),false);
+  assert.equal(host.key(context,'tap'),false);
+  assert.deepEqual(sent.map(m=>[m.event,m.payload.ticks,m.payload.pressed]),[
+    ['dialRotate',-3,false],['dialRotate',2,true],['dialDown',undefined,undefined],
+    ['dialRotate',4,true],['dialUp',undefined,undefined],['dialRotate',-1,true]]);
+});
+test('external SDK context messages cannot cross plugin or inspector ownership',async()=>{
+  const updates=[],sent=[],host=new StreamDeckPluginHost('/unused',e=>updates.push(e));
+  const a='com.deckforge.test.alpha',b='com.deckforge.test.beta',wa={},wb={},pa={};
+  host.contexts.set('a',{context:'a',pluginUUID:a,actionUUID:a+'.key',slot:0,settings:{value:1}});
+  host.contexts.set('b',{context:'b',pluginUUID:b,actionUUID:b+'.key',slot:1,settings:{secret:2}});
+  host.instances.set(a,{uuid:a,ws:wa});host.instances.set(b,{uuid:b,ws:wb});
+  const pi={pluginUUID:a,context:'a',ws:pa};host.inspectors.set('a',pi);
+  host.send=(ws,msg)=>{sent.push([ws,msg]);return true;};
+  for(const event of ['getSettings','setSettings','sendToPlugin','sendToPropertyInspector','showAlert','showOk','setTitle'])
+    await host.message({event,context:'b',payload:{value:9}}, {uuid:a},null,wa);
+  assert.equal(sent.length,0);assert.equal(updates.length,0);
+  assert.deepEqual(host.contexts.get('b').settings,{secret:2});
+  await host.message({event:'getSettings',context:'a'},null,pi,pa);
+  await host.message({event:'sendToPlugin',context:'a',payload:{value:7}},null,pi,pa);
+  await host.message({event:'sendToPropertyInspector',context:'a',payload:{value:8}},{uuid:a},null,wa);
+  assert.deepEqual(sent.map(([ws,msg])=>[ws,msg.event]),[[pa,'didReceiveSettings'],[wa,'sendToPlugin'],[pa,'sendToPropertyInspector']]);
+});
+test('Windows EXE registers over real WebSocket and responds to key and held dial events', {skip:process.platform!=='win32',timeout:45000},async()=>{
+  const {execFileSync}=require('node:child_process');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-exe-roundtrip-'));
+  const uuid='com.deckforge.test.exeroundtrip',key=uuid+'.key',dial=uuid+'.dial',events=[];
+  const storage={isEncryptionAvailable:()=>true,encryptString:v=>Buffer.from(v),decryptString:b=>b.toString()};
+  let prompts=0;
+  const host=new StreamDeckPluginHost(root,e=>events.push(e),()=>null,{executableStorage:storage,executableApprove:async()=>{prompts++;return true;}});
+  try{
+    const source=path.join(root,'fixture.cs'),exe=path.join(root,'fixture.exe');
+    await fs.writeFile(source,[
+      'using System; using System.Collections.Generic; using System.Net.WebSockets; using System.Text; using System.Threading; using System.Web.Script.Serialization;',
+      'public class Fixture { static ClientWebSocket ws=new ClientWebSocket(); static JavaScriptSerializer js=new JavaScriptSerializer();',
+      'static void Send(object message){var bytes=Encoding.UTF8.GetBytes(js.Serialize(message)); ws.SendAsync(new ArraySegment<byte>(bytes),WebSocketMessageType.Text,true,CancellationToken.None).GetAwaiter().GetResult();}',
+      'public static void Main(string[] args){var options=new Dictionary<string,string>();for(int i=0;i+1<args.Length;i+=2)options[args[i]]=args[i+1];',
+      'ws.ConnectAsync(new Uri("ws://127.0.0.1:"+options["-port"]),CancellationToken.None).GetAwaiter().GetResult();',
+      'Send(new { @event=options["-registerEvent"],uuid=options["-pluginUUID"] });',
+      'bool device=false;var buf=new byte[65536];while(ws.State==WebSocketState.Open){var r=ws.ReceiveAsync(new ArraySegment<byte>(buf),CancellationToken.None).GetAwaiter().GetResult();if(r.MessageType==WebSocketMessageType.Close)break;',
+      'var m=js.Deserialize<Dictionary<string,object>>(Encoding.UTF8.GetString(buf,0,r.Count));string e=(string)m["event"];',
+      'if(e=="deviceDidConnect")device=true;',
+      'if(e=="keyDown"||e=="dialRotate"){var p=(Dictionary<string,object>)m["payload"];string title=e=="keyDown"?(device?"EXE_DEVICE_OK":"NO_DEVICE"):(Convert.ToBoolean(p["pressed"])?"HELD:":"FREE:")+p["ticks"];',
+      'Send(new {@event="setTitle",context=m["context"],payload=new {title=title}});}}}}'
+    ].join('\n'));
+    const compiler=path.join(process.env.SystemRoot||'C:\\Windows','Microsoft.NET','Framework64','v4.0.30319','csc.exe');
+    execFileSync(compiler,['/nologo','/target:exe','/r:System.Web.Extensions.dll','/out:'+exe,source],{windowsHide:true,timeout:10000});
+    const m={UUID:uuid,Name:'EXE roundtrip',Version:'1.0.0',CodePath:'fixture.exe',Actions:[{UUID:key,Name:'Key'},{UUID:dial,Name:'Dial',Controllers:['Encoder']}]};
+    const prefix=uuid+'.sdPlugin/';
+    await host.install(await zipWith({[prefix+'manifest.json']:JSON.stringify(m),[prefix+'fixture.exe']:await fs.readFile(exe)}));
+    assert.equal(prompts,0);
+    await host.sync([{context:'key',slot:0,pluginUUID:uuid,actionUUID:key,settings:{}},{context:'dial',slot:16,pluginUUID:uuid,actionUUID:dial,settings:{}}]);
+    const until=async predicate=>{const deadline=Date.now()+10000;while(!predicate()&&Date.now()<deadline)await new Promise(r=>setTimeout(r,30));assert.ok(predicate(),'EXE registration or response missing');};
+    await until(()=>!!host.instances.get(uuid)?.ws);
+    assert.equal(prompts,1);
+    assert.equal(host.key('key','down'),true);
+    assert.equal(host.key('dial','hold-left',3),true);
+    await until(()=>events.some(e=>e.kind==='setTitle'&&e.payload?.title==='EXE_DEVICE_OK')&&events.some(e=>e.kind==='setTitle'&&e.payload?.title==='HELD:-3'));
+    const grant=await host.executablePermissionInfo(uuid);
+    await host.setExecutablePermission(uuid,grant.revision,false);
+    assert.equal(host.instances.has(uuid),false);
+    assert.equal(await host.authorizeExecutable(uuid),false);assert.equal(prompts,1);
+  }finally{await host.close();await fs.rm(root,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
+});
