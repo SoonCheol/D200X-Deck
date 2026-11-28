@@ -22,7 +22,8 @@
 - 2.0.173 SDK simulate 전역 서비스 시작/중지/재시작·메시지·공유 상태, 전역 설정 메모리 vault 초기값/저장/충돌 fixture, 전체 컨텍스트 drain 및 실행별 임시 폴더, 집중 Node/Electron 시험 추가. Windows #177/CI #1713/Store #133 성공, SDK #405 성공; 동일 소스 문서 HEAD SDK #406 성공.
 - 2.0.174 SDK simulate 비인증 WebSocket 모의 transport·연결/수신/송신/종료/오류/재접속, 명시적 런타임 장애 주입/재초기화·입력 재실행 없음, 집중 Node/Electron 시험 추가. Windows #178/CI #1716/Store #136 성공, SDK #408 성공; 동일 소스 문서 HEAD SDK #409 성공. 실제 TLS·인증·프로세스 강제 종료 시험 제외.
 - 2.0.175 SDK simulate 초기/단계별 기대값·오류 총계 정확 비교, 불일치 경로/실측값·검사 집계 및 CLI 실패 코드 유지, counter/HTTP/WSS 예제·README, 집중 Node/Electron 시험 추가. Windows #179/CI #1719/SDK #411/Store #139 성공.
-- 2.0.176 SDK CLI Windows 실제 별도 Electron 실행 회귀(3개 예제+기대값 불일치 종료 1), 자식 환경/임시 입력 크기/정리 개선, 실제 플러그인 검증 체크리스트. Windows #180(46133670793) 진행 중, CI #1722/SDK #414(46133675323)/Store #142 대기 확인.
+- 2.0.176 SDK CLI Windows 실제 별도 Electron 실행 회귀(3개 예제+기대값 불일치 종료 1), 자식 환경/임시 입력 크기/정리 개선, 실제 플러그인 검증 체크리스트. Windows #180/CI #1722/SDK #414/Store #142 성공.
 ## 다음 작업
+- 사용자 요청 우선: 2.0.177 Fusion 검색 카드 실제 메뉴 경로 표시·중복 정보 아이콘 제거, 상세/드래그 보존. SDK 실기 검증은 별도.
 - 2.0.176 자동 검증, 실제 플러그인 검증 준비 및 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/500ms/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
 - Store 0.1.19 NAS/실기 및 편집기 2.0.145 실기 미확인 상태 보존. Store/통합 환경설정/프로필·템플릿 공유/업데이트 UI 보류. 기존 상세 작업·빌드 번호는 이전 스냅샷 참조.
