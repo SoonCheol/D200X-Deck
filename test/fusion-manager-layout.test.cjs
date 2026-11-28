@@ -120,3 +120,13 @@ test('Fusion search cards show recorded menu paths and retain detail click, keyb
  assert.match(html,/\.command-card\{height:76px/);
  assert.match(js,/el\.append\(info\)/); // independent page slot detail control remains
 });
+
+test('Fusion command detail omits the redundant visibility selector but keeps descriptions and IDs',()=>{
+ const fs=require('node:fs'),path=require('node:path');
+ const renderer=fs.readFileSync(path.join(__dirname,'../tools/fusion-manager/renderer.js'),'utf8');
+ const detail=renderer.slice(renderer.indexOf('function showDetail('),renderer.indexOf(" $('detail').style.display='block';"));
+ assert.doesNotMatch(detail,/목록 표시|자동 분류|기본 표시|검토 대상|숨김 대상|saveVisibility|createElement\('select'\)/);
+ assert.match(detail,/명령 ID/);assert.match(detail,/명령 설명/);assert.match(detail,/동일 이름 ID/);
+ assert.match(detail,/readTooltip\(v.id\)/);
+ assert.match(renderer,/loadVisibility\(\)/);
+});

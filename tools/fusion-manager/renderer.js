@@ -229,20 +229,6 @@ function showDetail(v){
   dd.textContent=similar.map(item=>item.id).join(', ')+' (서로 다른 명령 ID, 기능 동일 여부 미확인)';
   dl.append(dt,dd);
  }
- const dt=document.createElement('dt'),dd=document.createElement('dd'),select=document.createElement('select');
- dt.textContent='목록 표시';
- const opts=[['auto','자동 분류'],['primary','기본 표시'],['review','검토 대상'],['hidden','숨김 대상']];
- for(const [value,title] of opts){
-  const option=document.createElement('option');option.value=value;option.textContent=title;select.append(option)
- }
- select.value=visibilityOverrides[v.id]||'auto';
- select.onchange=async()=>{
-  const prev={...visibilityOverrides};
-  if(select.value==='auto')delete visibilityOverrides[v.id];else visibilityOverrides[v.id]=select.value;
-  try{await window.fusionManager.saveVisibility(visibilityOverrides);menuTreeCache=null;render();}
-  catch(e){visibilityOverrides=prev;select.value=prev[v.id]||'auto';status('분류 저장 실패: '+e.message)}
- };
- dd.append(select);dl.append(dt,dd);
  $('detail').style.display='block';
 }
 $('detailClose').onclick=()=>$('detail').style.display='none';
