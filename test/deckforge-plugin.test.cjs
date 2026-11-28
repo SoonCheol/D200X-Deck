@@ -3733,3 +3733,14 @@ test('SDK display-only offline simulation uses actual key routing and rejects un
     assert.equal((await simulateFile(input,spec)).steps[3].title,'Held');
   }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('offline HTTP fixture validation rejects real-world authorization and invalid response contracts before execution',async()=>{
+  const {runScenario}=require('../app/deckforge-editor/deckforge-sdk-simulate.cjs');
+  const id='com.deckforge.native.mock-validation',action=id+'.key';
+  const m={apiVersion:2,id,name:'Mock validation',version:'1.0.0',permissions:['display','network.request'],networkEndpoints:[{id:'status',url:'https://example.invalid/status',method:'GET'}],actions:[{id:action,name:'Status',controllers:['Keypad'],states:1,script:"api.setTitle('test');"}]};
+  const scenario={actionId:action,slot:0,steps:[]};
+  await assert.rejects(runScenario({...m,networkEndpoints:[{...m.networkEndpoints[0],auth:'bearer'}]},scenario,'/unused'),/authenticated/);
+  const valid={endpoint:'status',ok:true,status:200,body:'Ready',error:null};
+  for(const bad of [{...valid,endpoint:'wrong'},{...valid,status:302},{...valid,body:'x'.repeat(9000)},{...valid,ok:false,error:'timeout',status:0}])
+    await assert.rejects(runScenario(m,{...scenario,httpResponses:[bad]},'/unused'),/fixture/);
+});

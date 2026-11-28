@@ -152,9 +152,11 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - `test/fixtures/ulanzi-sdk`: 공식 Ulanzi SDK commit 550ab80c69285ecf259bd494a7fff767c14f0c0f의 API Request 및 Analog Clock 선택 원본 파일, Apache-2.0 LICENSE, 원본 경로/Git blob 해시. 원본 소스·속성창 정적 검사를 기존 테스트에 추가. 미지원 PrivateAPI, onRun, 설정 전달 이벤트, 동적 옵션·인증 헤더·checkbox 직렬화 구분을 확인한다. 이 fixture는 완전한 플러그인이 아니며 실행/설치/실기 호환을 입증하지 않는다.
 - 기존 Windows 실제 Electron smoke에 네트워크 요청·결과 명령 전달 및 OS safeStorage 암호화 쓰기/재열기/복호화/낡은 revision 거부/등록 해제 테스트 추가. 임시 테스트 디렉터리만 사용, 사용자 데이터 접근 없음. Windows DPAPI는 같은 사용자 계정의 다른 프로세스까지 보호하는 경계가 아니다. 실제 CI 결과 확인 전 성공으로 간주하지 않는다.
 
-## 독자 SDK 오프라인 시나리오 시험 (2.0.170 후보)
+## 독자 SDK 오프라인 시나리오 시험 (2.0.170~171 후보)
 
-- `node app/deckforge-editor/deckforge-sdk-cli.cjs simulate <native.json> <scenario.json>`: `examples/deckforge-sdk/counter.scenario.json` 예제. 실제 NativePluginHost의 API1 선언형/ API2 격리 Chromium 실행기를 사용하며 API2는 별도 Electron 프로세스와 임시 데이터 경로. 설치·실기·사용자 프로필에 연결하지 않는다. `display` 권한만 가진 독립 manifest 지원, 의존성·외부 효과·타이머·서비스 제외. 자동 복구 타이머 비활성, 실제 절전 대신 host suspend/resume 호출.
+- 2.0.171: `network.request` 권한의 비인증 HTTPS endpoint를 실제 SDK 요청/응답 경계에서 모의한다. scenario `httpResponses`는 순서별 `{endpoint,ok,status,body,error}` 배열(최대 64개/48KB). 성공 2xx, HTTP 오류/리다이렉트 거부/timeout/연결 실패/응답 오류의 fixture 지원. 실제 서버·토큰·WebSocket 접근 없음. 요청의 endpoint/method 및 응답 상태만 집계하며 본문·URL·헤더는 기록하지 않는다(플러그인 제목 출력은 별도). 정의되지 않은 요청이나 미사용 응답이 있으면 결과 `ok:false`. 예상된 실패 응답 자체는 시험 실패가 아니며 표시 결과와 별도로 판단. 실제 전송 시간·TLS·인증 시험은 아님. `examples/deckforge-sdk/http-mock.native.json`과 `http-mock.scenario.json` 예제. 집중 Node/Electron 시험 추가.
+
+- `node app/deckforge-editor/deckforge-sdk-cli.cjs simulate <native.json> <scenario.json>`: `examples/deckforge-sdk/counter.scenario.json` 예제. 실제 NativePluginHost의 API1 선언형/ API2 격리 Chromium 실행기를 사용하며 API2는 별도 Electron 프로세스와 임시 데이터 경로. 설치·실기·사용자 프로필에 연결하지 않는다. 독립 manifest 지원(`display`, 2.0.171부터 모의 `network.request`), 의존성·기타 외부 효과·타이머·서비스 제외. 자동 복구 타이머 비활성, 실제 절전 대신 host suspend/resume 호출.
 - 시나리오 actionId/slot/settings/steps(최대 24), down/up/left/right/hold-left/hold-right(회전 ticks 1~8)/settings/suspend/resume 지원. JSON으로 초기 및 단계별 입력 수락, 제목·상태·이미지 표시 여부·실패/절전 및 오류 분류 표시. 실패 또는 거절은 종료 코드 1, 정상 코드 0. 제목은 플러그인 출력이므로 시험용 데이터만 사용. 실제 D200X·OS 효과·성능 보장 아님. 집중 Node/Electron 시험 추가, 자동 검증 대기.
 
 ## 독자 SDK 작성 도구 확장 (2.0.168 후보)

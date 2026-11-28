@@ -83,7 +83,18 @@ app.whenReady().then(async()=>{
     const sim={apiVersion:2,id:simId,name:'Offline fixture',version:'1.0.0',permissions:['display'],actions:[{id:simAction,name:'Counter',controllers:['Encoder'],states:2,script:"if(event.type==='appear')api.setTitle('Ready');if(event.type==='press')api.toggleState();if(event.type==='rotateRight'){memory.n=(memory.n||0)+1;api.setTitle(String(memory.n));}if(event.type==='heldRotateLeft')throw Error('fixture failure');"}]};
     const report=await runScenario(sim,{actionId:simAction,slot:16,steps:[{kind:'down'},{kind:'up'},{kind:'right',ticks:2},{kind:'hold-left'}]},root);
     assert.equal(report.initial.title,'Ready');assert.equal(report.steps[0].state,1);assert.equal(report.steps[2].title,'2');assert.equal(report.steps[3].status,'failed');assert.equal(report.ok,false);assert.equal(report.errors.counts['execution-failed'],1);
-    console.log('DeckForge offline SDK simulation verified in sandboxed Electron runtime');
+    const netId='com.deckforge.native.mock-http',netAction=netId+'.key';
+    const net={apiVersion:2,id:netId,name:'Offline HTTP fixture',version:'1.0.0',permissions:['display','network.request'],networkEndpoints:[{id:'status',url:'https://example.invalid/status',method:'GET'}],actions:[{id:netAction,name:'Status',controllers:['Keypad'],states:1,script:"if(event.type==='press')api.request('status');if(event.type==='networkResult')api.setTitle(event.response.ok?event.response.body:event.response.error);"}]};
+    const responses=[{endpoint:'status',ok:true,status:200,body:'Ready',error:null},{endpoint:'status',ok:false,status:503,body:'',error:'http-error'},{endpoint:'status',ok:false,status:0,body:'',error:'timeout'},{endpoint:'status',ok:false,status:0,body:'',error:'connection-error'}];
+    const spec={actionId:netAction,slot:0,steps:responses.flatMap(()=>[{kind:'down'},{kind:'up'}]),httpResponses:responses};
+    const network=await runScenario(net,spec,root);
+    assert.equal(network.ok,true);assert.deepEqual(network.steps.filter(s=>s.kind==='down').map(s=>s.title),['Ready','http-error','timeout','connection-error']);
+    assert.equal(network.http.requests.length,4);assert.equal(network.http.unusedResponses,0);assert.ok(network.http.requests.every(r=>r.matched));
+    const missing=await runScenario(net,{...spec,httpResponses:responses.slice(0,3)},root);
+    assert.equal(missing.ok,false);assert.equal(missing.http.requests.at(-1).matched,false);
+    const unused=await runScenario(net,{...spec,steps:spec.steps.slice(0,2)},root);
+    assert.equal(unused.ok,false);assert.equal(unused.http.unusedResponses,3);
+    console.log('DeckForge offline SDK simulation and HTTPS mock responses verified in sandboxed Electron runtime');
   }finally{if(win&&!win.isDestroyed())win.destroy();await fs.rm(root,{recursive:true,force:true});}
   app.exit(0);
 }).catch(error=>{console.error(error);app.exit(1);});
