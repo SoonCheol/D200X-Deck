@@ -5,6 +5,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {StreamDeckPluginHost}=require('../app/deckforge-editor/sd-plugin-host.cjs');
+const {WebSocket}=require('../app/node_modules/ws');
 
 async function until(predicate,label,timeout=12000){
   const deadline=Date.now()+timeout;
@@ -20,7 +21,7 @@ test('Unmodified Autodesk FusionStreamDeck Node24 plugin speaks D200X SDK WebSoc
   const source=process.env.D200X_FUSION_SOURCE;
   if(!source){t.skip('Pinned upstream plugin test runs in Windows preview workflow');return;}
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'d200x-fusion-sdk-'));
-  const events=[],messages=[];
+  const events=[],messages=[];let inspectorSocket;
   const host=new StreamDeckPluginHost(dir,event=>events.push(event));
   const uuid='com.autodesk.fusionstreamdeck';
   const actionUUID=uuid+'.runcommand';
@@ -35,15 +36,22 @@ test('Unmodified Autodesk FusionStreamDeck Node24 plugin speaks D200X SDK WebSoc
     // No Fusion add-in or command is configured on CI: the upstream plugin
     // must still receive keyDown and emit its native showAlert notification.
     await until(()=>events.some(x=>x.kind==='showAlert'&&x.context===ctx),'Fusion offline key response');
-    host.inspectors.set(ctx,{context:ctx,pluginUUID:uuid,
-      window:{isDestroyed:()=>true},
-      ws:{readyState:1,send:raw=>messages.push(JSON.parse(raw))}});
-    await host.message({event:'sendToPlugin',context:ctx,action:actionUUID,
-      payload:{type:'search',query:'extrude'}},null,{pluginUUID:uuid,context:ctx},null);
+    // Use the actual registered inspector and WebSocket rather than a
+    // synthetic object that bypasses the new context ownership boundary.
+    host.inspectors.set(ctx,{context:ctx,pluginUUID:uuid,actionUUID,slot:0,
+      window:{isDestroyed:()=>true},ws:null});
+    inspectorSocket=new WebSocket('ws://127.0.0.1:'+host.port);
+    inspectorSocket.on('message',raw=>messages.push(JSON.parse(String(raw))));
+    await new Promise((resolve,reject)=>{inspectorSocket.once('open',resolve);inspectorSocket.once('error',reject);});
+    inspectorSocket.send(JSON.stringify({event:'registerPropertyInspector',uuid:ctx}));
+    await until(()=>host.inspectors.get(ctx)?.ws?.readyState===1,'original Fusion inspector registration');
+    inspectorSocket.send(JSON.stringify({event:'sendToPlugin',context:ctx,action:actionUUID,
+      payload:{type:'search',query:'extrude'}}));
     await until(()=>messages.some(m=>m.event==='sendToPropertyInspector'&&
       m.payload?.type==='searchError'),'original Fusion search response to Property Inspector');
     assert.equal(messages.some(m=>m.context===ctx),true);
   }finally{
+    inspectorSocket?.terminate();
     await host.close();
     await fs.rm(dir,{recursive:true,force:true,maxRetries:8,retryDelay:200});
   }

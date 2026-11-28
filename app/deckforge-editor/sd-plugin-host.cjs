@@ -442,7 +442,7 @@ class StreamDeckPluginHost{
             this.notifyInspectorReady(inspector);
             return;
           }
-          if((owner&&this.instances.get(owner.uuid)===owner&&owner.ws===ws)||inspector)Promise.resolve(this.message(msg,owner,inspector,ws))
+          if((owner&&this.instances.get(owner.uuid)===owner&&owner.ws===ws)||(inspector&&this.inspectors.get(inspector.context)===inspector&&inspector.ws===ws))Promise.resolve(this.message(msg,owner,inspector,ws))
             .catch(error=>this.onUpdate({kind:'error',message:'SDK 설정 요청 실패: '+error.message}));
         }catch(error){this.onUpdate({kind:'error',message:'플러그인 메시지 처리 오류: '+error.message});}
       });
