@@ -494,3 +494,27 @@ test('new page retires pending compatibility startup and prevents obsolete mount
   assert.equal(router.key(fresh.context,'up'),true);
  }finally{clearTimeout(timer);release();await Promise.allSettled([pending,next,management]);await router.close();}
 });
+
+test('shared Node process runtime supports plugin-local files and modules with literal arguments',async()=>{
+  const {nodeRuntime,spawnNodePlugin}=require('../app/deckforge-editor/deckforge-node-runtime.cjs');
+  const {once}=require('node:events');
+  const runtime=await nodeRuntime(20);
+  const cwd=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge runtime '));
+  let child;
+  try{
+    await fs.writeFile(path.join(cwd,'data.txt'),'file-ok');
+    await fs.writeFile(path.join(cwd,'local.cjs'),'module.exports="module-ok"');
+    const entry=path.join(cwd,'plugin.cjs');
+    await fs.writeFile(entry,"console.log(JSON.stringify([require('node:fs').readFileSync('data.txt','utf8'),require('./local.cjs'),process.argv[2]]))");
+    child=spawnNodePlugin(runtime,entry,['A & B'],cwd);
+    let output='';
+    child.stdout.on('data',c=>output+=c);
+    child.stderr.resume();
+    const [code]=await once(child,'close');
+    assert.equal(code,0);
+    assert.deepEqual(JSON.parse(output),['file-ok','module-ok','A & B']);
+  }finally{
+    if(child&&child.exitCode===null&&!child.killed)child.kill();
+    await fs.rm(cwd,{recursive:true,force:true,maxRetries:6,retryDelay:150});
+  }
+});
