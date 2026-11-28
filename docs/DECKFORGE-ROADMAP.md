@@ -8,8 +8,8 @@
 3. Ulanzi·Elgato 공식 SDK 기능별 1차 비교 기록 완료; 세부 API/실제 패키지 추가 검토.
 4. Node.js·PowerShell·COM·파일 접근·외부 라이브러리 지원 — 2.0.146 공통 Node launcher Windows 성공, 2.0.147 신뢰 Node 작업/최초 승인/결과/권한 관리 구현. 2.0.148 Windows #152에서 실제 PowerShell/COM 통과; Excel 실기·원본 의존성·지속 서비스/하위 프로세스 수명 후속.
 5. 독립 창·모달·사용자 정의 UI 지원 — 2.0.149 독자 HTML/CSS/JS 창 및 모달/입력·결과 구현, Windows #153 성공. 2.0.150 기존 속성 버튼과 사용자 정의 모달/초안 연결, Windows #154 실제 Electron 검증 통과. 원본 UI 자산·지속 통신 후속.
-6. Elgato 원본 플러그인 호환 개선 — 2.0.151 Windows CodePathWin/EXE/HTM 및 최초 승인·철회 구현, CI/SDK 성공, Windows #155 대기. 2.0.152 공통 속성창 및 팝업 크기 지원, 검증 대기. 2.0.153 노브 held rotation/가상 장치 등록·context 소유권 및 Windows EXE 실제 WebSocket 왕복 테스트 추가, 검증 대기. 실제 상용 EXE 호환 및 물리 연결 이벤트/애플리케이션 감시 별도.
-7. Ulanzi 원본 실행 호환 엔진 개발(변환은 보조, PrivateAPI 기능별 판단).
+6. Elgato 원본 플러그인 호환 개선 — 2.0.151 Windows CodePathWin/EXE/HTM 및 최초 승인·철회 구현, Windows #155 성공. 2.0.152 공통 속성창 및 팝업 크기 지원, 검증 대기. 2.0.153 노브 held rotation/가상 장치 등록·context 소유권 및 Windows EXE 실제 WebSocket 왕복 테스트 추가, 검증 대기. 실제 상용 EXE 호환 및 물리 연결 이벤트/애플리케이션 감시 별도.
+7. Ulanzi 원본 실행 호환 엔진 — 2.0.154 원본 Node 실행·V3.1 통신 실험 모듈/실제 프로세스 테스트 추가. 설치·권한·편집기 라우팅/HTML/속성창 및 API별 대응 후속. 변환은 보조, PrivateAPI 표지만으로 원본 실행 차단 금지.
 8. 독자 SDK 개발 도구 및 디버깅 개선.
 9. Excel·Fusion·Home Assistant 실제 플러그인 검증.
 

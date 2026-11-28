@@ -28,6 +28,11 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - 다른 플러그인의 context 설정 조회/변경·메시지·화면 알림 금지, 속성창 context 소유권 확인. 거부된 EXE 복구 시 인스턴스 없음 안전 처리.
 - 테스트용 C# EXE를 Windows에서 컴파일하여 실제 WebSocket 등록·장치 이벤트·keyDown·누른 채 회전·제목 응답·철회 검증 예정. 테스트 코드 추가 단계이며 실행 결과 미확인. 실제 상용 EXE 전체 지원 선언 아님.
 
+## Ulanzi 원본 Node 통신 기반 (2.0.154 후보)
+
+- 공식 SDK https://github.com/UlanziTechnology/plugin-common-node/blob/main/libs/ulanziApi.js 와 https://github.com/UlanziTechnology/UlanziDeckPlugin-SDK/blob/main/UlanziDeckSimulator/server/clients.js 참고. 별도 실험 호스트 ulanzi-node-host.cjs: 명시 승인 인자를 요구하고 원본 Node 진입점을 positional address/port/language로 실행. 별도 loopback WebSocket, connected 등록, uuid/key/actionid 세대 기반 라우팅, add/paramfromapp/clear/key/dial/run, setTitle/setState/getSettings/setSettings/paramfromplugin/showAlert 초기 대응. 지원하지 않는 명령은 오류 응답. PrivateAPI 메타데이터 자체는 거부 조건이 아님.
+- 기존 변환기·독자 SDK·외부 호스트 미변경. 실제 제품 설치/저장·권한 UI/편집기 라우팅은 연결 전이며 일반 사용자 플러그인은 실행하지 않음. 테스트 fixture는 공식 wire 형식에 맞춘 자체 Node 코드이지 공식 SDK 패키지 또는 상용 원본 시험이 아님. 실제 실행 및 UI 검증은 후속. 주소/포트 격리는 로컬 악성 프로세스에 대한 인증을 보장하지 않으며 운영 적용 전 권한·수명·설치 무결성 보강 필요.
+
 ## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.

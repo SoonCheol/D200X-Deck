@@ -697,3 +697,50 @@ test('Windows EXE registers over real WebSocket and responds to key and held dia
     assert.equal(await host.authorizeExecutable(uuid),false);assert.equal(prompts,1);
   }finally{await host.close();await fs.rm(root,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
 });
+
+test('original Ulanzi Node host runs unmodified entry with V3.1 registration and isolated action contexts', {timeout:30000},async()=>{
+  const {UlanziNodeHost,validateOriginalNodeManifest}=require('../app/deckforge-editor/ulanzi-node-host.cjs');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-ulanzi-node-'));
+  const uuid='com.ulanzi.ulanzistudio.fixture',key=uuid+'.key',dial=uuid+'.dial',updates=[];
+  const manifest={UUID:uuid,Name:'Original fixture',Version:'1.0.0',Type:'JavaScript',CodePath:'main.cjs',PrivateAPI:true,
+    Actions:[{UUID:key,Name:'Key',States:[{},{}]},{UUID:dial,Name:'Dial',Controllers:['Encoder']}]};
+  const source=[
+    "const [address,port,language]=process.argv.slice(2);",
+    "const ws=new WebSocket('ws://'+address+':'+port);",
+    "const send=m=>ws.send(JSON.stringify(m));",
+    "ws.addEventListener('open',()=>send({cmd:'connected',uuid:"+JSON.stringify(uuid)+",code:0}));",
+    "ws.addEventListener('message',event=>{",
+    "const m=JSON.parse(event.data);if(m.code!==undefined)return;",
+    "const {uuid,key,actionid}=m;const param={uuid,key,actionid};",
+    "if(m.cmd==='add')send({cmd:'setTitle',param:{...param,text:'ADD:'+language}});",
+    "if(m.cmd==='keydown'){send({cmd:'setSettings',...param,settings:{value:7}});send({cmd:'getSettings',...param});send({cmd:'setTitle',param:{...param,text:'KEY'}});send({cmd:'setTitle',param:{...param,actionid:'invalid',text:'FORGED'}});}",
+    "if(m.cmd==='didReceiveSettings')send({cmd:'setState',param:{...param,state:1}});",
+    "if(m.cmd==='dialrotate')send({cmd:'setTitle',param:{...param,text:m.rotateEvent}});",
+    "if(m.cmd==='run')send({cmd:'unknownPrivateApi',...param});",
+    "});"
+  ].join('\n');
+  const host=new UlanziNodeHost(root,e=>updates.push(e));
+  const until=async predicate=>{const end=Date.now()+10000;while(!predicate()&&Date.now()<end)await new Promise(r=>setTimeout(r,25));assert.ok(predicate(),'Ulanzi protocol response missing');};
+  try{
+    validateOriginalNodeManifest(manifest);
+    assert.throws(()=>validateOriginalNodeManifest({...manifest,CodePath:'../main.cjs'}),/manifest/);
+    await fs.writeFile(path.join(root,'manifest.json'),JSON.stringify(manifest));
+    await fs.writeFile(path.join(root,'main.cjs'),source);
+    await assert.rejects(host.start(),/approval required/);
+    assert.equal(host.child,null);
+    await host.start({approved:true});
+    const configs=[{context:'key',pluginUUID:uuid,actionUUID:key,slot:0,settings:{}},{context:'dial',pluginUUID:uuid,actionUUID:dial,slot:16,gesture:'hold-left',settings:{}}];
+    host.sync(configs);
+    await until(()=>updates.some(e=>e.kind==='setTitle'&&e.context==='key'&&e.payload.title==='ADD:ko'));
+    assert.equal(host.key('key','down'),true);
+    assert.equal(host.key('key','up'),true);
+    assert.equal(host.key('dial','hold-left',2),true);
+    await until(()=>updates.some(e=>e.kind==='settings'&&e.context==='key'&&e.settings.value===7)&&updates.some(e=>e.kind==='setState'&&e.context==='key'&&e.payload.state===1)&&updates.filter(e=>e.kind==='setTitle'&&e.context==='dial'&&e.payload.title==='hold-left').length===2&&updates.some(e=>e.kind==='unsupportedUlanziCommand'&&e.command==='unknownPrivateApi'));
+    assert.equal(updates.some(e=>e.payload?.title==='FORGED'),false);
+    const before=host.mounts.get('key').actionid;
+    host.sync([{...configs[0],mountGeneration:2}]);
+    assert.notEqual(host.mounts.get('key').actionid,before);
+    assert.equal(host.key('dial','left'),false);
+    assert.equal(await fs.readFile(path.join(root,'main.cjs'),'utf8'),source);
+  }finally{await host.close();await fs.rm(root,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
+});
