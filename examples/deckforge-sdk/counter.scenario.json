@@ -6,32 +6,65 @@
   },
   "steps": [
     {
-      "kind": "down"
+      "kind": "down",
+      "expect": {
+        "title": "Count 1",
+        "state": 1
+      }
     },
     {
-      "kind": "up"
+      "kind": "up",
+      "expect": {
+        "title": "Count 1"
+      }
     },
     {
       "kind": "right",
-      "ticks": 2
+      "ticks": 2,
+      "expect": {
+        "title": "Count 3",
+        "state": 1
+      }
     },
     {
-      "kind": "left"
+      "kind": "left",
+      "expect": {
+        "title": "Count 2"
+      }
     },
     {
-      "kind": "hold-left"
+      "kind": "hold-left",
+      "expect": {
+        "title": "Count 0"
+      }
     },
     {
       "kind": "settings",
       "settings": {
         "label": "Test"
+      },
+      "expect": {
+        "title": "Test 0"
       }
     },
     {
-      "kind": "suspend"
+      "kind": "suspend",
+      "expect": {
+        "status": "suspended"
+      }
     },
     {
-      "kind": "resume"
+      "kind": "resume",
+      "expect": {
+        "title": "Test 0",
+        "status": "active"
+      }
     }
-  ]
+  ],
+  "expectInitial": {
+    "title": "Count 0",
+    "state": 0,
+    "status": "active"
+  },
+  "expectErrorTotal": 0
 }

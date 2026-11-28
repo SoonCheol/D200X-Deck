@@ -3774,3 +3774,25 @@ test('offline socket and runtime fault steps validate permissions, scope and pay
   await assert.rejects(runScenario(m,{...spec,steps:[{kind:'runtime-fault',scope:'service'}]},'/unused'),/simulation target/);
   await assert.rejects(runScenario({...m,networkEndpoints:[{...m.networkEndpoints[0],auth:'bearer'}]},spec,'/unused'),/authenticated/);
 });
+
+test('offline scenario assertions match exact scalar snapshots and retain failure exit codes',async()=>{
+  const {runScenario}=require('../app/deckforge-editor/deckforge-sdk-simulate.cjs');
+  const id='com.deckforge.native.assertion-fixture',action=id+'.key';
+  const manifest={apiVersion:1,id,name:'Assertions',version:'1.0.0',permissions:['display'],actions:[{id:action,name:'Key',controllers:['Keypad'],states:2,events:{appear:[{op:'title',value:'Ready'}],press:[{op:'toggleState'}]}}]};
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-assertions-'));
+  const spec={actionId:action,slot:0,expectInitial:{title:'Ready'},expectErrorTotal:0,steps:[{kind:'down',expect:{state:1,accepted:true}},{kind:'up',expect:{state:1}}]};
+  try{
+    const ok=await runScenario(manifest,spec,root);assert.equal(ok.ok,true);assert.deepEqual(ok.assertions,{checked:5,passed:5,failed:0,mismatches:[]});
+    const mismatch={...spec,steps:[{kind:'down',expect:{state:0}},{kind:'up'}]};
+    const bad=await runScenario(manifest,mismatch,root);assert.equal(bad.ok,false);assert.deepEqual(bad.assertions.mismatches,[{target:'steps[0]',field:'state',expected:0,actual:1}]);
+    const rejected=await runScenario(manifest,{actionId:action,slot:0,steps:[{kind:'up',expect:{accepted:false}}]},root);
+    assert.equal(rejected.assertions.failed,0);assert.equal(rejected.ok,false);
+    for(const value of [{unknown:true},{state:'1'},{socket:'connected'},{}])
+      await assert.rejects(runScenario(manifest,{...spec,expectInitial:value},root),/invalid expected snapshot/);
+    await assert.rejects(runScenario(manifest,{...spec,expectErrorTotal:-1},root),/expected error total/);
+    const input=path.join(root,'native.json'),scenario=path.join(root,'scenario.json');
+    await fs.writeFile(input,JSON.stringify(manifest));await fs.writeFile(scenario,JSON.stringify(mismatch));
+    const result=require('node:child_process').spawnSync(process.execPath,[path.resolve(__dirname,'../app/deckforge-editor/deckforge-sdk-cli.cjs'),'simulate',input,scenario],{encoding:'utf8',timeout:30000});
+    assert.equal(result.status,1,result.stderr);assert.equal(JSON.parse(result.stdout).assertions.failed,1);
+  }finally{await fs.rm(root,{recursive:true,force:true});}
+});

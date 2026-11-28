@@ -22,16 +22,49 @@ function settings(value){
   requireOk(value&&typeof value==='object'&&!Array.isArray(value),'invalid settings object');
   return structuredClone(validateValue(value,8192));
 }
+// Only documented, scalar snapshot fields may be asserted. No executable
+// expressions, arbitrary object paths, or raw settings/credential access.
+const EXPECT_STATES=['active','failed','paused','suspended'];
+const EXPECT_SERVICE=['active','failed','suspended','stopped','unavailable','waiting','capacity','recovering','policy-error'];
+const EXPECT_SOCKET=['connected','connecting','disconnected','reconnecting'];
+function expectedSnapshot(value,m,hasFaults){
+  const validators={title:v=>v===null||typeof v==='string'&&v.length<=256,
+    state:v=>Number.isInteger(v)&&v>=0&&v<=1,image:v=>typeof v==='boolean',accepted:v=>typeof v==='boolean',
+    status:v=>EXPECT_STATES.includes(v)};
+  const count=v=>Number.isSafeInteger(v)&&v>=0;
+  if(m.permissions.includes('network.request'))validators.httpRequestCount=count;
+  if(m.permissions.includes('global.settings'))validators.globalRevision=count;
+  if(m.service)validators.serviceStatus=v=>EXPECT_SERVICE.includes(v);
+  if(m.permissions.includes('network.websocket')){validators.socket=v=>EXPECT_SOCKET.includes(v);if(m.service)validators.serviceSocket=validators.socket;}
+  if(hasFaults){validators.recoveryAttempts=count;if(m.service)validators.serviceRecoveryAttempts=count;}
+  requireOk(exact(value,Object.keys(validators))&&Object.keys(value).length>0&&Object.entries(value).every(([key,v])=>validators[key](v)),'invalid expected snapshot');
+  return structuredClone(value);
+}
+function compareExpectations(scenario,report){
+  let checked=0;const mismatches=[];
+  const compare=(target,expected,actual)=>{
+    for(const [field,value] of Object.entries(expected||{})){
+      checked++;
+      if(!Object.hasOwn(actual,field)||actual[field]!==value)mismatches.push({target,field,expected:value,actual:actual[field]??null});
+    }
+  };
+  compare('initial',scenario.expectInitial,report.initial);
+  for(const [i,step] of scenario.steps.entries())compare('steps['+i+']',step.expect,report.steps[i]);
+  if(scenario.expectErrorTotal!==undefined)compare('errors',{total:scenario.expectErrorTotal},report.errors);
+  return {checked,passed:checked-mismatches.length,failed:mismatches.length,mismatches};
+}
 function prepare(manifest,scenario){
   const m=validateNativeManifest(manifest);
   requireOk(m.permissions.every(p=>['display','network.request','node.run','settings.write','global.settings','background.run','network.websocket'].includes(p))&&!Object.keys(m.dependencies||{}).length&&!m.id.startsWith('com.deckforge.native.ulanzi-'),'display-only or supported offline independent manifest required');
   requireOk((m.networkEndpoints||[]).every(e=>e.auth===undefined),'authenticated endpoints are not supported in offline simulation');
-  requireOk(exact(scenario,['actionId','slot','settings','steps','httpResponses','nodeResponses','settingsResponses','globalSettings','globalResponses'])&&Number.isInteger(scenario.slot)&&scenario.slot>=0&&scenario.slot<=18,'invalid scenario');
+  requireOk(exact(scenario,['actionId','slot','settings','steps','httpResponses','nodeResponses','settingsResponses','globalSettings','globalResponses','expectInitial','expectErrorTotal'])&&Number.isInteger(scenario.slot)&&scenario.slot>=0&&scenario.slot<=18,'invalid scenario');
   const action=m.actions.find(a=>a.id===scenario.actionId);
   requireOk(action&&action.controllers.includes(scenario.slot>=16?'Encoder':'Keypad'),'action/controller mismatch');
   requireOk(Array.isArray(scenario.steps)&&scenario.steps.length<=24,'invalid scenario steps');
+  const hasFaults=scenario.steps.some(step=>step?.kind==='runtime-fault');
   const steps=scenario.steps.map(step=>{
-    requireOk(exact(step,['kind','ticks','settings','scope','body']),'invalid step');
+    requireOk(exact(step,['kind','ticks','settings','scope','body','expect']),'invalid step');
+    const expected=step.expect===undefined?{}:{expect:expectedSnapshot(step.expect,m,hasFaults)};
     const rotation=['left','right','hold-left','hold-right'].includes(step.kind);
     const serviceControl=['service-start','service-stop','service-restart'].includes(step.kind);
     const socketStep=['socket-message','socket-close','socket-disconnect','socket-error'].includes(step.kind);
@@ -41,12 +74,12 @@ function prepare(manifest,scenario){
       const scope=step.scope??'button';
       requireOk((scope==='button'||scope==='service'&&m.service)&&step.ticks===undefined&&step.settings===undefined,'invalid simulation target');
       requireOk(step.kind==='socket-message'?typeof step.body==='string'&&Buffer.byteLength(JSON.stringify(step.body))<=8192:step.body===undefined,'invalid socket message fixture');
-      return {kind:step.kind,scope,...(step.kind==='socket-message'?{body:step.body}:{})};
+      return {kind:step.kind,scope,...(step.kind==='socket-message'?{body:step.body}:{}),...expected};
     }
     requireOk(step.scope===undefined&&step.body===undefined,'invalid step options');
     if(rotation)requireOk(scenario.slot>=16&&Number.isInteger(step.ticks??1)&&(step.ticks??1)>=1&&(step.ticks??1)<=8&&step.settings===undefined,'invalid rotation');
     else requireOk(step.ticks===undefined&&(step.kind==='settings'||step.settings===undefined),'invalid step options');
-    return step.kind==='settings'?{kind:step.kind,settings:settings(step.settings)}:{kind:step.kind,...(rotation?{ticks:step.ticks??1}:{})};
+    return step.kind==='settings'?{kind:step.kind,settings:settings(step.settings),...expected}:{kind:step.kind,...(rotation?{ticks:step.ticks??1}:{}),...expected};
   });
   const responses=scenario.httpResponses??[];
   requireOk(Array.isArray(responses)&&responses.length<=64&&Buffer.byteLength(JSON.stringify(responses))<=48000,'invalid HTTP response fixtures');
@@ -77,7 +110,9 @@ function prepare(manifest,scenario){
   const globalResponses=scenario.globalResponses??[];
   requireOk(Array.isArray(globalResponses)&&globalResponses.length<=64&&globalResponses.every(x=>['saved','conflict'].includes(x)),'invalid global response fixtures');
   requireOk(m.permissions.includes('global.settings')||(scenario.globalSettings===undefined&&globalResponses.length===0),'global fixtures require global.settings');
+  requireOk(scenario.expectErrorTotal===undefined||Number.isSafeInteger(scenario.expectErrorTotal)&&scenario.expectErrorTotal>=0,'invalid expected error total');
   return {m,scenario:{actionId:action.id,slot:scenario.slot,settings:settings(scenario.settings??{}),steps,httpResponses,nodeResponses,settingsResponses:[...receipts],
+    ...(scenario.expectInitial===undefined?{}:{expectInitial:expectedSnapshot(scenario.expectInitial,m,hasFaults)}),...(scenario.expectErrorTotal===undefined?{}:{expectErrorTotal:scenario.expectErrorTotal}),
     ...(m.permissions.includes('global.settings')?{globalSettings:settings(scenario.globalSettings??{}),globalResponses:[...globalResponses]}:{})}};
 
 }
@@ -214,8 +249,10 @@ async function runScenario(manifest,spec,root){
     const expectedUnknown=settingsRequests.filter(r=>r.matched&&r.status==='unknown').length;
     const errorMatch=errors.total===expectedRejected+expectedUnknown+expectedConflict+injectedFaults&&(errors.counts['runtime-unavailable']||0)===injectedFaults&&(errors.counts['settings-rejected']||0)===expectedRejected&&(errors.counts['settings-unknown']||0)===expectedUnknown&&(errors.counts['settings-conflict']||0)===expectedConflict;
     const complete=mock=>!mock||(!mock.unusedResponses&&mock.requests.every(r=>r.matched));
-    return {id:m.id,apiVersion:m.apiVersion,actionId:scenario.actionId,initial,steps,errors,...(http?{http}:{}),...(node?{node}:{}),...(settingsMock?{settingsMock}:{}),...(globalMock?{globalMock}:{}),...(socketMock?{socketMock}:{}),...(hasFaults?{injectedFaults}:{}),
+    const report={id:m.id,apiVersion:m.apiVersion,actionId:scenario.actionId,initial,steps,errors,...(http?{http}:{}),...(node?{node}:{}),...(settingsMock?{settingsMock}:{}),...(globalMock?{globalMock}:{}),...(socketMock?{socketMock}:{}),...(hasFaults?{injectedFaults}:{}),
       ok:initial.status!=='failed'&&initial.serviceStatus!=='failed'&&steps.every(s=>s.accepted&&s.status!=='failed'&&s.serviceStatus!=='failed')&&errorMatch&&complete(http)&&complete(node)&&complete(settingsMock)&&complete(globalMock)};
+    const assertions=compareExpectations(scenario,report);
+    return {...report,assertions,ok:report.ok&&assertions.failed===0};
   }finally{host.close();await fs.rm(runRoot,{recursive:true,force:true});}
 }
 async function simulateFile(input,spec){

@@ -120,7 +120,9 @@ app.whenReady().then(async()=>{
     const recoverManifest={apiVersion:2,id:recoverId,name:'Offline recovery',version:'1.0.0',permissions:['display'],actions:[{id:recoverAction,name:'Recover',controllers:['Keypad'],states:1,script:"if(event.type==='appear')api.setTitle('Ready '+(memory.n||0));if(event.type==='press'){memory.n=(memory.n||0)+1;api.setTitle('Pressed '+memory.n);}"}]};
     const recovery=await runScenario(recoverManifest,{actionId:recoverAction,slot:0,steps:[{kind:'down'},{kind:'up'},{kind:'runtime-fault'},{kind:'down'},{kind:'up'}]},root);
     assert.equal(recovery.ok,true);assert.equal(recovery.steps[0].title,'Pressed 1');assert.equal(recovery.steps[2].title,'Ready 0');assert.equal(recovery.steps[2].recoveryAttempts,1);assert.equal(recovery.steps[3].title,'Pressed 1');assert.equal(recovery.errors.counts['runtime-unavailable'],1);
-    console.log('DeckForge offline SDK simulation including WebSocket and runtime recovery verified in sandboxed Electron runtime');
+    const expected=await runScenario(recoverManifest,{actionId:recoverAction,slot:0,expectInitial:{title:'Ready 0',status:'active'},expectErrorTotal:1,steps:[{kind:'runtime-fault',expect:{title:'Ready 0',recoveryAttempts:1,status:'active'}},{kind:'down',expect:{title:'Pressed 1'}},{kind:'up',expect:{title:'WRONG'}}]},root);
+    assert.equal(expected.ok,false);assert.equal(expected.assertions.checked,8);assert.equal(expected.assertions.failed,1);assert.deepEqual(expected.assertions.mismatches,[{target:'steps[2]',field:'title',expected:'WRONG',actual:'Pressed 1'}]);
+    console.log('DeckForge offline SDK simulation including expectation assertions verified in sandboxed Electron runtime');
   }finally{if(win&&!win.isDestroyed())win.destroy();await fs.rm(root,{recursive:true,force:true});}
   app.exit(0);
 }).catch(error=>{console.error(error);app.exit(1);});

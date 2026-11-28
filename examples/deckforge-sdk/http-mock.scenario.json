@@ -3,28 +3,60 @@
   "slot": 0,
   "steps": [
     {
-      "kind": "down"
+      "kind": "down",
+      "expect": {
+        "title": "Ready",
+        "httpRequestCount": 1
+      }
     },
     {
-      "kind": "up"
+      "kind": "up",
+      "expect": {
+        "title": "Ready",
+        "httpRequestCount": 1
+      }
     },
     {
-      "kind": "down"
+      "kind": "down",
+      "expect": {
+        "title": "http-error",
+        "httpRequestCount": 2
+      }
     },
     {
-      "kind": "up"
+      "kind": "up",
+      "expect": {
+        "title": "http-error",
+        "httpRequestCount": 2
+      }
     },
     {
-      "kind": "down"
+      "kind": "down",
+      "expect": {
+        "title": "timeout",
+        "httpRequestCount": 3
+      }
     },
     {
-      "kind": "up"
+      "kind": "up",
+      "expect": {
+        "title": "timeout",
+        "httpRequestCount": 3
+      }
     },
     {
-      "kind": "down"
+      "kind": "down",
+      "expect": {
+        "title": "connection-error",
+        "httpRequestCount": 4
+      }
     },
     {
-      "kind": "up"
+      "kind": "up",
+      "expect": {
+        "title": "connection-error",
+        "httpRequestCount": 4
+      }
     }
   ],
   "httpResponses": [
@@ -56,5 +88,6 @@
       "body": "",
       "error": "connection-error"
     }
-  ]
+  ],
+  "expectErrorTotal": 0
 }

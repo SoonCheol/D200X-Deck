@@ -152,7 +152,9 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - `test/fixtures/ulanzi-sdk`: 공식 Ulanzi SDK commit 550ab80c69285ecf259bd494a7fff767c14f0c0f의 API Request 및 Analog Clock 선택 원본 파일, Apache-2.0 LICENSE, 원본 경로/Git blob 해시. 원본 소스·속성창 정적 검사를 기존 테스트에 추가. 미지원 PrivateAPI, onRun, 설정 전달 이벤트, 동적 옵션·인증 헤더·checkbox 직렬화 구분을 확인한다. 이 fixture는 완전한 플러그인이 아니며 실행/설치/실기 호환을 입증하지 않는다.
 - 기존 Windows 실제 Electron smoke에 네트워크 요청·결과 명령 전달 및 OS safeStorage 암호화 쓰기/재열기/복호화/낡은 revision 거부/등록 해제 테스트 추가. 임시 테스트 디렉터리만 사용, 사용자 데이터 접근 없음. Windows DPAPI는 같은 사용자 계정의 다른 프로세스까지 보호하는 경계가 아니다. 실제 CI 결과 확인 전 성공으로 간주하지 않는다.
 
-## 독자 SDK 오프라인 시나리오 시험 (2.0.170~174 후보)
+## 독자 SDK 오프라인 시나리오 시험 (2.0.170~175 후보)
+
+- 2.0.175: scenario `expectInitial`, 각 step의 `expect`, `expectErrorTotal`로 문서화된 스칼라 상태를 정확 비교(부분 필드 허용). title/state/image/accepted/status, 선언 권한별 HTTP 횟수/전역 revision/서비스·소켓 상태/복구 횟수 지원. `assertions` checked/passed/failed/mismatches(target,field,expected,actual), 불일치 시 기존 `ok:false`/종료 코드 1. 기대값이 맞더라도 기존 실행 실패/미사용 fixture 판정은 무효화하지 않음. 임의 표현식·설정 원문 비교 없음. `examples/deckforge-sdk/README.md` 및 3개 실행 예제, 집중 검사 추가.
 
 - 2.0.174: 비인증 `network.websocket`는 모의 transport로 자동 open, `socket-message`(body 문자열/JSON 직렬화 8KiB), `socket-close`(정상), `socket-disconnect`(비정상), `socket-error`(연결 오류) step 지원. scope button(기본)/service; 연결 상태·송신 횟수·모의 서버 이벤트만 기록. 기존 호스트의 reconnect:true 경로와 짧은 고정 재접속 지연(25/50ms), 입력 재전송 없음. 실제 TLS·인증·heartbeat 제외. API2 `runtime-fault` step은 지정 scope의 호스트 실패 경로에 SDK_RUNTIME_UNAVAILABLE 주입, 20/40ms 복구 및 초기화/메모리 재설정, 의도적 장애와 실제 실패 구분. 실제 Chromium 프로세스 크래시 재현은 아님. 집중 검사 추가.
 
