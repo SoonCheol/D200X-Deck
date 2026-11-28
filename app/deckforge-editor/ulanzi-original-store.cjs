@@ -42,11 +42,11 @@ async function scanOriginal(directory,{copyTo=null}={}){
   return {manifest,revision:hash(JSON.stringify(files)),fileCount:files.length,totalBytes:total};
 }
 class UlanziOriginalStore{
-  constructor(userData,{storage,hostFactory=(dir,emit)=>new UlanziNodeHost(dir,emit)}={}){
+  constructor(userData,{storage,getParent=()=>null,hostFactory=(dir,emit)=>new UlanziNodeHost(dir,emit)}={}){
     this.root=path.join(userData,'Plugins','UlanziOriginal');
     this.grants=path.join(userData,'Plugins','UlanziOriginalApprovals');
     this.settings=path.join(userData,'Plugins','UlanziOriginalSettings');
-    this.storage=storage;this.hostFactory=hostFactory;this.queue=Promise.resolve();this.active=new Map();this.closed=false;
+    this.storage=storage;this.hostFactory=hostFactory;this.getParent=getParent;this.queue=Promise.resolve();this.active=new Map();this.closed=false;
   }
   serial(fn){const work=this.queue.then(()=>{if(this.closed)throw Error('original store closed');return fn();});this.queue=work.catch(()=>{});return work;}
   directory(id){if(typeof id!=='string'||!ID.test(id))throw Error('invalid Ulanzi ID');return path.join(this.root,id+'.ulanziPlugin');}
@@ -146,7 +146,7 @@ class UlanziOriginalStore{
     const existing=this.active.get(id);
     if(existing&&existing.approvedRevision===info.revision&&existing.alive())return existing;
     if(existing){this.active.delete(id);await existing.close();}
-    const host=this.hostFactory(this.directory(id),onUpdate);
+    const host=this.hostFactory(this.directory(id),onUpdate);host.getParent=this.getParent;
     try{
       host.globalSettings=await this.readGlobal(id);host.globalWrite=(value,active)=>this.writeGlobal(id,value,active);
       await host.start({approved:true,language,verifyBeforeSpawn:async()=>{

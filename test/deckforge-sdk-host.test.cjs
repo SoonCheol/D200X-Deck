@@ -868,3 +868,28 @@ test('Ulanzi global settings persist separately and reject stale or unreadable w
     assert.equal(await fs.readFile(store.globalFile(id),'utf8'),'corrupt');
   }finally{host.socket=null;await host.close();await store.close();await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('Ulanzi original dialog options and request ownership, result and cancellation',async()=>{
+  const {pickerOptions,viewOptions}=require('../app/deckforge-editor/ulanzi-original-dialog.cjs');
+  const {UlanziNodeHost}=require('../app/deckforge-editor/ulanzi-node-host.cjs');
+  assert.deepEqual(pickerOptions({type:'file',filter:'image(*.jpg *.png);;file(*.txt)'},'Pick'),{title:'Pick',properties:['openFile'],filters:[{name:'image',extensions:['jpg','png']},{name:'file',extensions:['txt']}]});
+  assert.deepEqual(pickerOptions({type:'folder'},'Pick'),{title:'Pick',properties:['openDirectory']});
+  assert.throws(()=>pickerOptions({type:'file',filter:'bad(C:\\*)'},'Pick'));
+  assert.deepEqual(viewOptions({url:'./views/help.html',width:400,height:'320',x:0,param:{lang:'ko'}}),{entry:'views/help.html',params:{lang:'ko'},width:400,height:320,x:0,y:undefined});
+  for(const url of ['../other.html','C:/test.html','https://example.com/x.html','//remote/x.html'])assert.throws(()=>viewOptions({url}));
+  const host=new UlanziNodeHost('/unused'),id='com.ulanzi.ulanzistudio.dialogfixture',ws={readyState:1},sent=[];
+  host.manifest={UUID:id,Name:'Fixture',Actions:[]};host.socket=ws;host.alive=()=>true;host.getParent=()=>({isDestroyed:()=>false});
+  host.send=(m,target)=>{sent.push([m,target]);return true;};
+  let finish,picks=0;
+  host.pickDialog=()=>{picks++;return new Promise(resolve=>{finish=resolve;});};
+  const request={cmd:'selectdialog',uuid:id,type:'file',filter:'file(*.txt)'};
+  const tick=()=>new Promise(r=>setImmediate(r));
+  host.receive(request,ws);await tick();assert.equal(picks,1);
+  host.receive(request,ws);assert.equal(sent.at(-1)[0].code,1);
+  finish({canceled:false,filePaths:['C:\\Music\\a.txt']});await tick();
+  assert.deepEqual(sent.at(-1),[{cmd:'selectdialog',cmdType:'REQUEST',code:0,uuid:id,key:'',actionid:'',type:'file',path:'C:/Music/a.txt'},ws]);
+  host.receive({...request,type:'folder'},ws);await tick();finish({canceled:true,filePaths:[]});await tick();assert.equal(sent.at(-1)[0].path,'');
+  host.receive({...request,uuid:'wrong'},ws);await tick();assert.equal(picks,2);
+  host.receive(request,ws);await tick();const count=sent.length;host.socket=null;finish({canceled:false,filePaths:['C:\\stale.txt']});await tick();assert.equal(sent.length,count);
+  await host.close();
+});

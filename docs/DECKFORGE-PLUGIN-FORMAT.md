@@ -57,6 +57,12 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - getGlobalSettings/setGlobalSettings/didReceiveGlobalSettings: 원본 승인 패키지의 별도 Plugins/UlanziOriginalSettings 암호화 저장, 8KiB JSON 검증, 동일 프로세스 쓰기 직렬화·수명 검사, 승인 변경 후 프로세스 종료. 읽기 오류가 있을 때 덮어쓰지 않고 평문 fallback 없음. PI/서비스 공유 및 재시작 복원. 백업/완전 제거 정책은 후속.
 - 상태별 기본/임시/clear 및 위조 경로, 전역 설정 저장/재조회/오염 파일 보존 시험 추가. 실제 Windows 결과 대기. 공식 자료 https://github.com/UlanziTechnology/plugin-common-node/blob/main/README.md .
 
+## Ulanzi 원본 파일 선택 및 독립 창 (2.0.160 후보)
+
+- 공식 SDK selectFileDialog(filter)/selectFolderDialog()의 selectdialog 요청을 Electron showOpenDialog에 연결. 파일 확장자 필터, 파일/폴더 선택, 취소 시 빈 path, 요청 소켓에 cmdType REQUEST/code 0 및 식별자 반환. 승인된 활성 main 또는 action/PI만 호출, 동시 대화창 1개/플러그인, context 변경·철회 후 결과 폐기. 실제 OS 선택 동작은 사용자 조작이 필요하며 모의 결과 테스트로 검증.
+- openView(url,width,height,x,y,param)의 openview 요청을 패키지 내부 HTML/HTM 독립 창에 연결. 쿼리 매개변수·위치·크기를 작업 영역에 제한. 원본 파일 및 기존 속성창 유지. 창 4개/플러그인, context/소켓 해제·종료 시 닫기. 외부 URL 및 별도 추가 SDK socket 등록은 후속. 기존 scoped origin 재사용.
+- 공식 자료 https://github.com/UlanziTechnology/plugin-common-node/blob/main/README.md 및 UlanziDeckSimulator/static/assets/index.js. 모의 picker/경로 검증 및 실제 Electron 창 테스트 추가, 결과 대기.
+
 ## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.

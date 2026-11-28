@@ -8,6 +8,7 @@ const {WebSocketServer}=require('ws');
 const {nodeRuntime,spawnNodePlugin}=require('./deckforge-node-runtime.cjs');
 const {validateValue}=require('./deckforge-native-settings.cjs');
 const {base64Image,pathImage,applyImage,currentImage}=require('./ulanzi-original-image.cjs');
+const {pickerOptions,viewOptions}=require('./ulanzi-original-dialog.cjs');
 const ID=/^[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+){3}$/;
 const relative=s=>typeof s==='string'&&s.length<1024&&s.split('/').every(p=>p&&p!=='.'&&p!=='..'&&!/[:\\\x00-\x1f\x7f]/.test(p)&&!/[. ]$/.test(p));
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -26,7 +27,9 @@ function validateOriginalNodeManifest(m){
 }
 class UlanziNodeHost{
   constructor(directory,onUpdate=()=>{}){
-    this.directory=directory;this.onUpdate=onUpdate;this.mounts=new Map();this.socket=null;this.server=null;this.child=null;this.closed=false;this.started=false;this.mainWindow=null;this.inspectors=new Map();this.visuals=new Map();this.globalSettings={};this.globalWrite=null;this.globalQueue=Promise.resolve();
+    this.directory=directory;this.onUpdate=onUpdate;this.mounts=new Map();this.socket=null;this.server=null;this.child=null;this.closed=false;this.started=false;this.mainWindow=null;this.inspectors=new Map();this.visuals=new Map();this.globalSettings={};this.globalWrite=null;this.globalQueue=Promise.resolve();this.views=new Set();this.pickerBusy=false;this.getParent=()=>null;
+    this.pickDialog=(parent,options)=>require('electron').dialog.showOpenDialog(parent,options);
+    this.makeView=(entry,options)=>require('./ulanzi-original-window.cjs').createOriginalWindow(this.directory,entry,options);
   }
   emit(update){this.onUpdate(update);}
   send(message,ws=this.socket){
@@ -39,7 +42,7 @@ class UlanziNodeHost{
   visual(ctx){let v=this.visuals.get(ctx.actionid);if(!v){const a=this.manifest.Actions.find(a=>a.UUID===ctx.actionUUID);v={state:Number.isInteger(a.state)&&a.state>=0&&a.state<(a.States?.length||1)?a.state:0,temporary:null,defaults:new Map()};this.visuals.set(ctx.actionid,v);}return v;}
   displayImage(ctx,visual){const action=this.manifest.Actions.find(a=>a.UUID===ctx.actionUUID);this.emit({kind:'setImage',context:ctx.context,payload:{image:currentImage(this.directory,action,visual),clear:true}});}
   alive(){return !this.closed&&(this.child?this.child.exitCode===null&&this.child.signalCode===null&&!this.child.killed:!!this.mainWindow&&!this.mainWindow.isDestroyed());}
-  closeInspector(context){const pi=this.inspectors.get(context);if(!pi)return;this.inspectors.delete(context);pi.ws?.terminate();if(!pi.win.isDestroyed())pi.win.destroy();}
+  closeInspector(context){const pi=this.inspectors.get(context);if(!pi)return;this.inspectors.delete(context);this.closeViews(r=>r.ws===pi.ws||r.context===context);pi.ws?.terminate();if(!pi.win.isDestroyed())pi.win.destroy();}
   async openInspector(context,parent){
     const ctx=this.mounts.get(context),action=this.manifest?.Actions.find(a=>a.UUID===ctx?.actionUUID);
     if(!ctx||!action?.PropertyInspectorPath||!this.alive()||!this.socket)throw Error('원본 속성창을 사용할 수 없습니다.');
@@ -71,7 +74,7 @@ class UlanziNodeHost{
         let registered=false,inspector=null;
         const timer=setTimeout(()=>{if(!registered)ws.terminate();},5000);
         ws.on('error',()=>{});
-        ws.on('close',()=>{clearTimeout(timer);if(inspector?.ws===ws)inspector.ws=null;if(this.socket===ws){this.socket=null;this.emit({kind:'pluginConnection',pluginUUID:this.manifest.UUID,connected:false});}});
+        ws.on('close',()=>{clearTimeout(timer);this.closeViews(r=>r.ws===ws);if(inspector?.ws===ws)inspector.ws=null;if(this.socket===ws){this.socket=null;this.emit({kind:'pluginConnection',pluginUUID:this.manifest.UUID,connected:false});}});
         ws.on('message',raw=>{
           try{
             const msg=JSON.parse(String(raw));
@@ -125,7 +128,7 @@ class UlanziNodeHost{
       const same=old&&['actionUUID','slot','gesture','instanceId','mountGeneration'].every(k=>old[k]===cfg[k]);
       desired.set(cfg.context,{...cfg,settings,key:same?old.key:cfg.slot>=16?'dial_'+(cfg.slot-16):cfg.slot%4+'_'+Math.floor(cfg.slot/4),actionid:same?old.actionid:randomUUID()});
     }
-    for(const [id,old] of this.mounts)if(desired.get(id)?.actionid!==old.actionid){this.closeInspector(id);this.visuals.delete(old.actionid);this.send({cmd:'clear',param:[this.address(old)]});}
+    for(const [id,old] of this.mounts)if(desired.get(id)?.actionid!==old.actionid){this.closeInspector(id);this.closeViews(r=>r.context===id);this.visuals.delete(old.actionid);this.send({cmd:'clear',param:[this.address(old)]});}
     const previous=this.mounts;this.mounts=desired;
     for(const [id,ctx] of desired){
       const old=previous.get(id);
@@ -148,7 +151,47 @@ class UlanziNodeHost{
     if(sent&&gesture==='down'&&ctx.slot<16)this.event(ctx,'run');
     return sent;
   }
+  closeViews(predicate=()=>true){
+    for(const record of [...this.views])if(predicate(record)){this.views.delete(record);if(!record.win.isDestroyed())record.win.destroy();}
+  }
+  interactiveRequest(msg,ws,inspector){
+    const main=!inspector&&ws===this.socket&&msg.uuid===this.manifest.UUID;
+    const ctx=[...this.mounts.values()].find(c=>c.actionUUID===msg.uuid&&c.key===msg.key&&c.actionid===msg.actionid);
+    const active=()=>!this.closed&&this.alive()&&(main?this.socket===ws:
+      !!ctx&&this.mounts.get(ctx.context)?.actionid===ctx.actionid&&
+      (inspector?this.inspectors.get(ctx.context)===inspector&&inspector.ws===ws:this.socket===ws));
+    const error=()=>{if(active())this.send({cmd:msg.cmd,cmdType:'NOTIFY',code:1},ws);};
+    if(!active())return;
+    const parent=inspector?.win||this.getParent();
+    if(!parent||parent.isDestroyed()){error();return;}
+    const title=String(this.manifest.Name).slice(0,120);
+    if(msg.cmd==='selectdialog'){
+      if(this.pickerBusy){error();return;}
+      let options;try{options=pickerOptions(msg,title+' · '+(msg.type==='folder'?'폴더 선택':'파일 선택'));}catch{error();return;}
+      this.pickerBusy=true;
+      Promise.resolve().then(()=>active()?this.pickDialog(parent,options):null).then(result=>{
+        if(!active()||!result)return;
+        const selected=!result.canceled&&typeof result.filePaths?.[0]==='string'?result.filePaths[0].replace(/\\/g,'/'):'';
+        this.send({cmd:'selectdialog',cmdType:'REQUEST',code:0,uuid:msg.uuid,key:msg.key||'',actionid:msg.actionid||'',type:msg.type,path:selected},ws);
+      }).catch(error).finally(()=>{this.pickerBusy=false;});
+      return;
+    }
+    let record;
+    try{
+      if(this.views.size>=4)throw Error('view capacity');
+      const {entry,...options}=viewOptions(msg);
+      const {win,url}=this.makeView(entry,{...options,parent,title,visible:true});
+      record={win,ws,context:ctx?.context,actionid:ctx?.actionid};
+      this.views.add(record);win.on('closed',()=>this.views.delete(record));
+      Promise.resolve(win.loadURL(url)).then(()=>{
+        if(!active()||!this.views.has(record)){this.closeViews(r=>r===record);return;}
+        if(!win.isDestroyed())win.show();
+        this.send({cmd:'openview',cmdType:'NOTIFY',code:0},ws);
+      }).catch(()=>{this.closeViews(r=>r===record);error();});
+    }catch{if(record)this.closeViews(r=>r===record);error();}
+  }
   receive(msg,ws=this.socket,inspector=null){
+    if(msg.cmd==='selectdialog'||msg.cmd==='openview'){this.interactiveRequest(msg,ws,inspector);return;}
     if(['getGlobalSettings','setGlobalSettings'].includes(msg.cmd)){
       const main=!inspector&&ws===this.socket&&msg.uuid===this.manifest.UUID;
       const ctx=[...this.mounts.values()].find(c=>c.actionUUID===msg.uuid&&c.key===msg.key&&c.actionid===msg.actionid);
@@ -226,7 +269,7 @@ class UlanziNodeHost{
   async close(){
     if(this.closed)return;this.closed=true;
     for(const ctx of this.mounts.values())this.send({cmd:'clear',param:[this.address(ctx)]});
-    this.mounts.clear();this.visuals.clear();await this.globalQueue;for(const context of [...this.inspectors.keys()])this.closeInspector(context);
+    this.mounts.clear();this.visuals.clear();this.closeViews();await this.globalQueue;for(const context of [...this.inspectors.keys()])this.closeInspector(context);
     if(this.mainWindow&&!this.mainWindow.isDestroyed())this.mainWindow.destroy();this.mainWindow=null;
     const child=this.child;this.child=null;
     if(child&&child.exitCode===null&&child.signalCode===null){

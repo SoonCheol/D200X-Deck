@@ -189,7 +189,7 @@ const pluginAudit=require('./plugin-audit.cjs').createPluginAudit({userData:app.
 function sdk(){
   if(!sdkHost){
     const userData=app.getPath('userData'),update=payload=>send('d200x:sdk-event',payload);
-    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window,{executableApprove:approveExecutablePlugin}),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href),nodeApprove:approveNodePlugin,viewManager:new (require('./deckforge-native-view.cjs').NativeViewManager)(()=>window)}),new (require('./ulanzi-editor-host.cjs').UlanziEditorHost)(new (require('./ulanzi-original-store.cjs').UlanziOriginalStore)(userData,{storage:safeStorage}),update,()=>window));
+    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window,{executableApprove:approveExecutablePlugin}),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href),nodeApprove:approveNodePlugin,viewManager:new (require('./deckforge-native-view.cjs').NativeViewManager)(()=>window)}),new (require('./ulanzi-editor-host.cjs').UlanziEditorHost)(new (require('./ulanzi-original-store.cjs').UlanziOriginalStore)(userData,{storage:safeStorage,getParent:()=>window}),update,()=>window));
   }
   return sdkHost;
 }

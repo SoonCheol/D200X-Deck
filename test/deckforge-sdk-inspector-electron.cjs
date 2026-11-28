@@ -63,6 +63,16 @@ app.whenReady().then(async()=>{
       assert.equal(await pi.webContents.executeJavaScript('typeof require'),'undefined');
       assert.ok(updates.some(e=>e.kind==='settings'&&e.settings?.label==='saved'));
       host.sync([]);assert.equal(pi.isDestroyed(),true);
+      await fs.writeFile(path.join(original,'view.html'),'<html><script>window.value=new URLSearchParams(location.search).get("label")</script></html>');
+      host.getParent=()=>win;
+      host.receive({cmd:'openview',uuid:id,url:'./view.html',width:410,height:330,param:{label:'original view'}},host.socket);
+      await until(async()=>{const child=[...host.views][0]?.win;return child&&!child.isDestroyed()&&!child.webContents.isLoading()&&await child.webContents.executeJavaScript('window.value==="original view"');});
+      const view=[...host.views][0].win;
+      assert.deepEqual(view.getSize(),[410,330]);
+      assert.equal(await view.webContents.executeJavaScript('typeof require'),'undefined');
+      host.receive({cmd:'openview',uuid:id,url:'../secret.html'},host.socket);
+      assert.equal(host.views.size,1);
+      await host.close();assert.equal(view.isDestroyed(),true);
       console.log('DeckForge original Ulanzi HTML service and property inspector round trip verified');
     }finally{await host.close();}
 
