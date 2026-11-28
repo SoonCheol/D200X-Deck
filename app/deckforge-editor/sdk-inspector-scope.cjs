@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
 const {pathToFileURL}=require('node:url');
-const {protocol,session,net,shell}=require('electron');
+const {protocol,session,net,shell,screen}=require('electron');
 const SCHEME='deckforge-pi',ORIGIN=SCHEME+'://local';
 const sessions=new WeakSet();
 function registerInspectorScheme(){
@@ -48,12 +48,26 @@ function createInspectorScope(directory){
   }
   return {session:ses,url,html:raw=>inspectorFile(root,raw,true)};
 }
-function bindInspectorWindows(win,scope,externalUrl,depth=0){
+// DefaultWindowSize applies to windows opened from the property inspector,
+// not the property inspector itself. Explicit width/height override defaults.
+function inspectorPopupSize(defaultSize,features='',workArea={width:1920,height:1080}){
+  const valid=n=>Number.isSafeInteger(n)&&n>0;
+  const declared=Array.isArray(defaultSize)&&defaultSize.length===2&&defaultSize.every(valid)?defaultSize:[500,650];
+  const requested={};
+  for(const feature of String(features).split(',')){
+    const m=/^\s*(width|height)\s*=\s*(\d+)\s*$/i.exec(feature);
+    if(m&&valid(Number(m[2])))requested[m[1].toLowerCase()]=Number(m[2]);
+  }
+  const bounded=(value,max)=>Math.min(Math.max(1,Math.floor(max)),Math.max(240,value));
+  return {width:bounded(requested.width??declared[0],workArea.width),height:bounded(requested.height??declared[1],workArea.height)};
+}
+function bindInspectorWindows(win,scope,externalUrl,depth=0,defaultSize){
   const contents=win.webContents;
-  contents.setWindowOpenHandler(({url})=>{
+  contents.setWindowOpenHandler(({url,features})=>{
     if(depth<2&&scope.html(url)){
+      const dimensions=inspectorPopupSize(defaultSize,features,screen.getDisplayMatching(win.getBounds()).workArea);
       return {action:'allow',outlivesOpener:false,overrideBrowserWindowOptions:{
-        parent:win,modal:true,autoHideMenuBar:true,width:480,height:520,
+        parent:win,modal:true,autoHideMenuBar:true,...dimensions,
         webPreferences:{session:scope.session,nodeIntegration:false,nodeIntegrationInSubFrames:false,
           contextIsolation:false,sandbox:true,webSecurity:true,webviewTag:false,allowRunningInsecureContent:false}
       }};
@@ -65,6 +79,6 @@ function bindInspectorWindows(win,scope,externalUrl,depth=0){
   const guard=(event,url)=>{if(!scope.html(url))event.preventDefault();};
   contents.on('will-navigate',guard);
   contents.on('will-redirect',guard);
-  contents.on('did-create-window',child=>bindInspectorWindows(child,scope,externalUrl,depth+1));
+  contents.on('did-create-window',child=>bindInspectorWindows(child,scope,externalUrl,depth+1,defaultSize));
 }
-module.exports={registerInspectorScheme,createInspectorScope,bindInspectorWindows,inspectorFile};
+module.exports={registerInspectorScheme,createInspectorScope,bindInspectorWindows,inspectorFile,inspectorPopupSize};

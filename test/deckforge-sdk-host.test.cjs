@@ -592,3 +592,30 @@ test('Windows native executable receives original registration arguments', {skip
     assert.deepEqual((await fs.readFile(path.join(root,'received.txt'),'utf8')).trim().split(/\r?\n/),args);
   }finally{if(child&&child.exitCode===null&&!child.killed)child.kill();await fs.rm(root,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
 });
+
+test('plugin-wide property inspector inherited only when action does not override it',async()=>{
+  const {propertyInspectorPath}=require('../app/deckforge-editor/sd-plugin-host.cjs');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-shared-inspector-'));
+  const uuid='com.deckforge.test.sharedinspector';
+  const m={...M,UUID:uuid,PropertyInspectorPath:'ui/common.htm',DefaultWindowSize:[620,540],
+    Actions:[{UUID:uuid+'.common',Name:'Common'},{UUID:uuid+'.own',Name:'Own',PropertyInspectorPath:'ui/own.html'},
+      {UUID:uuid+'.none',Name:'None',PropertyInspectorPath:''},{UUID:uuid+'.bad',Name:'Bad',PropertyInspectorPath:'../outside.html'}]};
+  const prefix=uuid+'.sdPlugin/';
+  const host=new StreamDeckPluginHost(root);
+  try{
+    assert.deepEqual(m.Actions.map(a=>propertyInspectorPath(m,a)),['ui/common.htm','ui/own.html','','']);
+    await host.install(await zipWith({[prefix+'manifest.json']:JSON.stringify(m),[prefix+'plugin.html']:'<html></html>',[prefix+'ui/common.htm']:'<html></html>',[prefix+'ui/own.html']:'<html></html>'}));
+    const [plugin]=await host.list();
+    assert.deepEqual(plugin.actions.map(a=>a.propertyInspectorPath),['ui/common.htm','ui/own.html','','']);
+    assert.deepEqual(JSON.parse(await fs.readFile(path.join(host.root,prefix,'manifest.json'),'utf8')),m);
+  }finally{await host.close();await fs.rm(root,{recursive:true,force:true});}
+});
+test('property inspector popup dimensions respect manifest default, feature overrides and display bounds',()=>{
+  const {inspectorPopupSize}=require('../app/deckforge-editor/sdk-inspector-scope.cjs');
+  const area={width:1200,height:900};
+  assert.deepEqual(inspectorPopupSize(undefined,'',area),{width:500,height:650});
+  assert.deepEqual(inspectorPopupSize([620,540],'',area),{width:620,height:540});
+  assert.deepEqual(inspectorPopupSize([620,540],'width=700,height=400',area),{width:700,height:400});
+  assert.deepEqual(inspectorPopupSize([620,540],'width=9999,height=10',area),{width:1200,height:240});
+  assert.deepEqual(inspectorPopupSize(['bad',540],'width=0',area),{width:500,height:650});
+});

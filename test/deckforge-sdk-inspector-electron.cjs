@@ -21,19 +21,24 @@ app.whenReady().then(async()=>{
     assert.equal(scope.html('file:///C:/Windows/win.ini'),null);
     assert.equal(scope.html('deckforge-pi://other/setup.html'),null);
     win=new BrowserWindow({show:false,webPreferences:{session:scope.session,nodeIntegration:false,contextIsolation:false,sandbox:true,webSecurity:true}});
-    bindInspectorWindows(win,scope,()=>null);
+    bindInspectorWindows(win,scope,()=>null,0,[620,540]);
     await win.loadURL(scope.url('pi.html'));
     assert.equal(await win.webContents.executeJavaScript('typeof window._saveToken'),'function');
     const created=new Promise(resolve=>win.webContents.once('did-create-window',resolve));
     await win.webContents.executeJavaScript('Boolean(window.open("setup.html#fake-token","settings"))',true);
     let timer;
     const child=await Promise.race([created,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('popup not created')),5000);})]).finally(()=>clearTimeout(timer));
+    assert.deepEqual(child.getSize(),[620,540]);
     const deadline=Date.now()+5000;
     while(Date.now()<deadline&&await win.webContents.executeJavaScript('window.saved||""')!=='fake-token')await new Promise(r=>setTimeout(r,50));
     assert.equal(await win.webContents.executeJavaScript('window.saved'),'fake-token');
     assert.equal(await child.webContents.executeJavaScript('typeof require'), 'undefined');
     assert.equal(await child.webContents.executeJavaScript('Boolean(window.open("file:///C:/Windows/win.ini","bad"))',true),false);
     child.destroy();
+    const overrideCreated=new Promise(resolve=>win.webContents.once('did-create-window',resolve));
+    await win.webContents.executeJavaScript('Boolean(window.open("setup.html#override","override","width=400,height=320"))',true);
+    const override=await Promise.race([overrideCreated,new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('override popup not created')),5000);})]).finally(()=>clearTimeout(timer));
+    assert.deepEqual(override.getSize(),[400,320]);override.destroy();
     console.log('DeckForge local inspector popup and opener callback verified');
   }finally{if(win&&!win.isDestroyed())win.destroy();await fs.rm(root,{recursive:true,force:true});}
   app.exit(0);

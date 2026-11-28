@@ -64,6 +64,11 @@ function pluginKind(codePath){
   return ['.htm','.html'].includes(ext)?'html':['.js','.cjs','.mjs'].includes(ext)?'node':ext==='.exe'?'exe':null;
 }
 function windowsEntry(m){return m.CodePathWin??m.CodePath;}
+// Action-specific declaration takes precedence, including an explicit empty value.
+function propertyInspectorPath(m,a){
+  const entry=a?.PropertyInspectorPath===undefined?m.PropertyInspectorPath:a.PropertyInspectorPath;
+  return filename(entry)&&/\.html?$/i.test(entry)?entry:'';
+}
 function validateManifest(m){
   if(!m||!UUID.test(m.UUID)||!Array.isArray(m.Actions)||!m.Actions.length||
     !m.Actions.every(a=>UUID.test(a.UUID)&&typeof a.Name==='string')||
@@ -183,7 +188,7 @@ class StreamDeckPluginHost{
         await fs.promises.access(target);
         items.push({uuid:manifest.UUID,name:String(manifest.Name||manifest.UUID),
           version:String(manifest.Version||''),...(pluginKind(windowsEntry(manifest))==='exe'?{executable:true}:{}),actions:await Promise.all(manifest.Actions.map(async a=>({uuid:a.UUID,name:a.Name,
-            states:Array.isArray(a.States)?a.States.length:1,controllers:Array.isArray(a.Controllers)?a.Controllers:['Keypad'],propertyInspectorPath:a.PropertyInspectorPath||'',
+            states:Array.isArray(a.States)?a.States.length:1,controllers:Array.isArray(a.Controllers)?a.Controllers:['Keypad'],propertyInspectorPath:propertyInspectorPath(manifest,a),
             ...(includeArtwork?{defaultImages:{off:await artwork(dir,a.States?.[0]?.Image||a.Icon,manifest.UUID),on:await artwork(dir,a.States?.[1]?.Image||a.States?.[0]?.Image||a.Icon,manifest.UUID)}}:{})
           })))});
       }catch(error){
@@ -752,8 +757,10 @@ class StreamDeckPluginHost{
     const ctx=this.contexts.get(context);
     if(!ctx)throw Error('플러그인 동작이 현재 페이지에 등록되어 있지 않습니다.');
     const inst=await this.ensure(ctx.pluginUUID);
+    if(!inst)throw Error('플러그인 실행 권한을 승인해 주세요.');
     const action=inst.manifest.Actions.find(a=>a.UUID===ctx.actionUUID);
-    if(!action||!filename(action.PropertyInspectorPath))throw Error('이 동작에는 속성 편집기가 없습니다.');
+    const entry=action&&propertyInspectorPath(inst.manifest,action);
+    if(!entry)throw Error('이 동작에는 속성 편집기가 없습니다.');
     const parent=this.getParent();
     const fusion=ctx.pluginUUID==='com.autodesk.fusionstreamdeck';
     const placement=fusion&&parent&&!parent.isDestroyed()?fusionInspectorBounds(parent.getContentBounds(),screen.getDisplayMatching(parent.getBounds()).workArea,anchor,parent.webContents.getZoomFactor()):null;
@@ -763,7 +770,7 @@ class StreamDeckPluginHost{
       pi.window.show();pi.window.focus();return true;
     }
     const scope=createInspectorScope(inst.dir);
-    const inspectorUrl=scope.url(action.PropertyInspectorPath);
+    const inspectorUrl=scope.url(entry);
     if(!scope.html(inspectorUrl))throw Error('플러그인 속성 HTML 파일을 찾을 수 없습니다.');
     const win=new BrowserWindow({width:560,height:780,minWidth:420,minHeight:500,
       ...(fusion?{width:440,height:460,minWidth:320,minHeight:280,...(placement||{})}:{}),
@@ -779,7 +786,7 @@ class StreamDeckPluginHost{
         Math.max(area.y,Math.min(area.y+area.height-h,p.y+Math.round((p.height-h)/2)))
       );
     }
-    bindInspectorWindows(win,scope,safeSdkExternalUrl);
+    bindInspectorWindows(win,scope,safeSdkExternalUrl,0,inst.manifest.DefaultWindowSize);
     pi={context,actionUUID:ctx.actionUUID,slot:ctx.slot,window:win,ws:null,pluginUUID:ctx.pluginUUID};
     this.inspectors.set(context,pi);
     win.on('closed',()=>{
@@ -884,4 +891,4 @@ class StreamDeckPluginHost{
     this.server=null;
   }
 }
-module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,windowsEntry,nodeRuntime,safeSdkExternalUrl,allowedSdkOpenUrlContext,fusionInspectorBounds,normalizeSdkImage};
+module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,windowsEntry,propertyInspectorPath,nodeRuntime,safeSdkExternalUrl,allowedSdkOpenUrlContext,fusionInspectorBounds,normalizeSdkImage};

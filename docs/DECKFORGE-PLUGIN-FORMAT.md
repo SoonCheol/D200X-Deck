@@ -16,6 +16,12 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 - EXE 최초 실행 시 사용자 OS 권한 안내·승인/거부. 암호화 grant는 별도 LegacyExecutableApprovals, 전체 패키지 해시(기존 logs/*.log 제외) 결합, 파일 변경 시 재승인. 도움말 실행 권한 관리에서 승인/철회, 철회 시 직접 실행 프로세스 종료. 보존 제거/복원은 유지, 명시적 완전 제거 시 grant도 삭제. 내부 설정 파일 변경도 재승인 대상이 될 수 있음. 실제 원본 EXE 등록/기능 검증은 후속이며 DRM 우회는 지원하지 않는다.
 - Windows 경로 선택/원본 보존/승인·거부·철회/실제 Windows EXE 인자 전달 테스트 추가. 전체 CI 및 실제 원본 플러그인 검증 대기. 기존 HTML/Node 호환 경로 유지.
 
+## 외부 속성창 호환 확장 (2.0.152 후보)
+
+- 공식 매니페스트의 최상위 PropertyInspectorPath를 액션에 상속하고, 액션별 선언이 우선한다. 명시적 빈 값/잘못된 경로는 비활성. 실제 창과 카탈로그에 동일 resolver 적용. 원본 파일/매니페스트 수정 없음.
+- DefaultWindowSize는 메인 속성창이 아닌 window.open() 자식 창에 적용. 기본 500×650, 명시 width/height 우선, 화면 작업 영역 내 제한. 기존 Fusion 메인 속성창 위치/크기 및 로컬 origin·opener 통신 유지. 외부 URL/로컬 파일 차단 정책 유지.
+- 공통 경로 카탈로그/원본 보존/크기 계산 및 실제 Electron 팝업 검증 추가, 자동 빌드 대기. 공식 자료 https://docs.elgato.com/streamdeck/sdk/references/manifest/ .
+
 ## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.
