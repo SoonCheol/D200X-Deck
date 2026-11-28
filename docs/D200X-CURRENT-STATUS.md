@@ -20,7 +20,8 @@
 - 2.0.171 SDK CLI simulate HTTPS 요청 모의: 순서별 endpoint fixture·실제 호스트 응답 검증/continuation·정상/HTTP 오류/timeout/연결 실패, 미정의 요청/미사용 fixture 실패 처리, 요청 메타데이터만 기록. 집중 Node/Electron 시험 추가, Windows #175/CI #1707/SDK #399/Store #127 성공. 인증·WebSocket·실제 연결 제외.
 - 2.0.172 SDK simulate Node 작업 결과 모의(실제 TrustedNodeTasks/임시 승인·실행 adapter) 및 설정 저장 ACK saved/rejected/unknown·설정 대기/복구 검증, 실제 Node 코드 실행·사용자 프로필 저장 없음. 집중 Node/Electron 시험 추가. Windows #176/CI #1710/SDK #402/Store #130 성공.
 - 2.0.173 SDK simulate 전역 서비스 시작/중지/재시작·메시지·공유 상태, 전역 설정 메모리 vault 초기값/저장/충돌 fixture, 전체 컨텍스트 drain 및 실행별 임시 폴더, 집중 Node/Electron 시험 추가. Windows #177/CI #1713/Store #133 성공, SDK #405 진행 중; 동일 소스 문서 HEAD SDK #406 성공.
-- 2.0.174 SDK simulate 비인증 WebSocket 모의 transport·연결/수신/송신/종료/오류/재접속, 명시적 런타임 장애 주입/재초기화·입력 재실행 없음, 집중 Node/Electron 시험 추가. Windows #178(46132421061)/CI #1716/SDK #408(46132425059)/Store #136 대기 확인. 실제 TLS·인증·프로세스 강제 종료 시험 제외.
+- 2.0.174 SDK simulate 비인증 WebSocket 모의 transport·연결/수신/송신/종료/오류/재접속, 명시적 런타임 장애 주입/재초기화·입력 재실행 없음, 집중 Node/Electron 시험 추가. Windows #178/CI #1716/Store #136 성공, SDK #408 진행 중; 동일 소스 문서 HEAD SDK #409 성공. 실제 TLS·인증·프로세스 강제 종료 시험 제외.
 ## 다음 작업
+- 진행 중: 2.0.175 SDK simulate 기대값 자동 비교 및 예제/사용 안내, 집중 검사. 기존 실행 실패 판정 유지.
 - 2.0.174 자동 검증, SDK 오프라인 시나리오 기대값 검증 및 예제 정리, 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/500ms/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
 - Store 0.1.19 NAS/실기 및 편집기 2.0.145 실기 미확인 상태 보존. Store/통합 환경설정/프로필·템플릿 공유/업데이트 UI 보류. 기존 상세 작업·빌드 번호는 이전 스냅샷 참조.
