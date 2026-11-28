@@ -19,7 +19,8 @@
 - 2.0.170 표시 전용 SDK CLI simulate: 실제 호스트, API1 Node/API2 별도 Electron 격리, 임시 사용자 데이터, 시나리오 버튼·노브·설정·절전/복귀 및 결과 JSON, 집중 Node/Electron 시험 추가. Windows #174/CI #1704/Store #124 성공, SDK #396 성공; 동일 소스 문서 HEAD SDK #397 성공. 외부 효과·서비스·자동 복구 시험 제외.
 - 2.0.171 SDK CLI simulate HTTPS 요청 모의: 순서별 endpoint fixture·실제 호스트 응답 검증/continuation·정상/HTTP 오류/timeout/연결 실패, 미정의 요청/미사용 fixture 실패 처리, 요청 메타데이터만 기록. 집중 Node/Electron 시험 추가, Windows #175/CI #1707/SDK #399/Store #127 성공. 인증·WebSocket·실제 연결 제외.
 - 2.0.172 SDK simulate Node 작업 결과 모의(실제 TrustedNodeTasks/임시 승인·실행 adapter) 및 설정 저장 ACK saved/rejected/unknown·설정 대기/복구 검증, 실제 Node 코드 실행·사용자 프로필 저장 없음. 집중 Node/Electron 시험 추가. Windows #176/CI #1710/SDK #402/Store #130 성공.
-- 2.0.173 SDK simulate 전역 서비스 시작/중지/재시작·메시지·공유 상태, 전역 설정 메모리 vault 초기값/저장/충돌 fixture, 전체 컨텍스트 drain 및 실행별 임시 폴더, 집중 Node/Electron 시험 추가. Windows #177(46131881742) 진행 중, CI #1713/SDK #405(46131885115)/Store #133 대기 확인.
+- 2.0.173 SDK simulate 전역 서비스 시작/중지/재시작·메시지·공유 상태, 전역 설정 메모리 vault 초기값/저장/충돌 fixture, 전체 컨텍스트 drain 및 실행별 임시 폴더, 집중 Node/Electron 시험 추가. Windows #177/CI #1713/Store #133 성공, SDK #405 진행 중; 동일 소스 문서 HEAD SDK #406 성공.
 ## 다음 작업
+- 진행 중: 2.0.174 비인증 WebSocket 모의 transport·수신/송신·종료/연결 오류/재접속, 런타임 장애 주입 및 복구 시험. 실제 통신 없음.
 - 2.0.173 자동 검증, SDK 오프라인 WebSocket/복구 모의 및 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/500ms/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
 - Store 0.1.19 NAS/실기 및 편집기 2.0.145 실기 미확인 상태 보존. Store/통합 환경설정/프로필·템플릿 공유/업데이트 UI 보류. 기존 상세 작업·빌드 번호는 이전 스냅샷 참조.
