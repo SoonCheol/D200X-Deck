@@ -44,7 +44,7 @@ class UlanziNodeHost{
   }
   address(ctx){return {uuid:ctx.actionUUID,key:ctx.key,actionid:ctx.actionid};}
   event(ctx,cmd,extra={}){return this.send({cmd,...this.address(ctx),param:ctx.settings,...extra});}
-  appear(ctx){this.event(ctx,'add');this.event(ctx,'paramfromapp');}
+  appear(ctx){this.event(ctx,'add');this.event(ctx,'paramfromapp');this.event(ctx,'setactive',{active:true});}
   visual(ctx){let v=this.visuals.get(ctx.actionid);if(!v){const a=this.manifest.Actions.find(a=>a.UUID===ctx.actionUUID);v={state:Number.isInteger(a.state)&&a.state>=0&&a.state<(a.States?.length||1)?a.state:0,temporary:null,defaults:new Map()};this.visuals.set(ctx.actionid,v);}return v;}
   displayImage(ctx,visual){
     const action=this.manifest.Actions.find(a=>a.UUID===ctx.actionUUID),image=currentImage(this.directory,action,visual),id=ctx.actionid;
@@ -57,16 +57,48 @@ class UlanziNodeHost{
     this.animations.stop(id);this.emit({kind:'setImage',context:ctx.context,payload:{image,clear:true}});
   }
   alive(){return !this.closed&&(this.child?this.child.exitCode===null&&this.child.signalCode===null&&!this.child.killed:!!this.mainWindow&&!this.mainWindow.isDestroyed());}
-  closeInspector(context){const pi=this.inspectors.get(context);if(!pi)return;this.inspectors.delete(context);this.closeViews(r=>r.ws===pi.ws||r.context===context);pi.ws?.terminate();if(!pi.win.isDestroyed())pi.win.destroy();}
+  closeInspector(context){const pi=this.inspectors.get(context);if(!pi)return;this.inspectors.delete(context);this.closeViews(r=>r.ws===pi.ws||r.context===context);pi.ws?.terminate();if(pi.server){for(const ws of pi.server.clients)ws.terminate();pi.server.close();}if(pi.win&&!pi.win.isDestroyed())pi.win.destroy();}
   async openInspector(context,parent){
     const ctx=this.mounts.get(context),action=this.manifest?.Actions.find(a=>a.UUID===ctx?.actionUUID);
     if(!ctx||!action?.PropertyInspectorPath||!this.alive()||!this.socket)throw Error('원본 속성창을 사용할 수 없습니다.');
     this.closeInspector(context);
-    const {createOriginalWindow}=require('./ulanzi-original-window.cjs');
-    const {win,url}=createOriginalWindow(this.directory,action.PropertyInspectorPath,{parent,title:action.Name,visible:true,params:{...this.address(ctx),port:this.server.address().port,address:'127.0.0.1',language:this.language,controller:ctx.slot>=16?'Encoder':'Keypad',device:'d200x-device'}});
-    const pi={win,actionid:ctx.actionid,ws:null};this.inspectors.set(context,pi);
-    win.on('closed',()=>{if(this.inspectors.get(context)===pi)this.closeInspector(context);});
-    try{await win.loadURL(url);if(this.inspectors.get(context)===pi&&!win.isDestroyed())win.show();return win;}catch(error){if(this.inspectors.get(context)===pi)this.closeInspector(context);throw error;}
+    // Older original HTML SDKs register a property inspector with UUID only.
+    // Give each inspector its own loopback listener, so the registration can
+    // be bound to the exact selected mount without guessing among duplicates.
+    const server=new WebSocketServer({host:'127.0.0.1',port:0,maxPayload:1024*1024});
+    const pi={win:null,actionid:ctx.actionid,ws:null,server};this.inspectors.set(context,pi);
+    const current=()=>!this.closed&&this.socket?.readyState===1&&this.inspectors.get(context)===pi&&this.mounts.get(context)?.actionid===pi.actionid;
+    server.on('error',()=>{});
+    server.on('connection',ws=>{
+      if(!current()||pi.ws){ws.terminate();return;}
+      const timer=setTimeout(()=>ws.terminate(),5000);
+      ws.on('error',()=>{});
+      ws.on('close',()=>{clearTimeout(timer);this.closeViews(r=>r.ws===ws);if(pi.ws===ws)pi.ws=null;});
+      ws.on('message',raw=>{
+        try{
+          if(!current()){ws.terminate();return;}
+          const msg=JSON.parse(String(raw));if(!object(msg))return;
+          const mounted=this.mounts.get(context);
+          if(pi.ws!==ws){
+            if(pi.ws||msg.cmd!=='connected'||msg.code!==0||msg.uuid!==mounted.actionUUID||
+               msg.key!==undefined&&msg.key!==mounted.key||msg.actionid!==undefined&&msg.actionid!==mounted.actionid){ws.terminate();return;}
+            clearTimeout(timer);pi.ws=ws;
+            this.send({cmd:'paramfromapp',...this.address(mounted),param:mounted.settings},ws);
+            this.event(mounted,'paramfromapp');return;
+          }
+          if(msg.code===undefined)this.receive(msg,ws,pi);
+        }catch{this.emit({kind:'error',message:'Ulanzi inspector message rejected'});}
+      });
+    });
+    try{
+      await new Promise((resolve,reject)=>{server.once('listening',resolve);server.once('error',reject);server.once('close',()=>reject(Error('inspector listener closed')));});
+      if(!current())throw Error('원본 속성창 등록이 취소되었습니다.');
+      const {createOriginalWindow}=require('./ulanzi-original-window.cjs');
+      const {win,url}=createOriginalWindow(this.directory,action.PropertyInspectorPath,{parent,title:action.Name,visible:true,params:{...this.address(ctx),port:server.address().port,address:'127.0.0.1',language:this.language,controller:ctx.slot>=16?'Encoder':'Keypad',device:'d200x-device'}});
+      pi.win=win;win.on('closed',()=>{if(this.inspectors.get(context)===pi)this.closeInspector(context);});
+      await win.loadURL(url);if(!current()||win.isDestroyed())throw Error('원본 속성창 등록이 취소되었습니다.');
+      win.show();return win;
+    }catch(error){if(this.inspectors.get(context)===pi)this.closeInspector(context);throw error;}
   }
   async start({approved=false,language='ko',verifyBeforeSpawn=null}={}){
     if(approved!==true)throw Error('original plugin approval required');
@@ -86,31 +118,24 @@ class UlanziNodeHost{
       const server=this.server=new WebSocketServer({host:'127.0.0.1',port:0,maxPayload:1024*1024});
       server.on('connection',ws=>{
         if(this.closed){ws.close();return;}
-        let registered=false,inspector=null;
+        let registered=false;
         const timer=setTimeout(()=>{if(!registered)ws.terminate();},5000);
         ws.on('error',()=>{});
-        ws.on('close',()=>{clearTimeout(timer);this.closeViews(r=>r.ws===ws);if(inspector?.ws===ws)inspector.ws=null;if(this.socket===ws){this.socket=null;this.linkGrant=null;this.hotkeyGrant=null;this.animations.close();this.emit({kind:'pluginConnection',pluginUUID:this.manifest.UUID,connected:false});}});
+        ws.on('close',()=>{clearTimeout(timer);this.closeViews(r=>r.ws===ws);if(this.socket===ws){this.socket=null;this.linkGrant=null;this.hotkeyGrant=null;this.animations.close();this.emit({kind:'pluginConnection',pluginUUID:this.manifest.UUID,connected:false});}});
         ws.on('message',raw=>{
           try{
             const msg=JSON.parse(String(raw));
             if(!object(msg))return;
             if(!registered){
               if(msg.cmd!=='connected'||msg.code!==0||!this.alive()){ws.close();return;}
-              if(msg.uuid!==this.manifest.UUID){
-                const ctx=[...this.mounts.values()].find(c=>c.actionUUID===msg.uuid&&c.key===msg.key&&c.actionid===msg.actionid);
-                const pi=ctx&&this.inspectors.get(ctx.context);
-                if(!pi||pi.actionid!==ctx.actionid||pi.ws){ws.close();return;}
-                registered=true;clearTimeout(timer);inspector=pi;pi.ws=ws;
-                this.send({cmd:'paramfromapp',...this.address(ctx),param:ctx.settings},ws);
-                this.event(ctx,'paramfromapp');return;
-              }
+              if(msg.uuid!==this.manifest.UUID){ws.close();return;}
               if(this.socket){ws.close();return;}
               registered=true;clearTimeout(timer);this.socket=ws;
               this.emit({kind:'pluginConnection',pluginUUID:this.manifest.UUID,connected:true});
               for(const ctx of this.mounts.values())this.appear(ctx);
               return;
             }
-            if(msg.code===undefined&&(this.socket===ws||inspector?.ws===ws))this.receive(msg,ws,inspector);
+            if(msg.code===undefined&&this.socket===ws)this.receive(msg,ws);
           }catch{this.emit({kind:'error',message:'Ulanzi protocol message rejected'});}
         });
       });
@@ -289,7 +314,7 @@ class UlanziNodeHost{
         if(item.type===0&&Number.isInteger(item.state)&&item.state>=0&&item.state<(action.States?.length||1)){
           visual.state=item.state;visual.temporary=null;this.emit({kind:'setState',context:ctx.context,payload:{state:item.state}});
         }else if([1,2,3,4].includes(item.type)){
-          const image=item.type===1?base64Image(item.data):item.type===2?pathImage(this.directory,item.path):item.type===3?base64Image(item.gifdata):pathImage(this.directory,item.gifpath);
+          const image=item.type===1?base64Image(item.data):item.type===2?pathImage(this.directory,item.path):item.type===3&&item.gifdata!==undefined?base64Image(item.gifdata):pathImage(this.directory,item.gifpath);
           if([3,4].includes(item.type)&&!image?.startsWith('data:image/gif;base64,')){ok=false;continue;}
           if(!image){ok=false;continue;}visual.temporary=image;
         }else{ok=false;continue;}

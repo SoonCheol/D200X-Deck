@@ -3796,3 +3796,14 @@ test('offline scenario assertions match exact scalar snapshots and retain failur
     assert.equal(result.status,1,result.stderr);assert.equal(JSON.parse(result.stdout).assertions.failed,1);
   }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('original GIF XMP metadata is ignored without altering rendered frames',()=>{
+ const {gifReport,gifPngFrames}=require('../app/deckforge-editor/ulanzi-media-analysis.cjs');
+ const gif=Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==','base64');
+ const ext=Buffer.concat([Buffer.from([0x21,0xff,11]),Buffer.from('XMP DataXMP'),Buffer.from([3,0x3c,0x78,0x3e,0])]);
+ const decorated=Buffer.concat([gif.subarray(0,19),ext,ext,gif.subarray(19)]);
+ assert.equal(gifReport(decorated).status,'bounded-animation-review');
+ assert.deepEqual(gifPngFrames(decorated),gifPngFrames(gif));
+ const invalid=Buffer.concat([gif.subarray(0,19),ext.subarray(0,-1),Buffer.from([255]),gif.subarray(19)]);
+ assert.equal(gifReport(invalid).status,'manual-resource-review');
+});

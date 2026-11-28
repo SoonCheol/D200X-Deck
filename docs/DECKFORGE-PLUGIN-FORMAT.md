@@ -47,6 +47,8 @@ Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변�
 
 ## Ulanzi 원본 HTML 및 속성창 (2.0.158 후보)
 
+- 2.0.179 실제 사용자 제공 Dice 1.0.3 원본 정적 분석: UUID-only connected 등록은 속성창별 전용 loopback listener에서 기존 mount로 연결(명시 key/actionid가 있으면 일치 검증), main listener와 분리. 새 mount에 add/paramfromapp/setactive(active:true), GIF XMP 메타데이터를 해석하지 않고 bounded subblocks skip, SDK type3 gifpath 지원. 원본 수정 없이 호환. 집중 Electron/Node 회귀 추가, 실제 원본 실행/실기 및 GIF 속도 별도.
+
 - 공식 HTML SDK의 URL query(address, port, uuid, key, actionid, language, controller, device)와 connected 등록을 사용한다. HTML/HTM CodePath를 별도 숨은 BrowserWindow에 원본 그대로 로드하고, 현재 등록 버튼의 PropertyInspectorPath는 기존 속성 열기 버튼에서 독립 창으로 표시. 원본 JS/CSS는 패키지별 origin에서 로드한다. Node/editor preload 없음. 기존 scoped protocol 재사용, 파일 탈출 차단, 다운로드 및 Electron 권한 요청 거부. 로컬 실행 및 승인 범위 외 원격 서비스에 대한 완전한 네트워크 격리는 보장하지 않는다.
 - 원본 서비스와 PI의 연결을 별도 socket으로 등록하고 활성 actionid에 묶음. paramfromapp/설정 조회·저장/paramfromplugin/sendToPlugin/sendToPropertyInspector 전달 및 해제 시 창 닫기. PI는 등록 버튼만 지원(미저장 신규 버튼은 후속), 기존 외부 호환 설정 저장 경로 사용. 승인/패키지 해시 재확인 후 PI 열기. 기존 Fusion/HA 창은 변경하지 않는다.
 - 실제 Electron HTML main/PI fixture의 원본 파일/설정/메시지 왕복 및 제거 시 닫힘 시험 추가. 실제 공식/상용 플러그인 및 실기 미검증. 이미지/전역 설정·파일 대화창·openView 등 미지원 API 후속.

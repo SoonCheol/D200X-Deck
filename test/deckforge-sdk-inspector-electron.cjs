@@ -47,9 +47,10 @@ app.whenReady().then(async()=>{
     await fs.writeFile(path.join(original,'manifest.json'),JSON.stringify({UUID:id,Name:'Browser fixture',Version:'1.0.0',Type:'JavaScript',CodePath:'main.html',Actions:[{UUID:action,Name:'Key',PropertyInspectorPath:'pi.html'}]}));
     const connect="const p=Object.fromEntries(new URLSearchParams(location.search));const ws=new WebSocket('ws://'+p.address+':'+p.port);const send=m=>ws.send(JSON.stringify(m));ws.onopen=()=>send({cmd:'connected',code:0,uuid:p.uuid,key:p.key,actionid:p.actionid});";
     await fs.writeFile(path.join(original,'main.html'),'<script src="main.js"></script>');
-    await fs.writeFile(path.join(original,'main.js'),connect+"ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.code!==undefined)return;const a={uuid:m.uuid,key:m.key,actionid:m.actionid};if(m.cmd==='add')send({cmd:'setTitle',param:{...a,text:'HTML_READY'}});if(m.cmd==='sendToPlugin')send({cmd:'sendToPropertyInspector',...a,payload:{reply:m.payload.query}});};");
+    await fs.writeFile(path.join(original,'main.js'),connect+"ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.code!==undefined)return;const a={uuid:m.uuid,key:m.key,actionid:m.actionid};if(m.cmd==='setactive'&&m.active===true)send({cmd:'setTitle',param:{...a,text:'HTML_READY'}});if(m.cmd==='sendToPlugin')send({cmd:'sendToPropertyInspector',...a,payload:{reply:m.payload.query}});};");
     await fs.writeFile(path.join(original,'pi.html'),'<script src="pi.js"></script>');
-    await fs.writeFile(path.join(original,'pi.js'),connect+"ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.cmd==='paramfromapp'&&m.code===undefined&&!window.received){window.received=m.param;send({cmd:'setSettings',uuid:p.uuid,key:p.key,actionid:p.actionid,settings:{label:'saved'}});send({cmd:'sendToPlugin',uuid:p.uuid,key:p.key,actionid:p.actionid,payload:{query:'ping'}});}if(m.cmd==='sendToPropertyInspector')window.reply=m.payload.reply;};");
+    const uuidOnly=connect.replace('uuid:p.uuid,key:p.key,actionid:p.actionid','uuid:p.uuid');
+    await fs.writeFile(path.join(original,'pi.js'),uuidOnly+"ws.onmessage=e=>{const m=JSON.parse(e.data);if(m.cmd==='paramfromapp'&&m.code===undefined&&!window.received){window.received=m.param;send({cmd:'setSettings',uuid:p.uuid,key:p.key,actionid:p.actionid,settings:{label:'saved'}});send({cmd:'sendToPlugin',uuid:p.uuid,key:p.key,actionid:p.actionid,payload:{query:'ping'}});}if(m.cmd==='sendToPropertyInspector')window.reply=m.payload.reply;};");
     const updates=[],host=new UlanziNodeHost(original,e=>updates.push(e));
     const until=async predicate=>{const end=Date.now()+10000;while(Date.now()<end){if(await predicate())return;await new Promise(r=>setTimeout(r,30));}throw Error('original browser/inspector response missing');};
     try{
@@ -60,6 +61,7 @@ app.whenReady().then(async()=>{
       const pi=await host.openInspector('original',win);
       await until(async()=>!pi.isDestroyed()&&await pi.webContents.executeJavaScript('window.reply==="ping"'));
       assert.equal(await pi.webContents.executeJavaScript('window.received.label'),'initial');
+      assert.notEqual(host.inspectors.get('original').server.address().port,host.server.address().port);
       assert.equal(await pi.webContents.executeJavaScript('typeof require'),'undefined');
       assert.ok(updates.some(e=>e.kind==='settings'&&e.settings?.label==='saved'));
       host.sync([]);assert.equal(pi.isDestroyed(),true);

@@ -2,7 +2,7 @@
 > 2026-11-28 · 최신 스냅샷, 이전 상세 상태는 Git 이력 1a4156aec17bcc57c50a26c8f3ab827545cc4523 참조.
 ## 환경
 - SoonCheol/D200X-Deck · codex/streamdeck-761-clean-editor · E:\Codex\DeckForge · Draft PR #5 유지.
-- 소스 2.0.178 후보. 2.0.156~160 Windows #160~164 성공. 2.0.161~163 Windows #165~167/CI #1682~1684/SDK #374~376/입력 #637~639/Store #102~104 모두 성공. 2.0.164 Windows #168/입력 #640/SDK #378/CI #1686/Store #106 성공.
+- 소스 2.0.179 후보. 2.0.156~160 Windows #160~164 성공. 2.0.161~163 Windows #165~167/CI #1682~1684/SDK #374~376/입력 #637~639/Store #102~104 모두 성공. 2.0.164 Windows #168/입력 #640/SDK #378/CI #1686/Store #106 성공.
 ## 현재 기준
 - 사용자 승인: 개인용 SDK의 기능 확장성·외부 호환성·개발 편의성 우선. 기존 안정성·데이터·기능 보존. 전체 재개발 금지. 원본 실행 우선, PrivateAPI 기능별 판단.
 - 2.0.146~150 독자 SDK 공통 Node 실행/manifest 승인·암호화 grant, PowerShell/COM Windows 시험, 독립 창/모달/custom settings draft 및 28 API 기본 검증 통과. 2.0.151~153 외부 EXE/CodePathWin·공통 PI·팝업 크기·held dial·소유권 및 EXE 등록 시험 통과, Fusion PI 회귀는 2.0.156 Windows #160 해결. Excel/상용 원본·실기 별도.
@@ -25,7 +25,7 @@
 - 2.0.176 SDK CLI Windows 실제 별도 Electron 실행 회귀(3개 예제+기대값 불일치 종료 1), 자식 환경/임시 입력 크기/정리 개선, 실제 플러그인 검증 체크리스트. Windows #180/CI #1722/SDK #414/Store #142 성공.
 - 2.0.177 Fusion 검색 카드 실제 메뉴 탭/패널·다중 경로 표시, 기존 hover 전체 경로/설명, 미수집 fallback, 중복 ⓘ 제거(카드 클릭 상세·드래그 및 페이지 슬롯 독립 상세 유지). 집중 검사 추가. Windows #181/Fusion Manager #113/CI #1725/SDK #417/Store #145 성공.
 - 2.0.178 Fusion 상세 목록 표시 제거. Windows #182/Fusion #114/CI #1728/SDK #420/Store #148 성공.
+- 2.0.179 실제 Dice 1.0.3 원본에서 확인한 UUID-only PI 등록(전용 loopback listener), setactive 초기화, GIF XMP 무시 및 type3 gifpath 지원. 집중 회귀 추가, 자동 검증 대기. 업로드 원본 미수정; 실제 실행 및 500ms 재생 간격 별도.
 ## 다음 작업
-- 진행 중 2.0.179: 실제 Dice 1.0.3 원본의 UUID-only PI 등록, setactive 초기화, GIF XMP 메타데이터 호환. 원본 미수정, 집중 회귀. 실제 장치 시험 별도.
-- 2.0.178 자동 검증 및 Fusion GUI 확인, 실제 플러그인 검증 준비 및 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/500ms/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
+- 2.0.179 자동 검증, Dice 실제 실행 및 GIF 속도 검증, Fusion GUI 확인, 실제 플러그인 검증 준비 및 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/500ms/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
 - Store 0.1.19 NAS/실기 및 편집기 2.0.145 실기 미확인 상태 보존. Store/통합 환경설정/프로필·템플릿 공유/업데이트 UI 보류. 기존 상세 작업·빌드 번호는 이전 스냅샷 참조.

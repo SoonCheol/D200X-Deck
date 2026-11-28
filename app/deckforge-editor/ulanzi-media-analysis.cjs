@@ -101,6 +101,10 @@ function inspectGif(bytes,decode=false,composite=false){
         }else if(label===0xff){
           if(take()!==11)throw Error('invalid application extension');
           need(11);const name=bytes.toString('ascii',pos,pos+11);skip(11);
+          // XMP application data is inert metadata, including repeated blocks
+          // emitted by common GIF authoring tools. Skip bounded sub-blocks;
+          // do not parse XML or change decoded pixels/timing.
+          if(name==='XMP DataXMP'){subblocks();continue;}
           if(name!=='NETSCAPE2.0'&&name!=='ANIMEXTS1.0')throw Error('unsupported application extension');
           if(loopCount!==null||take()!==3||take()!==1)throw Error('invalid loop extension');
           need(2);loopCount=bytes.readUInt16LE(pos);skip(2);if(take()!==0)throw Error('invalid loop terminator');
