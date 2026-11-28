@@ -88,9 +88,10 @@ class UlanziOriginalStore{
       const record=await scanOriginal(source,{copyTo:stage});
       if(record.revision!==expectedRevision)throw Error('original package changed');
       const id=record.manifest.UUID,target=this.directory(id);
-      if(await this.retainedEntry(id))throw Error('retained original already exists; restore it first');
       const entries=await fs.readdir(this.root);
       if(entries.some(n=>n.toLowerCase()===path.basename(target).toLowerCase()))throw Error('original plugin already installed');
+      await this.clearApproval(id);
+      await this.clearRetainedCode(id);
       await fs.rename(stage,target);
       return record;
     }finally{await fs.rm(stage,{recursive:true,force:true});}
@@ -145,12 +146,26 @@ class UlanziOriginalStore{
     }
     return result;
   }
+  // Only manage copies inside DeckForge's own validated store roots.
+  async clearRetainedCode(id){
+    this.directory(id);
+    const entries=(await this.retainedEntries()).filter(e=>e.id.toLowerCase()===id.toLowerCase());
+    for(const entry of entries){
+      if(!entry.safe)throw Error('안전하지 않은 이전 보존 폴더: 자동 삭제하지 않았습니다.');
+      const stat=await fs.lstat(entry.directory);
+      if(!stat.isDirectory()||stat.isSymbolicLink())throw Error('이전 보존 폴더 변경 감지');
+      await fs.rm(entry.directory,{recursive:true,force:false});
+    }
+  }
+  async clearApproval(id){
+    await this.prepareRoot(this.grants);
+    await fs.rm(this.grantFile(id),{force:true});
+  }
   async removalPlan(id){
     const record=await this.installed(id);
-    if(await this.retainedEntry(id))throw Error('retained original already exists');
     return {id,name:record.manifest.Name,version:record.manifest.Version,revision:record.revision,runtime:'ulanzi-original'};
   }
-  removeKeepingData(id,revision){return this.serial(async()=>{
+  removeKeepingData(id,revision,purge=false){return this.serial(async()=>{
     const plan=await this.removalPlan(id);
     if(plan.revision!==revision)throw Error('original revision changed');
     this.managing.add(id);
@@ -159,8 +174,16 @@ class UlanziOriginalStore{
       const host=this.active.get(id);this.active.delete(id);await host?.close();
       const current=await this.removalPlan(id);
       if(current.revision!==revision)throw Error('original revision changed');
-      const target=path.join(this.retained,id+'--'+revision+'.ulanziPlugin');
-      await fs.rename(this.directory(id),target);
+      await this.clearApproval(id);
+      await this.clearRetainedCode(id);
+      await fs.rm(this.directory(id),{recursive:true,force:false});
+      if(purge===true){
+        try{
+          await this.prepareRoot(this.settings);
+          await fs.rm(this.globalFile(id),{force:true});
+          return {...plan,status:'removed',purgeStatus:'purged'};
+        }catch(error){return {...plan,status:'removed',purgeStatus:'failed',purgeError:String(error?.message||error)};}
+      }
       return {...plan,status:'removed'};
     }finally{this.managing.delete(id);}
   });}
@@ -191,7 +214,6 @@ class UlanziOriginalStore{
     const record=parseOriginalBackup(bytes),id=record.manifest.UUID;
     if(record.revision!==expectedRevision)throw Error('original backup revision changed');
     await this.prepareRoot(this.root);
-    if(await this.retainedEntry(id))throw Error('retained original already exists; restore it first');
     const target=this.directory(id),entries=await fs.readdir(this.root);
     if(entries.some(n=>n.toLowerCase()===path.basename(target).toLowerCase()))throw Error('original plugin already installed');
     const stage=path.join(this.root,'.stage-'+randomUUID());await fs.mkdir(stage);
@@ -202,7 +224,8 @@ class UlanziOriginalStore{
       }
       const verified=await scanOriginal(stage);
       if(verified.manifest.UUID!==id||verified.revision!==record.revision)throw Error('original backup staged revision changed');
-      await this.writePermission(id,record.revision,false);
+      await this.clearApproval(id);
+      await this.clearRetainedCode(id);
       await fs.rename(stage,target);
       return {id,name:record.manifest.Name,version:record.manifest.Version,revision:record.revision,status:'restored',runtime:'ulanzi-original',originalApproved:false};
     }finally{await fs.rm(stage,{recursive:true,force:true});}

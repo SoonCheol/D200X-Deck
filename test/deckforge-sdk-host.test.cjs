@@ -1048,7 +1048,7 @@ test('Ulanzi hotkey routes official keylist to Windows sender only for current i
   }finally{store.active.clear();await store.close();await fs.rm(root,{recursive:true,force:true});}
 });
 
-test('Ulanzi original removal and restoration preserve exact package and encrypted settings',async()=>{
+test('Ulanzi original removal deletes installed code and reinstall preserves settings without old approval',async()=>{
   const {UlanziOriginalStore}=require('../app/deckforge-editor/ulanzi-original-store.cjs');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-original-retained-'));
   const id='com.ulanzi.ulanzistudio.retainedfixture',source=path.join(root,'source');
@@ -1061,18 +1061,24 @@ test('Ulanzi original removal and restoration preserve exact package and encrypt
     let stopped=0;store.active.set(id,{async close(){stopped++;}});
     await assert.rejects(store.removeKeepingData(id,'bad'),/revision/);assert.equal(stopped,0);
     await store.removeKeepingData(id,plan.revision);assert.equal(stopped,1);assert.equal((await store.list()).length,0);
-    const retained=await store.retainedRecord(id);assert.equal(retained.revision,plan.revision);assert.equal((await store.listRetained())[0].available,true);
-    await assert.rejects(store.install(source,plan.revision),/retained/);
-    await fs.writeFile(path.join(retained.directory,'main.cjs'),'tampered');
-    assert.equal((await store.listRetained())[0].available,false);
-    await assert.rejects(store.restoreRetained(id,plan.revision),/revision/);
-    await fs.writeFile(path.join(retained.directory,'main.cjs'),'// exact original');
-    await store.restoreRetained(id,plan.revision);
-    assert.equal((await store.info(id)).approved,false);assert.equal((await store.listRetained()).length,0);
+    await assert.rejects(fs.stat(store.directory(id)),{code:'ENOENT'});
+    assert.deepEqual(await store.listRetained(),[]);
+    // Simulate a legacy retained copy from the previous removal policy.
+    await fs.mkdir(store.retained,{recursive:true});
+    const retained=path.join(store.retained,id+'--'+plan.revision+'.ulanziPlugin');
+    await fs.cp(source,retained,{recursive:true});
+    await store.install(source,plan.revision);
+    assert.equal((await store.info(id)).approved,false);
+    assert.deepEqual(await store.listRetained(),[]);
+    await assert.rejects(fs.stat(retained),{code:'ENOENT'});
     assert.deepEqual(await fs.readFile(store.globalFile(id)),bytes);assert.deepEqual(await store.readGlobal(id),{kept:true});
     assert.equal(await fs.readFile(path.join(store.directory(id),'main.cjs'),'utf8'),'// exact original');
     assert.equal(await fs.readFile(path.join(source,'main.cjs'),'utf8'),'// exact original');
     await assert.rejects(store.startApproved(id),/approval required/);
+    const purged=await store.removeKeepingData(id,plan.revision,true);
+    assert.equal(purged.purgeStatus,'purged');assert.deepEqual(await store.readGlobal(id),{});
+    await assert.rejects(fs.stat(store.directory(id)),{code:'ENOENT'});
+    assert.equal(await fs.readFile(path.join(source,'main.cjs'),'utf8'),'// exact original');
   }finally{await store.close();await fs.rm(root,{recursive:true,force:true});}
 });
 
@@ -1092,7 +1098,11 @@ test('portable Ulanzi original package backup validates files and restores witho
     await b.importBackup(pack.bytes,plan.revision);assert.equal((await b.info(id)).approved,false);assert.deepEqual(await b.readGlobal(id),{});
     assert.deepEqual(await fs.readFile(path.join(b.directory(id),'assets','bytes.bin')),Buffer.from([0,255,128]));
     await assert.rejects(b.importBackup(pack.bytes,plan.revision),/already installed/);
-    await a.removeKeepingData(id,plan.revision);assert.deepEqual((await a.exportBackup(id,true)).bytes,pack.bytes);
-    await assert.rejects(a.importBackup(pack.bytes,plan.revision),/retained/);
+    await a.removeKeepingData(id,plan.revision);
+    await fs.mkdir(a.retained,{recursive:true});
+    const retained=path.join(a.retained,id+'--'+plan.revision+'.ulanziPlugin');await fs.cp(source,retained,{recursive:true});
+    await a.importBackup(pack.bytes,plan.revision);
+    assert.equal((await a.info(id)).approved,false);assert.deepEqual(await a.listRetained(),[]);
+    assert.deepEqual(await a.readGlobal(id),{secret:'private-fixture'});
   }finally{await a.close();await b.close();await fs.rm(root,{recursive:true,force:true});}
 });

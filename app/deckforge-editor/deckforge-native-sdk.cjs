@@ -1349,7 +1349,7 @@ class PluginRouter{
     return this.original.store.importBackup(bytes,revision);
   });}
   planOriginalRemoval(id){return this.serial(()=>this.original.store.removalPlan(id));}
-  removeOriginalKeepingData(id,revision){return this.serial(()=>this.original.store.removeKeepingData(id,revision));}
+  removeOriginalKeepingData(id,revision,purge=false){return this.serial(()=>this.original.store.removeKeepingData(id,revision,purge));}
   async originalRestoreCandidate(id){
     const {legacy,native,original}=await this.catalog(),key=id.toLowerCase();
     check(!legacy.some(p=>p.uuid.toLowerCase()===key)&&!native.some(p=>p.id.toLowerCase()===key)&&!original.some(p=>p.uuid.toLowerCase()===key),'plugin ID already installed');

@@ -253,9 +253,15 @@ ipcMain.handle('d200x:native-retained-list',async event=>{assertEditor(event);re
 ipcMain.handle('d200x:ulanzi-original-remove',async(event,id)=>{
   assertEditor(event);return pluginAudit('remove',id,async audit=>{
     const plan=await sdk().planOriginalRemoval(id);audit.identify(plan);audit.mode('keepData');audit.stage('confirm');
-    const choice=await dialog.showMessageBox(window,{type:'question',title:'Ulanzi 원본 플러그인 제거',message:plan.name+' '+plan.version+' 제거',detail:'DeckForge 설치본만 로컬 보존 폴더로 이동합니다. 등록 버튼, 설정, 원래 가져온 파일은 유지됩니다.',buttons:['취소','데이터 유지 후 제거'],defaultId:0,cancelId:0,noLink:true});
-    if(choice.response!==1)return null;
-    audit.stage('execute');return sdk().removeOriginalKeepingData(id,plan.revision);
+    const choice=await dialog.showMessageBox(window,{type:'question',title:'Ulanzi 원본 플러그인 제거',message:plan.name+' '+plan.version+' 제거',detail:'DeckForge 설치 파일과 이전 보존 설치본을 삭제합니다. 제거는 등록 버튼과 설정을 유지합니다. 완전 삭제는 등록 버튼과 전역 설정도 삭제합니다. 외부에서 가져온 원본은 유지됩니다.',buttons:['취소','제거','완전 삭제…'],defaultId:0,cancelId:0,noLink:true});
+    if(![1,2].includes(choice.response))return null;
+    const purge=choice.response===2;
+    if(purge){
+      const confirm=await dialog.showMessageBox(window,{type:'warning',title:'플러그인 완전 삭제',message:plan.name+'의 설정과 등록 버튼도 삭제하시겠습니까?',detail:'이 작업은 되돌릴 수 없습니다. 외부 원본과 백업 파일은 유지됩니다.',buttons:['취소','완전 삭제'],defaultId:0,cancelId:0,noLink:true});
+      if(confirm.response!==1)return null;
+      audit.mode('purge');
+    }
+    audit.stage('execute');return sdk().removeOriginalKeepingData(id,plan.revision,purge);
   });
 });
 ipcMain.handle('d200x:ulanzi-original-export-backup',async(event,id,retained)=>{
@@ -283,7 +289,7 @@ ipcMain.handle('d200x:ulanzi-original-import-backup',async event=>{
     if(!st.isFile()||st.isSymbolicLink()||st.size>BACKUP_LIMIT)throw Error('원본 백업 파일 용량 또는 형식을 확인하세요.');
     const bytes=await fs.promises.readFile(selected),plan=parseOriginalBackup(bytes);
     audit.identify({id:plan.manifest.UUID,name:plan.manifest.Name,version:plan.manifest.Version});audit.mode('keepData');audit.stage('confirm');
-    const answer=await dialog.showMessageBox(window,{type:'question',title:'Ulanzi 원본 백업 복원',message:plan.manifest.Name+' '+plan.manifest.Version,detail:'원본 파일 '+plan.fileCount+'개를 설치합니다. 기존 설치 또는 보존본을 덮어쓰지 않습니다. 전역 설정은 변경하지 않고 실행 권한은 별도로 승인해야 합니다.',buttons:['취소','복원'],defaultId:0,cancelId:0,noLink:true});
+    const answer=await dialog.showMessageBox(window,{type:'question',title:'Ulanzi 원본 백업 복원',message:plan.manifest.Name+' '+plan.manifest.Version,detail:'원본 파일 '+plan.fileCount+'개를 설치합니다. 이전 보존 설치본은 정리하며 기존 설치본은 덮어쓰지 않습니다. 전역 설정은 유지하고 실행 권한은 별도로 승인해야 합니다.',buttons:['취소','복원'],defaultId:0,cancelId:0,noLink:true});
     if(answer.response!==1)return null;
     audit.stage('execute');return sdk().importOriginalBackup(bytes,plan.revision);
   });
@@ -678,7 +684,7 @@ ipcMain.handle('d200x:sdk-install-folder',async event=>{
     audit.stage('validate');const router=sdk(),store=router.original.store,plan=await store.inspect(selected);
     const choice=await dialog.showMessageBox(window,{type:'warning',title:'Ulanzi 원본 플러그인 설치',
       message:plan.manifest.Name+' '+plan.manifest.Version,
-      detail:originalPermissionDetail+'\n원본 파일 '+plan.fileCount+'개 · 별도 폴더에 복사합니다.',
+      detail:originalPermissionDetail+'\n원본 파일 '+plan.fileCount+'개 · 별도 폴더에 복사합니다. 이전 제거 시 보존된 동일 플러그인 설치본은 정리하고 설정은 유지합니다.',
       buttons:['취소','설치만','설치 및 실행 승인'],defaultId:1,cancelId:0,noLink:true});
     if(choice.response===0)return null;
     audit.stage('execute');const result=await router.installOriginal(selected,plan.revision);

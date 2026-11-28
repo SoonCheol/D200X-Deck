@@ -1260,6 +1260,10 @@ dialog.deckforge-message-dialog::backdrop{background:#000a}
 }
 .deckforge-message-detail-label{display:block;font-size:11px;color:#aaa;margin-bottom:5px}
 .deckforge-message-detail-value{font-size:12px;color:#eee;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word}
+.deckforge-message-detail-toolbar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:8px}
+.deckforge-message-detail-toolbar .deckforge-message-detail-label{margin:0 auto 0 0}
+.deckforge-message-detail-copy{background:#454545;color:#eee;border:1px solid #777;border-radius:4px;padding:5px 10px;min-height:28px;cursor:pointer}
+.deckforge-message-detail-text{display:block;box-sizing:border-box;width:100%;min-width:0;min-height:90px;max-height:280px;resize:vertical;background:#242424;color:#eee;border:1px solid #666;border-radius:4px;padding:8px;font:12px/1.55 inherit;font-family:inherit;white-space:pre-wrap;overflow-wrap:anywhere}
 .deckforge-message-warning{display:flex;align-items:flex-start;gap:10px;color:#ead7bc;font-size:12px}
 .deckforge-message-warning-icon{
   display:flex;align-items:center;justify-content:center;flex:0 0 19px;
