@@ -207,7 +207,7 @@ class NativePluginHost{
     this.credentialChanges=new Set();
     this.recoveryDelay=options.recoveryDelay||[1000,3000];
     this.versions=new NativeVersionStore(this.root,validateNativeManifest);
-    this.dependencyWarnings=new Map();
+    this.dependencyWarnings=new Map();this.runtimeDiagnostics=new Map();
     this.networkRequest=options.networkRequest||requestEndpoint;this.networkPending=new Set();
     // Separate, OS-protected grant store; never expose it to plugin script or settings API.
     this.browserPermissions=options.browserPermissions||new NativeSettingsVault(userData,credentialStorage,'browser');
@@ -306,11 +306,48 @@ class NativePluginHost{
         check(st.isFile()&&st.size<=LIMIT,'invalid installed program');
         const m=validateNativeManifest(JSON.parse(await fs.readFile(file,'utf8')));
         check(e.name===m.id+SUFFIX,'file ID mismatch');items.push(m);
-      }catch(error){this.report(e.name,error);}
+      }catch{this.report(e.name,Error('invalid installed program'),'manifest-invalid');}
     }
     return items;
   }
-  report(id,error){this.onUpdate({kind:'error',message:'DeckForge SDK '+id+': '+String(error?.message||error).slice(0,300)});}
+  report(id,error,category){
+    const message=String(error?.message||error),known={
+      'runtime unavailable':'runtime-unavailable','action stopped (execution or validation failure)':'execution-failed',
+      'background service message not accepted':'service-busy','background service capacity':'service-capacity',
+      'animation capacity or inactive context':'animation-unavailable','WebSocket already active':'socket-busy',
+      'WebSocket not open':'socket-closed','WebSocket send rate limit; command not sent':'socket-rate',
+      'WebSocket send capacity; command not sent':'socket-capacity','network request busy':'network-busy',
+      'network request capacity':'network-capacity','input queue busy; event not accepted':'input-busy',
+      'settings write outcome unknown; context paused until confirmed settings change or remount':'settings-unknown',
+      'settings write not confirmed':'settings-rejected','global settings conflict; write rejected':'settings-conflict',
+      'Node task unavailable':'node-unavailable','browser opening not approved or temporarily unavailable':'browser-unavailable'
+    };
+    const pluginId=typeof id==='string'&&id.endsWith(SUFFIX)?id.slice(0,-SUFFIX.length):id;
+    const code=category==='dependency'||category==='manifest-invalid'?category:(Object.hasOwn(known,message)?known[message]:'other');
+    if(typeof pluginId==='string'&&ID.test(pluginId)){
+      let entry=this.runtimeDiagnostics.get(pluginId);
+      if(!entry){if(this.runtimeDiagnostics.size>=256)this.runtimeDiagnostics.delete(this.runtimeDiagnostics.keys().next().value);entry={total:0,counts:{},lastCode:null,lastAt:null};this.runtimeDiagnostics.set(pluginId,entry);}
+      entry.total=Math.min(1000000000,entry.total+1);entry.counts[code]=Math.min(1000000000,(entry.counts[code]||0)+1);entry.lastCode=code;entry.lastAt=new Date().toISOString();
+    }
+    this.onUpdate({kind:'error',message:'DeckForge SDK '+id+': '+message.slice(0,300)});
+  }
+  diagnostics(manifest,available=true){
+    const id=manifest.id,summary=this.runtimeDiagnostics.get(id)||{total:0,counts:{},lastCode:null,lastAt:null};
+    const states={active:0,recovering:0,failed:0,paused:0,suspended:0};
+    const actions=manifest.actions.map(a=>({id:a.id,name:a.name,active:0,recovering:0,failed:0,paused:0,suspended:0,recoveryAttempts:0}));
+    const byId=new Map(actions.map(a=>[a.id,a]));
+    let recoveryAttempts=0;
+    for(const ctx of this.contexts.values()){
+      if(ctx.pluginUUID!==id||ctx.service)continue;
+      const row=byId.get(ctx.action?.id);if(!row)continue;
+      const state=this.suspended?'suspended':ctx.settingsUncertain?'paused':ctx.failed?(ctx.recoveryTimer?'recovering':'failed'):'active';
+      const attempts=Number.isSafeInteger(ctx.recoveryAttempts)?Math.max(0,ctx.recoveryAttempts):0;
+      row[state]++;states[state]++;row.recoveryAttempts+=attempts;recoveryAttempts+=attempts;
+    }
+    const service=manifest.service?this.serviceStatus(id,available):null;
+    const serviceContext=this.contexts.get(SERVICE_PREFIX+id);
+    return {id,version:manifest.version,available,states,actions,recoveryAttempts,service:service?{state:service.state,socket:service.socket,recoveryAttempts:serviceContext?.recoveryAttempts||0}:null,errors:structuredClone(summary)};
+  }
   async credentialInfo(manifest){
     const endpoints=(manifest.networkEndpoints||[]).filter(e=>e.auth!==undefined);
     return Promise.all(endpoints.map(async e=>{
@@ -1167,7 +1204,7 @@ class NativePluginHost{
       if(!reason)continue;
       warnings.set(cfg.pluginUUID,reason);
       if(this.dependencyWarnings.get(cfg.pluginUUID)!==reason&&!this.suspended)
-        this.report(cfg.pluginUUID,Error(reason));
+        this.report(cfg.pluginUUID,Error(reason),'dependency');
     }
     this.dependencyWarnings=warnings;
     this.syncServices(plugins,seen);
@@ -1627,6 +1664,11 @@ class PluginRouter{
   });}
   manageService(id,mode){return this.serial(async()=>{
     const {native}=await this.catalog();return this.native.manageService(native,id,mode);
+  });}
+  nativeDiagnostics(id){return this.serial(async()=>{
+    const {native}=await this.catalog(),manifest=native.find(m=>m.id===id);
+    check(manifest,'native plugin not installed');await this.native.loadServicePolicy();
+    return this.native.diagnostics(manifest,resolveDependencies(native).ready.has(id));
   });}
   serviceStatus(id){return this.serial(async()=>{
     const {native}=await this.catalog(),manifest=native.find(m=>m.id===id&&m.service);

@@ -374,6 +374,7 @@ ipcMain.handle('d200x:native-remove',async(event,id)=>{
    return {...removed,purgeStatus:purged?.status||'cancelled'};
  }catch(error){return {...removed,purgeStatus:'failed',purgeError:String(error?.message||error)};}
 });
+ipcMain.handle('d200x:native-diagnostics',async(event,id)=>{assertEditor(event);return sdk().nativeDiagnostics(id);});
 ipcMain.handle('d200x:native-service-status',async(event,id)=>{assertEditor(event);return sdk().serviceStatus(id);});
 ipcMain.handle('d200x:native-service-control',async(event,id,mode)=>{
   assertEditor(event);return sdk().manageService(id,mode);

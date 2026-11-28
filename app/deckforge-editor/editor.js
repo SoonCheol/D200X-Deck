@@ -1797,6 +1797,10 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
     :isHa?'1. Home Assistant에서 장기 액세스 토큰을 발급합니다.\n2. Home Assistant 장치 제어를 D200X 버튼에 등록합니다.\n3. 속성의 설정 열기를 눌러 HA 서버 주소와 장기 토큰을 입력합니다.\n4. 인증 성공 후 조회되는 엔티티 목록에서 제어할 장치를 선택합니다.\n5. 토큰은 비밀번호처럼 보관하고 GitHub에 업로드하지 않습니다.'
     :'1. 플러그인 액션을 빈 버튼에 끌어 놓습니다.\n2. 필요하면 플러그인 속성을 설정하고 저장합니다.\n3. 실행 테스트 또는 D200X 버튼으로 동작을 확인합니다.';
   dialog.append(guide);
+  if(plugin.runtime==='deckforge-sdk'&&window.deckBridge?.nativeDiagnostics){
+    const button=document.createElement('button');button.type='button';button.className='sdk-plugin-help-close';button.textContent='실행 진단';
+    button.onclick=async()=>{dialog.close();await openNativeDiagnostics(plugin);};dialog.append(button);
+  }
   if(plugin.runtime==='deckforge-sdk'&&plugin.permissions?.includes('browser.open')&&window.deckBridge?.nativeBrowserPermission){
     const button=document.createElement('button');button.type='button';button.className='sdk-plugin-help-close';button.textContent='권한 관리';
     button.addEventListener('click',async()=>{dialog.close();try{const result=await window.deckBridge.nativeBrowserPermission(plugin.uuid);if(result)window.d200xActionStatus?.(result.approved?'웹페이지 열기 권한 승인':'웹페이지 열기 권한 철회');}catch(error){window.d200xActionStatus?.('권한 변경 실패: '+String(error?.message||error));}});
@@ -1893,6 +1897,25 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
 })();
 function launchFusionManager(){
   window.deckBridge.openFusionManager().catch(error=>window.d200xActionStatus?.('Fusion Manager 실행 실패: '+String(error?.message||error)));
+}
+async function openNativeDiagnostics(plugin){
+  const names={active:'활성',recovering:'복구 중',failed:'중단',paused:'설정 확인 대기',suspended:'절전'};
+  const errors={'runtime-unavailable':'런타임 연결 불가','execution-failed':'실행 또는 검증 실패','service-busy':'서비스 메시지 처리 불가','service-capacity':'서비스 실행 한도','animation-unavailable':'애니메이션 사용 불가','socket-busy':'WebSocket 이미 활성','socket-closed':'WebSocket 미연결','socket-rate':'WebSocket 전송 빈도 초과','socket-capacity':'WebSocket 전송 용량 초과','network-busy':'네트워크 요청 진행 중','network-capacity':'네트워크 요청 한도','input-busy':'입력 대기열 포화','settings-unknown':'설정 저장 결과 불명','settings-rejected':'설정 저장 미확정','settings-conflict':'전역 설정 충돌','node-unavailable':'Node 작업 사용 불가','browser-unavailable':'브라우저 열기 사용 불가','dependency':'의존 플러그인 문제','manifest-invalid':'매니페스트 검증 실패',other:'기타 오류'};
+  const services={active:'실행 중',waiting:'실행 대기',stopped:'중지',suspended:'절전',recovering:'복구 중',failed:'실행 오류',capacity:'실행 한도',unavailable:'의존성 사용 불가','policy-error':'설정 파일 오류'};
+  const sockets={connected:'연결됨',connecting:'연결 중',reconnecting:'재연결 중',disconnected:'연결 없음'};
+  try{
+    const d=await window.deckBridge.nativeDiagnostics(plugin.uuid);
+    const stateLine=state=>Object.entries(names).map(([key,label])=>label+' '+(state[key]||0)).join(' / ');
+    const lines=['현재 등록된 실행 컨텍스트: '+stateLine(d.states),'현재 컨텍스트 복구 시도: '+d.recoveryAttempts+'회',d.available?'의존성: 사용 가능':'의존성: 사용 불가'];
+    if(d.service)lines.push('전역 서비스: '+(services[d.service.state]||'확인 필요')+' / WebSocket: '+(sockets[d.service.socket]||'확인 필요'),'서비스 복구 시도: '+d.service.recoveryAttempts+'회');
+    lines.push('','이번 앱 실행 중 오류 알림: '+d.errors.total+'회');
+    for(const [code,count] of Object.entries(d.errors.counts))lines.push((errors[code]||'기타 오류')+' '+count+'회');
+    if(d.errors.lastAt)lines.push('최근 오류 알림: '+(errors[d.errors.lastCode]||'기타 오류')+' · '+new Date(d.errors.lastAt).toLocaleString());
+    lines.push('','액션별 현재 컨텍스트:');
+    for(const a of d.actions)lines.push(a.name+': '+stateLine(a)+' / 복구 시도 '+a.recoveryAttempts+'회');
+    lines.push('','활성은 컨텍스트가 등록되었다는 뜻이며 실제 동작 성공을 뜻하지 않습니다. 오류 횟수는 이번 앱 실행의 오류 알림 집계입니다.');
+    await window.DeckForgeDialogs.show({title:'SDK 실행 진단',intro:plugin.name+' '+d.version,detail:lines.join('\n'),copyDetail:true,actionLabel:'닫기'});
+  }catch{window.d200xActionStatus?.('SDK 실행 진단 조회 실패');}
 }
 async function openNativeServiceManager(plugin){
   const names={active:'실행 중',waiting:'실행 대기',stopped:'중지됨',suspended:'절전 중',recovering:'자동 복구 중',failed:'실행 오류',capacity:'서비스 실행 한도 초과',unavailable:'의존성 사용 불가','policy-error':'설정 파일 읽기 실패'};

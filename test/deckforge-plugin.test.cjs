@@ -3697,3 +3697,22 @@ test('DeckForge SDK CLI creates, validates and inspects native manifest without 
     m.actions[0].script="api.setTitle('Hello');";await fs.writeFile(file,JSON.stringify(m));assert.ok((await packageFile(file,root)).endsWith('.deckforgePlugin'));
   }finally{await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('native SDK diagnostics count safe categories and project live state without private values',()=>{
+  const {NativePluginHost}=require('../app/deckforge-editor/deckforge-native-sdk.cjs');
+  const host=new NativePluginHost('/unused'),id='com.deckforge.native.diagnostics',other='com.deckforge.native.other';
+  const m={id,version:'1.0.0',actions:[{id:id+'.key',name:'Key'}]};
+  try{
+    host.report(id,Error('runtime unavailable'));host.report(id,Error('runtime unavailable'));
+    host.report(id,Error('SECRET fixture token'));host.report(id,Error('dependency reason with private value'),'dependency');host.report(other,Error('runtime unavailable'));
+    const make=(context,extra)=>({context,pluginUUID:id,action:{id:id+'.key'},settings:{secret:'PRIVATE SETTINGS'},recoveryAttempts:0,...extra});
+    host.contexts.set('a',make('a',{}));host.contexts.set('b',make('b',{failed:true,recoveryAttempts:2,recoveryTimer:{}}));
+    host.contexts.set('c',make('c',{failed:true}));host.contexts.set('d',make('d',{settingsUncertain:true}));
+    const d=host.diagnostics(m,false);assert.deepEqual(d.states,{active:1,recovering:1,failed:1,paused:1,suspended:0});
+    assert.equal(d.recoveryAttempts,2);assert.equal(d.available,false);assert.equal(d.errors.total,4);
+    assert.deepEqual(d.errors.counts,{'runtime-unavailable':2,other:1,dependency:1});
+    assert.equal(d.errors.lastCode,'dependency');assert.ok(!JSON.stringify(d).includes('PRIVATE SETTINGS'));assert.ok(!JSON.stringify(d).includes('SECRET'));assert.ok(!JSON.stringify(d).includes('private value'));
+    d.errors.counts.other=100;assert.equal(host.diagnostics(m).errors.counts.other,1);
+    host.suspended=true;assert.equal(host.diagnostics(m).states.suspended,4);
+  }finally{host.contexts.clear();host.close();}
+});

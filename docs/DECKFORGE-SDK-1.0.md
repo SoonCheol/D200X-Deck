@@ -12,6 +12,10 @@ DeckForge는 개인용 편집기로서 Ulanzi Studio의 UI·기능 제한을 극
 - 기존 실행 제한의 개선은 기능별 근거와 회귀 시험을 요구한다. 실패 입력 재실행 금지, 저장 일관성·원본 보존·USB/HID 안전은 유지한다. SDK 1.0 선언은 실제 검증 후 판단한다.
 
 
+## SDK 실행 진단 (2.0.169 후보)
+
+- 기존 도움말의 실행 진단 버튼에서 현재 등록 컨텍스트별 활성/복구/중단/설정 대기/절전 수, 액션별 복구 시도, 전역 서비스 상태와 소켓 상태를 조회한다. 활성은 실행 성공 또는 장치 확인이 아니다. 오류 알림은 고정 분류별 세션 집계(최대 256 플러그인, 오래된 항목 제거), 마지막 분류/시각만 기록. 스크립트·설정·응답·토큰·원문 오류는 신규 진단에서 제외. 읽기 전용, 재실행·권한·프로필 변경 없음. 실제 UI 검증 별도.
+
 ## 신뢰 Node 작업 확장 (2.0.147 후보)
 
 - API 2 manifest의 선택 권한 `node.run`, `nodeTasks:{id:{source,timeoutMs?}}` 선언(최대 16개). `api.runNode(id,input={})`는 등록한 작업만 요청하며 Node 코드는 sandbox 밖 별도 사용자 권한 프로세스에서 async 함수 본문 `input,require`로 실행한다. 동적 input은 JSON 객체 32KiB, source 최대 64KiB, 결과 JSON 8KiB; `event.type==='nodeResult'`, `event.response={task,status,value?}`. 결과 이벤트는 표시·메모리 갱신 전용, 기존 입력당 효과 제한 유지. 기본 30초, 선택 1~120초. Node 작업용 cwd는 Plugins/NativeNodeData/<id>, Node 모듈과 OS 직접 접근 가능. 별도 모듈 자동 설치·원본 실행 패키지·지속 서비스는 후속.
