@@ -24,7 +24,7 @@
 - 2.0.175 SDK simulate 초기/단계별 기대값·오류 총계 정확 비교, 불일치 경로/실측값·검사 집계 및 CLI 실패 코드 유지, counter/HTTP/WSS 예제·README, 집중 Node/Electron 시험 추가. Windows #179/CI #1719/SDK #411/Store #139 성공.
 - 2.0.176 SDK CLI Windows 실제 별도 Electron 실행 회귀(3개 예제+기대값 불일치 종료 1), 자식 환경/임시 입력 크기/정리 개선, 실제 플러그인 검증 체크리스트. Windows #180/CI #1722/SDK #414/Store #142 성공.
 - 2.0.177 Fusion 검색 카드 실제 메뉴 탭/패널·다중 경로 표시, 기존 hover 전체 경로/설명, 미수집 fallback, 중복 ⓘ 제거(카드 클릭 상세·드래그 및 페이지 슬롯 독립 상세 유지). 집중 검사 추가. Windows #181/Fusion Manager #113/CI #1725/SDK #417/Store #145 성공.
-- 2.0.178 Fusion 명령 상세의 목록 표시 레이블/수동 분류 드롭다운 제거, 기존 설명·ID·분류 저장값·등록 버튼 보존. 집중 회귀 검사 추가, 자동 검증 대기.
+- 2.0.178 Fusion 명령 상세의 목록 표시 레이블/수동 분류 드롭다운 제거, 기존 설명·ID·분류 저장값·등록 버튼 보존. 집중 회귀 검사 추가. CI #1728(46137680970) in_progress, SDK #420(46137680964) in_progress, Store #148(46137680963) in_progress, Windows #182(46137677303) in_progress, Fusion Manager #114(46137677171) in_progress.
 ## 다음 작업
 - 2.0.178 자동 검증 및 Fusion GUI 확인, 실제 플러그인 검증 준비 및 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/500ms/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
 - Store 0.1.19 NAS/실기 및 편집기 2.0.145 실기 미확인 상태 보존. Store/통합 환경설정/프로필·템플릿 공유/업데이트 UI 보류. 기존 상세 작업·빌드 번호는 이전 스냅샷 참조.
