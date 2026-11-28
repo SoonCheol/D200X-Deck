@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   legacyPluginRemove:id=>ipcRenderer.invoke('d200x:legacy-plugin-remove',id),
   ulanziOriginalRemove:id=>ipcRenderer.invoke('d200x:ulanzi-original-remove',id),
   ulanziOriginalRestore:id=>ipcRenderer.invoke('d200x:ulanzi-original-restore',id),
+  ulanziOriginalExportBackup:(id,retained)=>ipcRenderer.invoke('d200x:ulanzi-original-export-backup',id,retained===true),
+  ulanziOriginalImportBackup:()=>ipcRenderer.invoke('d200x:ulanzi-original-import-backup'),
   legacyRetainedRestore:id=>ipcRenderer.invoke('d200x:legacy-retained-restore',id),
   nativeRetainedList:()=>ipcRenderer.invoke('d200x:native-retained-list'),
   nativeRetainedRestore:id=>ipcRenderer.invoke('d200x:native-retained-restore',id),

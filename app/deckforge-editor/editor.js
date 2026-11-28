@@ -1566,14 +1566,33 @@ function pluginHelpButton(plugin,retained=false){
   info.onclick=event=>{event.stopPropagation();openSdkPluginHelp(plugin,plugin.uuid==='com.autodesk.fusionstreamdeck',retained);};
   return info;
 }
+async function openOriginalBackupExport(){
+  try{
+    const installed=(await window.deckBridge.sdkList()).filter(p=>p.runtime==='ulanzi-original').map(p=>({...p,id:p.uuid,retained:false}));
+    const retained=(await window.deckBridge.nativeRetainedList()).filter(p=>p.runtime==='ulanzi-original'&&p.available!==false).map(p=>({...p,retained:true}));
+    const items=[...installed,...retained];
+    if(!items.length){await window.DeckForgeDialogs.show({title:'원본 백업',intro:'백업할 원본 플러그인이 없습니다.',actionLabel:'닫기'});return;}
+    const content=document.createElement('div'),select=document.createElement('select');select.setAttribute('aria-label','백업할 원본 플러그인');select.style.width='100%';
+    items.forEach((p,i)=>select.append(new Option(p.name+' ('+p.version+')'+(p.retained?' · 보존됨':''),String(i))));content.append(select);
+    if(!await window.DeckForgeDialogs.show({title:'원본 백업',intro:'백업할 원본을 선택하세요.',content,ask:true,actionLabel:'선택'}))return;
+    const p=items[Number(select.value)];if(!p)return;
+    const result=await window.deckBridge.ulanziOriginalExportBackup(p.id,p.retained);
+    if(result)window.d200xActionStatus?.('원본 백업 파일 저장 완료');
+  }catch(error){window.d200xActionStatus?.('원본 백업 실패: '+String(error?.message||error));}
+}
 async function openOriginalRetainedRestore(){
   try{
     const items=(await window.deckBridge.nativeRetainedList()).filter(p=>p.runtime==='ulanzi-original');
     const usable=items.filter(p=>p.available!==false);
-    if(!usable.length){await window.DeckForgeDialogs.show({title:'원본 플러그인 복원',intro:items.length?'보존 원본의 무결성을 확인할 수 없습니다.':'복원할 보존 원본이 없습니다.',actionLabel:'닫기'});return;}
     const content=document.createElement('div'),select=document.createElement('select');select.setAttribute('aria-label','복원할 원본 플러그인');select.style.width='100%';
+    if(window.deckBridge?.ulanziOriginalImportBackup)select.append(new Option('외부 백업 파일에서 복원','file'));
     usable.forEach((p,i)=>select.append(new Option(p.name+' ('+p.version+')',String(i))));content.append(select);
-    if(await window.DeckForgeDialogs.show({title:'원본 플러그인 복원',intro:'보존된 원본을 선택하세요.',detail:'기존 버튼과 설정을 유지합니다.',content,ask:true,actionLabel:'선택'}))await restoreRetainedPlugin(usable[Number(select.value)]);
+    if(!select.options.length){await window.DeckForgeDialogs.show({title:'원본 플러그인 복원',intro:items.length?'보존 원본의 무결성을 확인할 수 없습니다.':'복원할 보존 원본이 없습니다.',actionLabel:'닫기'});return;}
+    if(!await window.DeckForgeDialogs.show({title:'원본 플러그인 복원',intro:'보존 원본 또는 백업 파일을 선택하세요.',detail:'기존 버튼과 설정을 유지합니다.',content,ask:true,actionLabel:'선택'}))return;
+    if(select.value==='file'){
+      const result=await window.deckBridge.ulanziOriginalImportBackup();
+      if(result){await refreshSdkPlugins();scheduleSdkSync();window.d200xActionStatus?.('원본 백업 복원 완료 · 실행 권한 재승인 필요');}
+    }else if(usable[Number(select.value)])await restoreRetainedPlugin(usable[Number(select.value)]);
   }catch(error){window.d200xActionStatus?.('원본 복원 실패: '+String(error?.message||error));}
 }
 async function openRetainedPluginDeletion(){
@@ -2200,6 +2219,7 @@ function bindActionAppearance(){
   purge.title='이미 제거한 플러그인의 보존 코드와 설정 삭제';
   purge.addEventListener('click',()=>void openRetainedPluginDeletion());management.append(purge);
   if(window.deckBridge?.ulanziOriginalRestore){const restore=document.createElement('button');restore.type='button';restore.className='plugin-add-button';restore.textContent='원본 복원';restore.title='보존된 Ulanzi 원본 다시 설치';restore.addEventListener('click',()=>void openOriginalRetainedRestore());management.append(restore);}
+  if(window.deckBridge?.ulanziOriginalExportBackup){const backup=document.createElement('button');backup.type='button';backup.className='plugin-add-button';backup.textContent='원본 백업';backup.title='설치 또는 보존 Ulanzi 원본 백업 파일 저장';backup.addEventListener('click',()=>void openOriginalBackupExport());management.append(backup);}
   host.after(pluginToolbar);
   updatePluginToolbar();
 }

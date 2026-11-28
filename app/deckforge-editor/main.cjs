@@ -258,6 +258,36 @@ ipcMain.handle('d200x:ulanzi-original-remove',async(event,id)=>{
     audit.stage('execute');return sdk().removeOriginalKeepingData(id,plan.revision);
   });
 });
+ipcMain.handle('d200x:ulanzi-original-export-backup',async(event,id,retained)=>{
+  assertEditor(event);
+  const answer=await dialog.showMessageBox(window,{type:'question',title:'Ulanzi 원본 백업',message:'원본 패키지 파일만 백업합니다.',detail:'등록 버튼, 전역 설정 및 실행 승인 정보는 포함하지 않습니다. 원본 폴더 자체에 포함된 개인 파일이 있을 수 있으므로 백업 파일을 신뢰하는 장소에 보관하세요. 백업 파일은 암호화되지 않습니다.',buttons:['취소','백업 파일 저장'],defaultId:0,cancelId:0,noLink:true});
+  if(answer.response!==1)return null;
+  const pack=await sdk().exportOriginalBackup(id,retained===true);
+  const result=await dialog.showSaveDialog(window,{title:'Ulanzi 원본 백업 파일 저장',defaultPath:path.join(app.getPath('downloads'),pack.id+'.dfOriginalBackup'),filters:[{name:'Ulanzi 원본 백업',extensions:['dfOriginalBackup']}]});
+  if(result.canceled||!result.filePath)return null;
+  if(path.extname(result.filePath).toLowerCase()!=='.dforiginalbackup')throw Error('원본 백업 확장자를 확인하세요.');
+  const target=path.resolve(result.filePath),userData=await fs.promises.realpath(app.getPath('userData')),parent=await fs.promises.realpath(path.dirname(target));
+  const relative=path.relative(userData,parent);
+  if(!relative||(!path.isAbsolute(relative)&&relative!=='..'&&!relative.startsWith('..'+path.sep)))throw Error('앱 데이터 밖에 백업 파일을 저장하세요.');
+  const handle=await fs.promises.open(target,'wx');
+  try{await handle.writeFile(pack.bytes);await handle.sync();}catch(error){await handle.close();await fs.promises.rm(target,{force:true});throw error;}
+  await handle.close();return {name:pack.name,version:pack.version,filePath:target};
+});
+ipcMain.handle('d200x:ulanzi-original-import-backup',async event=>{
+  assertEditor(event);return pluginAudit('restore',null,async audit=>{
+    audit.stage('select');
+    const selected=await openRememberedPicker({title:'Ulanzi 원본 백업 복원',properties:['openFile'],filters:[{name:'Ulanzi 원본 백업',extensions:['dfOriginalBackup']}]});
+    if(!selected)return null;
+    if(path.extname(selected).toLowerCase()!=='.dforiginalbackup')throw Error('원본 백업 확장자를 확인하세요.');
+    audit.stage('validate');const {parseOriginalBackup,BACKUP_LIMIT}=require('./ulanzi-original-store.cjs'),st=await fs.promises.lstat(selected);
+    if(!st.isFile()||st.isSymbolicLink()||st.size>BACKUP_LIMIT)throw Error('원본 백업 파일 용량 또는 형식을 확인하세요.');
+    const bytes=await fs.promises.readFile(selected),plan=parseOriginalBackup(bytes);
+    audit.identify({id:plan.manifest.UUID,name:plan.manifest.Name,version:plan.manifest.Version});audit.mode('keepData');audit.stage('confirm');
+    const answer=await dialog.showMessageBox(window,{type:'question',title:'Ulanzi 원본 백업 복원',message:plan.manifest.Name+' '+plan.manifest.Version,detail:'원본 파일 '+plan.fileCount+'개를 설치합니다. 기존 설치 또는 보존본을 덮어쓰지 않습니다. 전역 설정은 변경하지 않고 실행 권한은 별도로 승인해야 합니다.',buttons:['취소','복원'],defaultId:0,cancelId:0,noLink:true});
+    if(answer.response!==1)return null;
+    audit.stage('execute');return sdk().importOriginalBackup(bytes,plan.revision);
+  });
+});
 ipcMain.handle('d200x:ulanzi-original-restore',async(event,id)=>{
   assertEditor(event);return pluginAudit('restore',id,async audit=>{
     const plan=await sdk().planOriginalRestore(id);audit.identify(plan);audit.mode('keepData');audit.stage('confirm');

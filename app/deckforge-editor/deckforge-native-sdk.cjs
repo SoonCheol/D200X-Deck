@@ -1304,6 +1304,13 @@ class PluginRouter{
     const installed=new Set([...legacy.map(p=>p.uuid.toLowerCase()),...native.map(p=>p.id.toLowerCase()),...original.map(p=>p.uuid.toLowerCase())]);
     return (await this.original.store.listRetained()).filter(p=>!installed.has(p.id.toLowerCase()));
   });}
+  exportOriginalBackup(id,retained){return this.serial(()=>this.original.store.exportBackup(id,retained));}
+  importOriginalBackup(bytes,revision){return this.serial(async()=>{
+    const {manifest}=require('./ulanzi-original-store.cjs').parseOriginalBackup(bytes),key=manifest.UUID.toLowerCase();
+    const {legacy,native,original}=await this.catalog();
+    check(!legacy.some(p=>p.uuid.toLowerCase()===key)&&!native.some(p=>p.id.toLowerCase()===key)&&!original.some(p=>p.uuid.toLowerCase()===key),'plugin ID already installed');
+    return this.original.store.importBackup(bytes,revision);
+  });}
   planOriginalRemoval(id){return this.serial(()=>this.original.store.removalPlan(id));}
   removeOriginalKeepingData(id,revision){return this.serial(()=>this.original.store.removeKeepingData(id,revision));}
   async originalRestoreCandidate(id){

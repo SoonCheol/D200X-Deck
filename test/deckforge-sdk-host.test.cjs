@@ -1070,3 +1070,24 @@ test('Ulanzi original removal and restoration preserve exact package and encrypt
     await assert.rejects(store.startApproved(id),/approval required/);
   }finally{await store.close();await fs.rm(root,{recursive:true,force:true});}
 });
+
+test('portable Ulanzi original package backup validates files and restores without execution approval',async()=>{
+  const {UlanziOriginalStore,parseOriginalBackup}=require('../app/deckforge-editor/ulanzi-original-store.cjs');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-original-portable-')),source=path.join(root,'source');
+  const id='com.ulanzi.ulanzistudio.backupfixture',storage={isEncryptionAvailable:()=>true,encryptString:v=>Buffer.from(v),decryptString:b=>b.toString()};
+  const a=new UlanziOriginalStore(path.join(root,'a'),{storage}),b=new UlanziOriginalStore(path.join(root,'b'),{storage});
+  try{
+    await fs.mkdir(path.join(source,'assets'),{recursive:true});await fs.writeFile(path.join(source,'manifest.json'),JSON.stringify({UUID:id,Name:'Fixture',Version:'1.0.0',Type:'JavaScript',CodePath:'main.cjs',Actions:[{UUID:id+'.key',Name:'Key'}]}));
+    await fs.writeFile(path.join(source,'main.cjs'),'// original');await fs.writeFile(path.join(source,'assets','bytes.bin'),Buffer.from([0,255,128]));
+    const plan=await a.inspect(source);await a.install(source,plan.revision);await a.setPermission(id,plan.revision,true);await a.writeGlobal(id,{secret:'private-fixture'},()=>true);
+    const pack=await a.exportBackup(id);assert.equal(parseOriginalBackup(pack.bytes).revision,plan.revision);assert.ok(!pack.bytes.toString().includes('private-fixture'));
+    const raw=JSON.parse(pack.bytes);raw.files[0].path='../escape';assert.throws(()=>parseOriginalBackup(Buffer.from(JSON.stringify(raw))),/path|file/);
+    const edited=JSON.parse(pack.bytes);edited.files[0].bytes=Buffer.from('tampered').toString('base64');assert.throws(()=>parseOriginalBackup(Buffer.from(JSON.stringify(edited))),/revision/);
+    await assert.rejects(b.importBackup(pack.bytes,'bad'),/revision/);
+    await b.importBackup(pack.bytes,plan.revision);assert.equal((await b.info(id)).approved,false);assert.deepEqual(await b.readGlobal(id),{});
+    assert.deepEqual(await fs.readFile(path.join(b.directory(id),'assets','bytes.bin')),Buffer.from([0,255,128]));
+    await assert.rejects(b.importBackup(pack.bytes,plan.revision),/already installed/);
+    await a.removeKeepingData(id,plan.revision);assert.deepEqual((await a.exportBackup(id,true)).bytes,pack.bytes);
+    await assert.rejects(a.importBackup(pack.bytes,plan.revision),/retained/);
+  }finally{await a.close();await b.close();await fs.rm(root,{recursive:true,force:true});}
+});

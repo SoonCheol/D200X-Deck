@@ -10,7 +10,9 @@ const ID=/^[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+){3}$/;
 const MAX_FILES=2500,MAX_BYTES=100*1024*1024;
 const hash=b=>createHash('sha256').update(b).digest('hex');
 const segment=s=>s&&s!=='.'&&s!=='..'&&!/[\\/:*?"<>|\x00-\x1f\x7f]/.test(s)&&!/[. ]$/.test(s)&&!/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(s);
-async function scanOriginal(directory,{copyTo=null}={}){
+const BACKUP_LIMIT=150*1024*1024;
+const BACKUP_FORMAT='deckforge-ulanzi-original-backup-v1';
+async function scanOriginal(directory,{copyTo=null,onFile=null}={}){
   const root=path.resolve(directory),st=await fs.lstat(root);
   if(!st.isDirectory()||st.isSymbolicLink())throw Error('invalid original directory');
   const real=await fs.realpath(root),files=[],names=new Set();let total=0,manifestBytes=null;
@@ -29,7 +31,7 @@ async function scanOriginal(directory,{copyTo=null}={}){
       if(!relative||path.isAbsolute(relative)||relative==='..'||relative.startsWith('..'+path.sep))throw Error('original path escaped');
       const bytes=await fs.readFile(actual);
       if(bytes.length!==info.size)throw Error('original file changed');
-      files.push([name,hash(bytes)]);
+      files.push([name,hash(bytes)]);if(onFile)onFile(name,bytes);
       if(name==='manifest.json')manifestBytes=bytes;
       if(copyTo){const to=path.join(copyTo,...name.split('/'));await fs.mkdir(path.dirname(to),{recursive:true});await fs.writeFile(to,bytes,{flag:'wx'});}
     }
@@ -40,6 +42,28 @@ async function scanOriginal(directory,{copyTo=null}={}){
   if(!files.some(([name])=>name===manifest.CodePath))throw Error('missing original entry');
   for(const a of manifest.Actions)if(a.PropertyInspectorPath&&!files.some(([name])=>name===a.PropertyInspectorPath))throw Error('missing original inspector');
   return {manifest,revision:hash(JSON.stringify(files)),fileCount:files.length,totalBytes:total};
+}
+function parseOriginalBackup(bytes){
+  if(!Buffer.isBuffer(bytes)||!bytes.length||bytes.length>BACKUP_LIMIT)throw Error('invalid original backup size');
+  const data=JSON.parse(bytes.toString('utf8'));
+  if(!data||data.format!==BACKUP_FORMAT||!ID.test(data.id)||!/^[a-f0-9]{64}$/.test(data.revision)||!Array.isArray(data.files)||!data.files.length||data.files.length>MAX_FILES)throw Error('invalid original backup');
+  const names=new Set(),files=[],hashes=[];let total=0,manifestBytes;
+  for(const item of data.files){
+    if(!item||typeof item.path!=='string'||item.path.length>1000||!item.path.split('/').every(segment)||typeof item.bytes!=='string'||item.bytes.length%4!==0||item.bytes.length>Math.ceil(MAX_BYTES/3)*4)throw Error('invalid original backup file');
+    const name=item.path,fold=name.toLowerCase();
+    if(names.has(fold))throw Error('duplicate original backup path');
+    names.add(fold);
+    const raw=Buffer.from(item.bytes,'base64');
+    if(raw.toString('base64')!==item.bytes||(total+=raw.length)>MAX_BYTES)throw Error('invalid original backup contents');
+    files.push({name,bytes:raw});hashes.push([name,hash(raw)]);
+    if(name==='manifest.json')manifestBytes=raw;
+  }
+  for(const name of names){const parts=name.split('/');for(let n=1;n<parts.length;n++)if(names.has(parts.slice(0,n).join('/')))throw Error('conflicting original backup path');}
+  if(!manifestBytes||manifestBytes.length>65536||hash(JSON.stringify(hashes))!==data.revision)throw Error('original backup revision changed');
+  const manifest=validateOriginalNodeManifest(JSON.parse(manifestBytes.toString('utf8')));
+  if(manifest.UUID!==data.id||!files.some(f=>f.name===manifest.CodePath))throw Error('invalid original backup manifest');
+  for(const action of manifest.Actions)if(action.PropertyInspectorPath&&!files.some(f=>f.name===action.PropertyInspectorPath))throw Error('missing original backup inspector');
+  return {manifest,revision:data.revision,files,fileCount:files.length,totalBytes:total};
 }
 class UlanziOriginalStore{
   constructor(userData,{storage,getParent=()=>null,sendHotkey=async()=>false,hostFactory=(dir,emit)=>new UlanziNodeHost(dir,emit)}={}){
@@ -152,6 +176,36 @@ class UlanziOriginalStore{
     if(current.revision!==revision)throw Error('retained original revision changed');
     await fs.rename(current.directory,target);
     const {directory,...result}=record;return {...result,status:'restored',originalApproved:false};
+  });}
+  exportBackup(id,retained=false){return this.serial(async()=>{
+    this.directory(id);
+    const prior=retained?await this.retainedRecord(id):await this.installed(id),files=[];
+    const source=retained?prior.directory:this.directory(id);
+    const record=await scanOriginal(source,{onFile:(name,bytes)=>files.push({path:name,bytes:bytes.toString('base64')})});
+    if(record.manifest.UUID!==id||record.revision!==prior.revision)throw Error('original backup revision changed');
+    const bytes=Buffer.from(JSON.stringify({format:BACKUP_FORMAT,id,revision:record.revision,files}),'utf8');
+    if(bytes.length>BACKUP_LIMIT)throw Error('original backup size limit');
+    return {id,name:record.manifest.Name,version:record.manifest.Version,revision:record.revision,bytes};
+  });}
+  importBackup(bytes,expectedRevision){return this.serial(async()=>{
+    const record=parseOriginalBackup(bytes),id=record.manifest.UUID;
+    if(record.revision!==expectedRevision)throw Error('original backup revision changed');
+    await this.prepareRoot(this.root);
+    if(await this.retainedEntry(id))throw Error('retained original already exists; restore it first');
+    const target=this.directory(id),entries=await fs.readdir(this.root);
+    if(entries.some(n=>n.toLowerCase()===path.basename(target).toLowerCase()))throw Error('original plugin already installed');
+    const stage=path.join(this.root,'.stage-'+randomUUID());await fs.mkdir(stage);
+    try{
+      for(const file of record.files){
+        const dest=path.join(stage,...file.name.split('/'));
+        await fs.mkdir(path.dirname(dest),{recursive:true});await fs.writeFile(dest,file.bytes,{flag:'wx'});
+      }
+      const verified=await scanOriginal(stage);
+      if(verified.manifest.UUID!==id||verified.revision!==record.revision)throw Error('original backup staged revision changed');
+      await this.writePermission(id,record.revision,false);
+      await fs.rename(stage,target);
+      return {id,name:record.manifest.Name,version:record.manifest.Version,revision:record.revision,status:'restored',runtime:'ulanzi-original',originalApproved:false};
+    }finally{await fs.rm(stage,{recursive:true,force:true});}
   });}
   async installed(id){
     const record=await scanOriginal(this.directory(id));
@@ -271,4 +325,4 @@ class UlanziOriginalStore{
     const hosts=[...this.active.values()];this.active.clear();await Promise.all(hosts.map(host=>host.close()));
   }
 }
-module.exports={scanOriginal,UlanziOriginalStore};
+module.exports={scanOriginal,UlanziOriginalStore,parseOriginalBackup,BACKUP_LIMIT};
