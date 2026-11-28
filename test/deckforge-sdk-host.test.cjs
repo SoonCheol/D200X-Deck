@@ -807,6 +807,11 @@ test('editor routes only approved original Ulanzi mounts without affecting exist
     await fs.mkdir(source);await fs.writeFile(path.join(source,'manifest.json'),JSON.stringify(fixture));await fs.writeFile(path.join(source,'main.cjs'),script);
     const plan=await store.inspect(source),installed=await router.installOriginal(source,plan.revision);
     assert.equal(installed.runtime,'ulanzi-original');assert.equal((await router.list()).find(p=>p.uuid===id).actions[0].uuid,action);
+    // A missing catalogue record must never be acknowledged as installation success.
+    const originalList=original.list.bind(original);original.list=async()=>[];
+    const hiddenId='com.ulanzi.ulanzistudio.hiddenfixture',hiddenDir=path.join(root,'hidden.ulanziPlugin');
+    await fs.mkdir(hiddenDir);await fs.writeFile(path.join(hiddenDir,'manifest.json'),JSON.stringify({...fixture,UUID:hiddenId,Actions:[{UUID:hiddenId+'.key',Name:'Key'}]}));await fs.writeFile(path.join(hiddenDir,'main.cjs'),script);
+    try{const hiddenPlan=await store.inspect(hiddenDir);await assert.rejects(router.installOriginal(hiddenDir,hiddenPlan.revision),/액션 목록 등록 실패/);assert.equal((await fs.stat(store.directory(hiddenId))).isDirectory(),true);}finally{original.list=originalList;}
     await router.sync([mount,old]);assert.equal(router.key(mount.context,'down'),false);assert.equal(store.active.size,0);
     assert.deepEqual(legacyCalls.at(-1),[old]);assert.deepEqual(nativeCalls.at(-1),[]);
     await store.setPermission(id,plan.revision,true);await router.sync([mount,old]);

@@ -3807,3 +3807,37 @@ test('original GIF XMP metadata is ignored without altering rendered frames',()=
  const invalid=Buffer.concat([gif.subarray(0,19),ext.subarray(0,-1),Buffer.from([255]),gif.subarray(19)]);
  assert.equal(gifReport(invalid).status,'manual-resource-review');
 });
+
+test('original install reveals the real action list and never reports success on missing registration',async()=>{
+ const vm=require('node:vm');
+ const editor=await fs.readFile(path.join(__dirname,'../app/deckforge-editor/editor.js'),'utf8');
+ const code=editor.slice(editor.indexOf('const sdkActionNames=new Map();'),editor.indexOf('async function installNativeHa('));
+ const renderer=editor.slice(editor.indexOf('function sdkPanelActions('),editor.indexOf('async function configureHomeAssistant('));
+ const id='com.ulanzi.ulanzideck.dice',action=id+'.action';
+ const plugin={uuid:id,name:'Dice',version:'1.0.3',runtime:'ulanzi-original',actions:[{uuid:action,name:'Dice'}],originalApproved:true};
+ function element(){
+   return {children:[],dataset:{},style:{},classList:{toggle(){}},append(...items){this.children.push(...items);},addEventListener(){},setAttribute(){},
+     querySelectorAll(){return this.children.flatMap(c=>[...(c.dataset?.sdkActionId?[c]:[]),...c.querySelectorAll()]);}};
+ }
+ const root=element(),search={value:'other'},clear={hidden:false},messages=[],dialogs=[];
+ let catalogue=[plugin],rejectList=false,skipRender=false;
+ const nodes={'library-list':root,'action-search':search,'action-search-clear':clear};
+ const context=vm.createContext({
+   window:{deckBridge:{sdkInstall:async()=>plugin,sdkInstallFolder:async()=>plugin,sdkList:async()=>{if(rejectList)throw Error('list failure');return catalogue;}},d200xActionStatus:m=>messages.push(m),DeckForgeDialogs:{show:async o=>dialogs.push(o)}},
+   document:{querySelectorAll:()=>[element(),element()],createElement:element},
+   $:id=>nodes[id],sdkPlugins:[],sdkCatalogueReady:false,sdkRetained:[],libraryTab:'keys',exactActionId:'old',
+   sdkCatalogueLabel:a=>a.name,HA_GENERIC_ACTION:'ignored',FUSION_PLUGIN:'fusion',provenanceLabel:()=>'',pluginHelpButton:element,setDeckForgeTooltip(){},
+   closeActionSearchMenu(){},updatePluginToolbar(){},renderGrid(){},refreshSelectedVisual(){},updateSdkAvailabilityInspector(){},scheduleSdkSync(){},state:{selected:null},
+   renderLibrary(){root.children=[];if(!skipRender)vm.runInContext("renderInstalledSdkPlugins($('library-list'),$('action-search').value,libraryTab==='keys')",context);}
+ });
+ vm.runInContext(renderer+'\n'+code,context);
+ await vm.runInContext('installSdkPlugin(true)',context);
+ assert.equal(context.libraryTab,'plugins');assert.equal(search.value,'');assert.equal(context.exactActionId,null);
+ assert.equal(root.querySelectorAll().length,1);assert.equal(root.querySelectorAll()[0].dataset.sdkActionId,'sd::'+id+'::'+action);
+ assert.match(messages.at(-1),/설치 및 목록 등록/);assert.equal(dialogs.length,0);
+ for(const mode of ['missing','render','list']){
+   catalogue=mode==='missing'?[]:[plugin];skipRender=mode==='render';rejectList=mode==='list';
+   await vm.runInContext('installSdkPlugin(true)',context);
+   assert.match(messages.at(-1),/목록 등록 확인 실패/);assert.match(dialogs.at(-1).detail,/설치된 파일은 삭제하지 않았습니다/);
+ }
+});

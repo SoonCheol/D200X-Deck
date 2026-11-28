@@ -1366,7 +1366,9 @@ class PluginRouter{
     const {legacy,native}=await this.catalog();
     check(!legacy.some(p=>p.uuid.toLowerCase()===id)&&!native.some(m=>m.id.toLowerCase()===id),'plugin ID already installed');
     const installed=await this.original.store.install(dir,revision);
-    return (await this.original.list()).find(p=>p.uuid===installed.manifest.UUID);
+    const entry=(await this.catalog()).original.find(p=>p.uuid===installed.manifest.UUID);
+    check(entry&&installed.manifest.Actions.every(a=>entry.actions?.some(b=>b.uuid===a.UUID)),'원본 파일 복사 완료, 액션 목록 등록 실패 (설치 파일 보존)');
+    return entry;
   });}
   installDirectory(dir){return this.serial(async()=>{
     const installed=new Set([...(await this.native.manifests()).map(m=>m.id),...(await this.original?.list()||[]).map(p=>p.uuid.toLowerCase())]);

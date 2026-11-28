@@ -1613,8 +1613,8 @@ async function openRetainedPluginDeletion(){
 }
 const sdkActionNames=new Map();
 const sdkActionDefaults=new Map();
-async function refreshSdkPlugins(){
-  if(!window.deckBridge?.sdkList)return;
+async function refreshSdkPlugins({revealOriginal=null}={}){
+  if(!window.deckBridge?.sdkList){if(revealOriginal)throw Error('플러그인 목록 연결 없음');return false;}
   try{
     sdkPlugins=await window.deckBridge.sdkList();sdkCatalogueReady=true;
     if(window.deckBridge.nativeRetainedList)try{sdkRetained=await window.deckBridge.nativeRetainedList();}catch{sdkRetained=[];}
@@ -1623,27 +1623,50 @@ async function refreshSdkPlugins(){
       sdkActionNames.set(action.uuid,sdkCatalogueLabel(action));
       if(action.defaultImages)sdkActionDefaults.set(action.uuid,action.defaultImages);
     }
+    if(revealOriginal){
+      const installed=sdkPlugins.find(p=>p.uuid===revealOriginal.uuid&&p.runtime==='ulanzi-original');
+      if(!installed||!revealOriginal.actions?.length||!revealOriginal.actions.every(a=>installed.actions?.some(b=>b.uuid===a.uuid)))throw Error('설치된 원본의 액션 목록 등록을 확인할 수 없습니다.');
+      // Installation should reveal the actual installed action, not leave it
+      // hidden behind a prior exact-match selection or text search.
+      libraryTab='plugins';exactActionId=null;$('action-search').value='';$('action-search-clear').hidden=true;
+      closeActionSearchMenu();
+      document.querySelectorAll('.library-tabs button').forEach((tab,i)=>{tab.classList.toggle('active',i===1);tab.setAttribute('aria-pressed',String(i===1));});
+      updatePluginToolbar();
+    }
+    renderLibrary();
+    if(revealOriginal){
+      const rendered=[...$('library-list').querySelectorAll('[data-sdk-action-id]')].map(el=>el.dataset.sdkActionId);
+      if(!revealOriginal.actions.every(a=>rendered.includes(sdkPanelActionId(revealOriginal,a))))throw Error('설치된 원본의 액션이 화면 목록에 표시되지 않았습니다.');
+    }
     renderGrid();void refreshSelectedVisual();
     // Update default-card thumbnails in place: do not disturb an open inspector's focus.
     const selectedItem=state.selected!==null&&state.selected<14?DeckCore.visibleActions(state)[state.selected]:null;
     if(selectedItem)void refreshStateTitleCards(selectedItem);
     updateSdkAvailabilityInspector();
-    renderLibrary();
-  }catch(error){window.d200xActionStatus?.('SDK 플러그인 목록 오류: '+String(error?.message||error));}
+    return true;
+  }catch(error){if(revealOriginal)throw error;window.d200xActionStatus?.('SDK 플러그인 목록 오류: '+String(error?.message||error));return false;}
 }
 async function installSdkPlugin(fromFolder=false){
   if(!window.deckBridge?.sdkInstall)return window.d200xActionStatus?.('Windows EXE에서만 설치 가능합니다.');
+  let plugin=null;
   try{
-    const plugin=fromFolder?await window.deckBridge.sdkInstallFolder():await window.deckBridge.sdkInstall();
+    plugin=fromFolder?await window.deckBridge.sdkInstallFolder():await window.deckBridge.sdkInstall();
     if(!plugin)return;
     if(plugin.runtime==='deckforge-sdk'){
       for(const instance of sdkActionInstances())if(instance.pluginUUID===plugin.uuid)sdkVisuals.delete(instance.context);
       scheduleSdkSync();
     }
-    await refreshSdkPlugins();
-    if(plugin.runtime==='ulanzi-original'){scheduleSdkSync();window.d200xActionStatus?.('Ulanzi 원본 설치: '+plugin.name+' '+plugin.version+(plugin.originalApproved?' · 실행 승인':' · 실행 승인 필요'));return;}
+    if(plugin.runtime==='ulanzi-original'){
+      await refreshSdkPlugins({revealOriginal:plugin});scheduleSdkSync();
+      window.d200xActionStatus?.('Ulanzi 원본 설치 및 목록 등록: '+plugin.name+' '+plugin.version+(plugin.originalApproved?' · 실행 승인':' · 실행 승인 필요'));return;
+    }
+    if(!await refreshSdkPlugins())throw Error('설치 후 목록 갱신 실패');
     window.d200xActionStatus?.('DeckForge 플러그인 적용: '+plugin.name+' '+plugin.version);
-  }catch(error){window.d200xActionStatus?.('플러그인 설치 실패: '+String(error?.message||error));}
+  }catch(error){
+    const detail=String(error?.message||error),title=plugin?'설치 후 목록 등록 확인 실패':'플러그인 설치 실패';
+    window.d200xActionStatus?.(title+': '+detail);
+    await window.DeckForgeDialogs.show({title,kind:'error',intro:plugin?.name||'',detail:plugin?detail+'\n설치된 파일은 삭제하지 않았습니다.':detail,copyDetail:true});
+  }
 }
 async function installNativeHa(initial=false){
   if(!window.deckBridge?.nativeHaInstall)return;
@@ -1995,7 +2018,7 @@ function renderInstalledSdkPlugins(root,query,basic=false){
     title.addEventListener('click',()=>{body.hidden=!body.hidden;});
     for(const action of matching){
       const id=sdkPanelActionId(plugin,action);
-      const tile=document.createElement('div');tile.className='action-item';tile.draggable=true;
+      const tile=document.createElement('div');tile.className='action-item';tile.draggable=true;tile.dataset.sdkActionId=id;
       if(nativeHa){
         const symbol=document.createElement('span');symbol.className='action-icon';
         if(action.uuid.endsWith('.sensor'))symbol.textContent='🌡';
