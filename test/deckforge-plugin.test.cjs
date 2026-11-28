@@ -3579,3 +3579,49 @@ test('native Node tasks require explicit permission, approved code and active bu
     assert.equal(prompts,2);
   }finally{host.close();await fs.rm(dir,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
 });
+
+test('approved native Node task reaches button result; Windows executes actual PowerShell and COM', {timeout:45000}, async()=>{
+  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-native-node-integration-'));
+  const storage={isAsyncEncryptionAvailable:async()=>true,encryptStringAsync:async v=>Buffer.from(v),decryptStringAsync:async b=>({result:b.toString()})}; // Test encryption adapter only.
+  const win=process.platform==='win32';
+  const source=win?
+    [
+      "const path=require('node:path'),{execFileSync}=require('node:child_process');",
+      "const exe=path.join(process.env.SystemRoot||'C:\\\\Windows','System32','WindowsPowerShell','v1.0','powershell.exe');",
+      "const script=\"$ErrorActionPreference='Stop'; $d=New-Object -ComObject Scripting.Dictionary; $d.Add('DeckForge','COM_OK'); Write-Output ($d.Item('DeckForge'))\";",
+      "return execFileSync(exe,['-NoProfile','-NonInteractive','-Command',script],{encoding:'utf8',windowsHide:true,timeout:15000}).trim();"
+    ].join('\n'):"return 'NODE_OK';";
+  const m=validateNativeManifest({...scriptManifest,permissions:['display','node.run'],nodeTasks:{verify:{source,timeoutMs:20000}},
+    actions:[{...scriptManifest.actions[0],script:"if(event.type==='press')api.runNode('verify',{});if(event.type==='nodeResult')api.setTitle(event.response.status==='ok'?event.response.value:event.response.status);"}]});
+  const cfg={context:'node-integration',slot:0,pluginUUID:m.id,actionUUID:m.actions[0].id,settings:{}};
+  const results=[],events=[];let prompts=0,host;
+  const runner=()=>({async run(_src,input){
+    const event=input.event;
+    if(event.type==='press')return {ops:[{op:'runNode',task:'verify',input:{}}],memory:input.memory};
+    if(event.type==='nodeResult'){results.push(event.response);return {ops:[{op:'title',value:event.response.status==='ok'?event.response.value:event.response.status}],memory:input.memory};}
+    return {ops:[],memory:input.memory};
+  },close(){}});
+  const makeHost=()=>new NativePluginHost(temp,e=>events.push(e),runner,{storage,nodeApprove:async()=>{prompts++;return true;}});
+  const waitResult=async count=>{
+    const until=Date.now()+22000;
+    while(results.length<count&&Date.now()<until)await new Promise(r=>setTimeout(r,25));
+    assert.equal(results.length,count,'Node task result callback missing');
+    await host.contexts.get(cfg.context).queue;
+  };
+  try{
+    host=makeHost();host.sync([cfg],[m]);await host.contexts.get(cfg.context).queue;
+    assert.equal(host.key(cfg.context,'down'),true);await waitResult(1);
+    assert.deepEqual(results[0],{task:'verify',status:'ok',value:win?'COM_OK':'NODE_OK'});
+    assert.equal(events.find(e=>e.kind==='setTitle'&&e.payload?.title===(win?'COM_OK':'NODE_OK'))?.context,cfg.context);
+    assert.equal(prompts,1);
+    host.close();host=makeHost();
+    assert.equal((await host.nodeTasks.info(m)).approved,true);
+    host.sync([cfg],[m]);await host.contexts.get(cfg.context).queue;
+    assert.equal(host.key(cfg.context,'down'),true);await waitResult(2);
+    assert.equal(results[1].status,'ok');assert.equal(prompts,1);
+    host.key(cfg.context,'up');await host.contexts.get(cfg.context).queue;
+    await host.nodeTasks.set(m,false);
+    assert.equal(host.key(cfg.context,'down'),true);await waitResult(3);
+    assert.equal(results[2].status,'denied');assert.equal(prompts,1);
+  }finally{host?.close();await fs.rm(temp,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
+});

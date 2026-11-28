@@ -173,7 +173,7 @@ ipcMain.handle('d200x:store-download',(event,kind,id,releaseId,hash,installIconP
   },installPlugin===true);
 });
 let sdkHost=null;
-const nodePermissionDetail='이 플러그인의 Node.js 코드는 현재 Windows 사용자 권한으로 실행됩니다. 파일·외부 라이브러리·프로세스·네트워크에 직접 접근할 수 있으며 DeckForge 샌드박스로 제한되지 않습니다. 신뢰하는 플러그인만 승인하세요. 승인 범위는 현재 설치된 코드이며 변경 시 다시 승인합니다.';
+const nodePermissionDetail='이 플러그인의 Node.js 코드는 현재 Windows 사용자 권한으로 실행됩니다. 파일·외부 라이브러리·프로세스·네트워크에 직접 접근할 수 있으며 DeckForge 샌드박스로 제한되지 않습니다. 신뢰하는 플러그인만 승인하세요. 현재 매니페스트의 변경은 재승인이 필요합니다. 별도로 설치한 라이브러리의 변경은 자동 검증하지 않습니다.';
 async function approveNodePlugin(info){
   if(!window||window.isDestroyed())return false;
   const choice=await dialog.showMessageBox(window,{type:'warning',title:'플러그인 운영체제 접근 승인',message:info.name+' '+info.version,detail:nodePermissionDetail,buttons:['거부','승인'],defaultId:0,cancelId:0,noLink:true});
