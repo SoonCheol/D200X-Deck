@@ -3754,3 +3754,13 @@ test('offline Node and settings fixtures reject unsupported or missing declarati
     await assert.rejects(runScenario(m,{...spec,nodeResponses:[bad]},'/unused'),/fixture|invalid global settings/);
   await assert.rejects(runScenario(m,{...spec,settingsResponses:['maybe']},'/unused'),/settings response fixtures/);
 });
+
+test('offline service and global fixtures reject invalid scenario declarations before execution',async()=>{
+  const {runScenario}=require('../app/deckforge-editor/deckforge-sdk-simulate.cjs');
+  const id='com.deckforge.native.mock-global-validation',action=id+'.key';
+  const m={apiVersion:2,id,name:'Mock validation',version:'1.0.0',permissions:['display','global.settings'],actions:[{id:action,name:'Key',controllers:['Keypad'],states:1,script:"api.setTitle('test');"}]};
+  const spec={actionId:action,slot:0,steps:[]};
+  await assert.rejects(runScenario(m,{...spec,steps:[{kind:'service-stop'}]},'/unused'),/unsupported step/);
+  await assert.rejects(runScenario(m,{...spec,globalResponses:['maybe']},'/unused'),/global response fixtures/);
+  await assert.rejects(runScenario({...m,permissions:['display']},{...spec,globalSettings:{count:3}},'/unused'),/global fixtures require/);
+});

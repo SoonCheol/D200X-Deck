@@ -2,7 +2,7 @@
 > 2026-11-28 · 최신 스냅샷, 이전 상세 상태는 Git 이력 1a4156aec17bcc57c50a26c8f3ab827545cc4523 참조.
 ## 환경
 - SoonCheol/D200X-Deck · codex/streamdeck-761-clean-editor · E:\Codex\DeckForge · Draft PR #5 유지.
-- 소스 2.0.172 후보. 2.0.156~160 Windows #160~164 성공. 2.0.161~163 Windows #165~167/CI #1682~1684/SDK #374~376/입력 #637~639/Store #102~104 모두 성공. 2.0.164 Windows #168/입력 #640/SDK #378/CI #1686/Store #106 성공.
+- 소스 2.0.173 후보. 2.0.156~160 Windows #160~164 성공. 2.0.161~163 Windows #165~167/CI #1682~1684/SDK #374~376/입력 #637~639/Store #102~104 모두 성공. 2.0.164 Windows #168/입력 #640/SDK #378/CI #1686/Store #106 성공.
 ## 현재 기준
 - 사용자 승인: 개인용 SDK의 기능 확장성·외부 호환성·개발 편의성 우선. 기존 안정성·데이터·기능 보존. 전체 재개발 금지. 원본 실행 우선, PrivateAPI 기능별 판단.
 - 2.0.146~150 독자 SDK 공통 Node 실행/manifest 승인·암호화 grant, PowerShell/COM Windows 시험, 독립 창/모달/custom settings draft 및 28 API 기본 검증 통과. 2.0.151~153 외부 EXE/CodePathWin·공통 PI·팝업 크기·held dial·소유권 및 EXE 등록 시험 통과, Fusion PI 회귀는 2.0.156 Windows #160 해결. Excel/상용 원본·실기 별도.
@@ -19,7 +19,7 @@
 - 2.0.170 표시 전용 SDK CLI simulate: 실제 호스트, API1 Node/API2 별도 Electron 격리, 임시 사용자 데이터, 시나리오 버튼·노브·설정·절전/복귀 및 결과 JSON, 집중 Node/Electron 시험 추가. Windows #174/CI #1704/Store #124 성공, SDK #396 성공; 동일 소스 문서 HEAD SDK #397 성공. 외부 효과·서비스·자동 복구 시험 제외.
 - 2.0.171 SDK CLI simulate HTTPS 요청 모의: 순서별 endpoint fixture·실제 호스트 응답 검증/continuation·정상/HTTP 오류/timeout/연결 실패, 미정의 요청/미사용 fixture 실패 처리, 요청 메타데이터만 기록. 집중 Node/Electron 시험 추가, Windows #175/CI #1707/SDK #399/Store #127 성공. 인증·WebSocket·실제 연결 제외.
 - 2.0.172 SDK simulate Node 작업 결과 모의(실제 TrustedNodeTasks/임시 승인·실행 adapter) 및 설정 저장 ACK saved/rejected/unknown·설정 대기/복구 검증, 실제 Node 코드 실행·사용자 프로필 저장 없음. 집중 Node/Electron 시험 추가. Windows #176/CI #1710/SDK #402/Store #130 성공.
+- 2.0.173 SDK simulate 전역 서비스 시작/중지/재시작·메시지·공유 상태, 전역 설정 메모리 vault 초기값/저장/충돌 fixture, 전체 컨텍스트 drain 및 실행별 임시 폴더, 집중 Node/Electron 시험 추가. 자동 검증 대기.
 ## 다음 작업
-- 진행 중: 2.0.173 CLI simulate 전역 서비스 start/stop/restart/공유 상태·메시지, 전역 설정 메모리 vault 및 충돌 fixture, 집중 검사. WebSocket 후속.
-- 2.0.172 자동 검증, SDK 오프라인 서비스/전역 설정/WebSocket 모의 및 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/500ms/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
+- 2.0.173 자동 검증, SDK 오프라인 WebSocket/복구 모의 및 실기, 실제 비공개 API는 근거 확보 후 개별 지원. $UA1 title/icon만, GIF 정상 키/500ms/32프레임, JPEG/WebP 1024px/256KiB 및 animated WebP 미지원. 원본 전체 해시 변경 시 재승인; 상용 원본/실기 별도.
 - Store 0.1.19 NAS/실기 및 편집기 2.0.145 실기 미확인 상태 보존. Store/통합 환경설정/프로필·템플릿 공유/업데이트 UI 보류. 기존 상세 작업·빌드 번호는 이전 스냅샷 참조.
