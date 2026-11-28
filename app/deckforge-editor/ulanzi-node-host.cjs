@@ -10,6 +10,7 @@ const {validateValue}=require('./deckforge-native-settings.cjs');
 const {base64Image,pathImage,applyImage,currentImage}=require('./ulanzi-original-image.cjs');
 const {pickerOptions,viewOptions,externalUrl}=require('./ulanzi-original-dialog.cjs');
 const {NativeAnimationPlayer}=require('./deckforge-native-animation.cjs');
+const DeckHotkeys=require('./hotkey-keys.js');
 const ID=/^[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+){3}$/;
 const relative=s=>typeof s==='string'&&s.length<1024&&s.split('/').every(p=>p&&p!=='.'&&p!=='..'&&!/[:\\\x00-\x1f\x7f]/.test(p)&&!/[. ]$/.test(p));
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -29,6 +30,7 @@ function validateOriginalNodeManifest(m){
 class UlanziNodeHost{
   constructor(directory,onUpdate=()=>{}){
     this.directory=directory;this.onUpdate=onUpdate;this.mounts=new Map();this.socket=null;this.server=null;this.child=null;this.closed=false;this.started=false;this.mainWindow=null;this.inspectors=new Map();this.visuals=new Map();this.feedback=new Map();this.globalSettings={};this.globalWrite=null;this.globalQueue=Promise.resolve();this.views=new Set();this.pickerBusy=false;this.linkBusy=false;this.linkGrant=null;this.lastToast=0;this.diagnostics=new Map();
+    this.hotkeyGrant=null;this.hotkeyBusy=false;this.sendHotkey=async()=>false;
     this.openExternal=href=>require('electron').shell.openExternal(href);
     this.confirmExternal=(parent,options)=>require('electron').dialog.showMessageBox(parent,options);
     this.animations=new NativeAnimationPlayer((id,image)=>{const ctx=[...this.mounts.values()].find(c=>c.actionid===id);if(ctx&&!this.closed)this.emit({kind:'setImage',context:ctx.context,payload:{image,clear:true}});});this.getParent=()=>null;
@@ -87,7 +89,7 @@ class UlanziNodeHost{
         let registered=false,inspector=null;
         const timer=setTimeout(()=>{if(!registered)ws.terminate();},5000);
         ws.on('error',()=>{});
-        ws.on('close',()=>{clearTimeout(timer);this.closeViews(r=>r.ws===ws);if(inspector?.ws===ws)inspector.ws=null;if(this.socket===ws){this.socket=null;this.linkGrant=null;this.animations.close();this.emit({kind:'pluginConnection',pluginUUID:this.manifest.UUID,connected:false});}});
+        ws.on('close',()=>{clearTimeout(timer);this.closeViews(r=>r.ws===ws);if(inspector?.ws===ws)inspector.ws=null;if(this.socket===ws){this.socket=null;this.linkGrant=null;this.hotkeyGrant=null;this.animations.close();this.emit({kind:'pluginConnection',pluginUUID:this.manifest.UUID,connected:false});}});
         ws.on('message',raw=>{
           try{
             const msg=JSON.parse(String(raw));
@@ -155,7 +157,9 @@ class UlanziNodeHost{
       if(ctx.slot<16||!Number.isInteger(ticks)||ticks<1||ticks>32)return false;
       const rotateEvent=gesture.startsWith('hold-')?gesture:['hold-left','hold-right'].includes(ctx.gesture)?'hold-'+gesture:gesture;
       // V3.1 specifies direction; emit one event per hardware step.
+      this.hotkeyGrant=null;
       for(let i=0;i<ticks;i++)if(!this.event(ctx,'dialrotate',{rotateEvent}))return false;
+      this.hotkeyGrant={actionid:ctx.actionid,ws:this.socket,expires:Date.now()+1500};
       return true;
     }
     if(!['down','up'].includes(gesture))return false;
@@ -163,6 +167,7 @@ class UlanziNodeHost{
     if(gesture==='down')this.linkGrant={actionid:ctx.actionid,expires:Date.now()+1500};
     const sent=this.event(ctx,cmd);
     if(!sent&&gesture==='down')this.linkGrant=null;
+    this.hotkeyGrant=sent?{actionid:ctx.actionid,ws:this.socket,expires:Date.now()+1500}:null;
     if(sent&&gesture==='down'&&ctx.slot<16)this.event(ctx,'run');
     return sent;
   }
@@ -184,6 +189,18 @@ class UlanziNodeHost{
       (inspector?this.inspectors.get(ctx.context)===inspector&&inspector.ws===ws:this.socket===ws));
     const error=()=>{if(active())this.send({cmd:msg.cmd,cmdType:'NOTIFY',code:1},ws);};
     if(!active())return;
+    if(msg.cmd==='hotkey'){
+      const keys=typeof msg.keylist==='string'&&msg.keylist.split('+').every(part=>part.trim())?DeckHotkeys.canonical(msg.keylist):'';
+      const grant=this.hotkeyGrant;
+      const valid=()=>active()&&!inspector&&grant&&grant.ws===ws&&Date.now()<=grant.expires&&[...this.mounts.values()].some(c=>c.actionid===grant.actionid)&&(main||ctx?.actionid===grant.actionid);
+      if(!keys||this.hotkeyBusy||!valid()){error();return;}
+      this.hotkeyGrant=null;this.hotkeyBusy=true;
+      Promise.resolve().then(async()=>{
+        if(!valid())return;
+        const ok=await this.sendHotkey(keys);
+        if(active())this.send({cmd:'hotkey',cmdType:'NOTIFY',code:ok===true?0:1},ws);
+      }).catch(error).finally(()=>{this.hotkeyBusy=false;});return;
+    }
     if(msg.cmd==='logMessage'){
       if(typeof msg.message!=='string'||msg.message.length>4096||!['info','debug','warn','error'].includes(msg.level||'info')){error();return;}
       // Keep only diagnostic counts: plugin logs may contain tokens or private paths.
@@ -244,7 +261,7 @@ class UlanziNodeHost{
     }catch{if(record)this.closeViews(r=>r===record);error();}
   }
   receive(msg,ws=this.socket,inspector=null){
-    if(['selectdialog','openview','openurl','toast','logMessage'].includes(msg.cmd)){this.interactiveRequest(msg,ws,inspector);return;}
+    if(['selectdialog','openview','openurl','toast','logMessage','hotkey'].includes(msg.cmd)){this.interactiveRequest(msg,ws,inspector);return;}
     if(['getGlobalSettings','setGlobalSettings'].includes(msg.cmd)){
       const main=!inspector&&ws===this.socket&&msg.uuid===this.manifest.UUID;
       const ctx=[...this.mounts.values()].find(c=>c.actionUUID===msg.uuid&&c.key===msg.key&&c.actionid===msg.actionid);
@@ -340,7 +357,7 @@ class UlanziNodeHost{
   async close(){
     if(this.closed)return;this.closed=true;
     for(const ctx of this.mounts.values())this.send({cmd:'clear',param:[this.address(ctx)]});
-    this.mounts.clear();this.visuals.clear();this.feedback.clear();this.linkGrant=null;this.animations.close();this.closeViews();await this.globalQueue;for(const context of [...this.inspectors.keys()])this.closeInspector(context);
+    this.mounts.clear();this.visuals.clear();this.feedback.clear();this.linkGrant=null;this.hotkeyGrant=null;this.animations.close();this.closeViews();await this.globalQueue;for(const context of [...this.inspectors.keys()])this.closeInspector(context);
     if(this.mainWindow&&!this.mainWindow.isDestroyed())this.mainWindow.destroy();this.mainWindow=null;
     const child=this.child;this.child=null;
     if(child&&child.exitCode===null&&child.signalCode===null){

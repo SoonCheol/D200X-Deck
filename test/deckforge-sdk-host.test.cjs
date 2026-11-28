@@ -989,3 +989,26 @@ test('Ulanzi openurl respects one-use input, confirmation, scope and diagnostic 
     assert.equal(sent.at(-1).code,1);
   }finally{host.socket=null;await host.close();}
 });
+
+test('Ulanzi hotkey routes official keylist to Windows sender only for current input',async()=>{
+  const {UlanziNodeHost}=require('../app/deckforge-editor/ulanzi-node-host.cjs');
+  const id='com.ulanzi.ulanzistudio.hotkeyfixture',action=id+'.key',sent=[],keys=[];
+  const ws={readyState:1,send:raw=>sent.push(JSON.parse(raw))},host=new UlanziNodeHost('/unused');
+  host.manifest={UUID:id,Name:'Fixture',Actions:[{UUID:action,Name:'Key'}]};
+  host.socket=ws;host.alive=()=>true;
+  host.sendHotkey=async key=>{keys.push(key);return key!=='F2';};
+  const request={cmd:'hotkey',uuid:id,keylist:'Ctrl+C'};
+  const tick=()=>new Promise(r=>setImmediate(r));
+  const mount={context:'key',slot:0,pluginUUID:id,actionUUID:action,settings:{}};
+  try{
+    host.sync([mount]);host.receive(request,ws);await tick();assert.equal(keys.length,0);assert.equal(sent.at(-1).code,1);
+    host.key('key','down');host.receive({...request,keylist:'Ctrl++C'},ws);await tick();assert.equal(keys.length,0);
+    host.receive({...request,uuid:'foreign'},ws);await tick();assert.equal(keys.length,0);
+    host.receive(request,ws);await tick();assert.deepEqual(keys,['Ctrl+C']);assert.equal(sent.at(-1).code,0);
+    host.receive(request,ws);await tick();assert.equal(keys.length,1);assert.equal(sent.at(-1).code,1);
+    host.key('key','up');host.receive({...request,keylist:'F2'},ws);await tick();assert.equal(sent.at(-1).code,1);
+    host.key('key','down');host.hotkeyGrant.expires=Date.now()-1;host.receive(request,ws);await tick();assert.equal(keys.length,2);
+    host.key('key','down');host.receive(request,ws);host.sync([]);await tick();assert.equal(keys.length,2,'retired action must not send');
+    host.sync([mount]);host.receive(request,ws);await tick();assert.equal(keys.length,2);
+  }finally{host.socket=null;await host.close();}
+});
