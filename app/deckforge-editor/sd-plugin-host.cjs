@@ -5,7 +5,7 @@
 const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
-const {nodeRuntime,spawnNodePlugin}=require('./deckforge-node-runtime.cjs');
+const {nodeRuntime,spawnNodePlugin,spawnExecutablePlugin}=require('./deckforge-node-runtime.cjs');
 const {WebSocketServer}=require('ws');
 const JSZip=require('jszip');
 const {createInspectorScope,bindInspectorWindows}=require('./sdk-inspector-scope.cjs');
@@ -57,18 +57,19 @@ function safeSdkExternalUrl(raw){
   }catch{return null;}
 }
 const filename=x=>typeof x==='string'&&x.length>0&&x.length<1024&&!x.startsWith('/')&&!x.includes('\\')&&!/[\x00-\x1f\x7f]/.test(x)&&x.split('/').every(segment=>segment.length>0&&segment!=='.'&&segment!=='..'&&!segment.includes(':'));
-// Only HTML or Node.js entries are accepted; never execute a native binary.
+// Select the Windows entry point without rewriting the original manifest.
 function pluginKind(codePath){
   if(typeof codePath!=='string')return null;
   const ext=path.extname(codePath).toLowerCase();
-  return ext==='.html'?'html':['.js','.cjs','.mjs'].includes(ext)?'node':null;
+  return ['.htm','.html'].includes(ext)?'html':['.js','.cjs','.mjs'].includes(ext)?'node':ext==='.exe'?'exe':null;
 }
+function windowsEntry(m){return m.CodePathWin??m.CodePath;}
 function validateManifest(m){
   if(!m||!UUID.test(m.UUID)||!Array.isArray(m.Actions)||!m.Actions.length||
     !m.Actions.every(a=>UUID.test(a.UUID)&&typeof a.Name==='string')||
-    !filename(m.CodePath)||!pluginKind(m.CodePath))
-    throw Error('Stream Deck SDK 플러그인은 HTML 또는 Node.js CodePath만 지원합니다.');
-  if(pluginKind(m.CodePath)==='node' &&
+    !filename(m.CodePath)||[m.CodePathWin,m.CodePathMac].some(p=>p!==undefined&&!filename(p))||!pluginKind(windowsEntry(m)))
+    throw Error('외부 SDK 플러그인은 HTML, Node.js 또는 Windows EXE CodePath를 지원합니다.');
+  if(pluginKind(windowsEntry(m))==='node' &&
     (m.Nodejs && (!m.Nodejs.Version||!/^(20|2[1-9]|[3-9][0-9])$/.test(String(m.Nodejs.Version)))))
     throw Error('Node.js 플러그인의 런타임 버전이 올바르지 않습니다.');
   return m;
@@ -82,7 +83,7 @@ async function parseArchive(data){
   if(manifestEntries.length!==1)throw Error('단일 *.sdPlugin/manifest.json이 필요합니다.');
   const root=manifestEntries[0].name.slice(0,-'manifest.json'.length);
   const manifest=validateManifest(JSON.parse(await manifestEntries[0].async('string')));
-  if(!entries.some(x=>x.name===root+manifest.CodePath))throw Error('CodePath 파일이 없습니다.');
+  if(!entries.some(x=>x.name===root+windowsEntry(manifest)))throw Error('Windows CodePath 파일이 없습니다.');
   const files=[],names=new Set();let total=0;
   for(const entry of entries){
     const advertised=Number(entry._data?.uncompressedSize);
@@ -101,8 +102,11 @@ async function parseArchive(data){
   return {manifest,files};
 }
 class StreamDeckPluginHost{
-  constructor(userData,onUpdate=()=>{},getParent=()=>null){
+  constructor(userData,onUpdate=()=>{},getParent=()=>null,options={}){
     this.getParent=getParent;
+    this.executableStorage=options.executableStorage||safeStorage;
+    this.executableApprove=options.executableApprove||null;
+    this.executableChanges=new Set();
     this.root=path.join(userData,'Plugins');
     this.legacyRoot=path.join(userData,'StreamDeck','Plugins');
     this.rootReady=null;
@@ -174,11 +178,11 @@ class StreamDeckPluginHost{
         const dir=path.join(this.root,entry.name);
         const manifest=validateManifest(JSON.parse(await fs.promises.readFile(path.join(dir,'manifest.json'),'utf8')));
         if(entry.name!==manifest.UUID+'.sdPlugin')continue;
-        const target=path.resolve(dir,manifest.CodePath);
+        const target=path.resolve(dir,windowsEntry(manifest));
         if(!target.startsWith(dir+path.sep))continue;
         await fs.promises.access(target);
         items.push({uuid:manifest.UUID,name:String(manifest.Name||manifest.UUID),
-          version:String(manifest.Version||''),actions:await Promise.all(manifest.Actions.map(async a=>({uuid:a.UUID,name:a.Name,
+          version:String(manifest.Version||''),...(pluginKind(windowsEntry(manifest))==='exe'?{executable:true}:{}),actions:await Promise.all(manifest.Actions.map(async a=>({uuid:a.UUID,name:a.Name,
             states:Array.isArray(a.States)?a.States.length:1,controllers:Array.isArray(a.Controllers)?a.Controllers:['Keypad'],propertyInspectorPath:a.PropertyInspectorPath||'',
             ...(includeArtwork?{defaultImages:{off:await artwork(dir,a.States?.[0]?.Image||a.Icon,manifest.UUID),on:await artwork(dir,a.States?.[1]?.Image||a.States?.[0]?.Image||a.Icon,manifest.UUID)}}:{})
           })))});
@@ -220,6 +224,59 @@ class StreamDeckPluginHost{
     const m=validateManifest(JSON.parse(await fs.promises.readFile(path.join(dir,'manifest.json'),'utf8')));
     if(m.UUID!==uuid)throw Error('플러그인 ID 불일치');
     return {id:uuid,name:String(m.Name||uuid),version:String(m.Version||''),revision:hash.digest('hex'),runtime:'streamdeck-sdk'};
+  }
+  executableGrantFile(uuid){
+    this.retainedPath(uuid);
+    return path.join(this.root,'LegacyExecutableApprovals',crypto.createHash('sha256').update(uuid).digest('hex')+'.encrypted');
+  }
+  async readExecutableGrant(uuid){
+    const file=this.executableGrantFile(uuid);
+    let bytes;
+    try{const st=await fs.promises.lstat(file);if(!st.isFile()||st.isSymbolicLink()||st.size>16384)throw Error('실행 권한 파일 오류');bytes=await fs.promises.readFile(file);}
+    catch(error){if(error.code==='ENOENT')return {};throw error;}
+    if(!this.executableStorage?.isEncryptionAvailable())throw Error('실행 권한 복호화 불가');
+    const value=JSON.parse(this.executableStorage.decryptString(bytes));
+    if(value.uuid!==uuid||!/^([a-f0-9]{64})$/.test(value.revision)||typeof value.approved!=='boolean')throw Error('실행 권한 파일 오류');
+    return value;
+  }
+  async executablePermissionInfo(uuid){
+    const record=await this.retainedRecord(uuid);
+    const m=validateManifest(JSON.parse(await fs.promises.readFile(path.join(this.root,uuid+'.sdPlugin','manifest.json'),'utf8')));
+    if(pluginKind(windowsEntry(m))!=='exe')throw Error('Windows 실행 파일 플러그인이 아닙니다.');
+    const grant=await this.readExecutableGrant(uuid);
+    return {...record,entry:windowsEntry(m),approved:grant.revision===record.revision&&grant.approved===true,decided:grant.revision===record.revision&&typeof grant.approved==='boolean'};
+  }
+  async setExecutablePermission(uuid,revision,approved){
+    if(typeof approved!=='boolean'||this.executableChanges.has(uuid))throw Error('실행 권한 변경 중');
+    this.executableChanges.add(uuid);
+    try{
+      const info=await this.executablePermissionInfo(uuid);
+      if(info.revision!==revision||this.closing)throw Error('플러그인 변경 감지 · 다시 확인하세요.');
+      if(!this.executableStorage?.isEncryptionAvailable())throw Error('실행 권한 암호화 저장 불가');
+      const file=this.executableGrantFile(uuid);
+      await fs.promises.mkdir(path.dirname(file),{recursive:true});
+      const tmp=file+'.'+crypto.randomUUID()+'.tmp';
+      try{
+        await fs.promises.writeFile(tmp,this.executableStorage.encryptString(json({uuid,revision,approved})),{flag:'wx'});
+        if(this.closing)throw Error('SDK host closing');
+        await fs.promises.rename(tmp,file);
+      }finally{await fs.promises.rm(tmp,{force:true}).catch(()=>{});}
+      if(!approved){const inst=this.instances.get(uuid);if(inst)this.disconnect(inst);}
+      return {approved};
+    }finally{this.executableChanges.delete(uuid);}
+  }
+  async authorizeExecutable(uuid){
+    if(this.executableChanges.has(uuid)||this.closing||this.suspended)return false;
+    const info=await this.executablePermissionInfo(uuid);
+    if(info.decided)return info.approved&&!this.executableChanges.has(uuid);
+    if(!this.executableApprove)return false;
+    const approved=await this.executableApprove(info)===true;
+    if(this.closing||this.suspended||this.executableChanges.has(uuid))return false;
+    // A permission change while the dialog is open wins over the old dialog.
+    const latest=await this.executablePermissionInfo(uuid);
+    if(latest.revision!==info.revision||latest.decided)return latest.approved&&latest.revision===info.revision;
+    await this.setExecutablePermission(uuid,info.revision,approved);
+    return approved;
   }
   async listRetained(){
     await this.ensureRoot();
@@ -269,8 +326,10 @@ class StreamDeckPluginHost{
       if(!st.isFile()||st.isSymbolicLink()||st.size>MAX_EXPANDED)throw Error('안전하지 않은 전역 설정 파일');
       settingsDigest=crypto.createHash('sha256').update(await fs.promises.readFile(file)).digest('hex');
     }catch(error){if(error.code!=='ENOENT')throw error;}
-    const revision=crypto.createHash('sha256').update(json([retained.revision,settingsDigest])).digest('hex');
-    return {...retained,revision,settingsDigest,counts:{retained:1,history:0,settings:settingsDigest===null?0:1,credential:0}};
+    let grantDigest=null;
+    try{const file=this.executableGrantFile(uuid),st=await fs.promises.lstat(file);if(!st.isFile()||st.isSymbolicLink()||st.size>16384)throw Error('실행 권한 파일 오류');grantDigest=crypto.createHash('sha256').update(await fs.promises.readFile(file)).digest('hex');}catch(e){if(e.code!=='ENOENT')throw e;}
+    const revision=crypto.createHash('sha256').update(json([retained.revision,settingsDigest,...(grantDigest?[grantDigest]:[])])).digest('hex');
+    return {...retained,revision,settingsDigest,grantDigest,counts:{retained:1,history:0,settings:Number(settingsDigest!==null)+Number(grantDigest!==null),credential:0}};
   }
   async purgeRetained(uuid,revision){
     const plan=await this.planRetainedPurge(uuid);
@@ -281,6 +340,7 @@ class StreamDeckPluginHost{
       if(plan.settingsDigest!==null){
         await fs.promises.unlink(this.settingsFile(uuid));deleted++;
       }
+      if(plan.grantDigest!==null){await fs.promises.unlink(this.executableGrantFile(uuid));deleted++;}
       this.global.delete(uuid);
       await fs.promises.rm(this.retainedPath(uuid),{recursive:true,force:false});deleted++;
     }catch{return {id:uuid,status:'incomplete',deleted,total};}
@@ -474,19 +534,31 @@ class StreamDeckPluginHost{
     const dir=path.join(this.root,uuid+'.sdPlugin');
     const manifest=validateManifest(JSON.parse(await fs.promises.readFile(path.join(dir,'manifest.json'),'utf8')));
     const instance={uuid,manifest,dir,ws:null,window:null,process:null};
-    if(pluginKind(manifest.CodePath)==='node'){
-      const required=manifest.Nodejs?.Version?Number(manifest.Nodejs.Version):20;
-      const runtime=await nodeRuntime(required);
+    const entry=windowsEntry(manifest),kind=pluginKind(entry);
+    if(kind==='node'||kind==='exe'){
+      let runtime=null;
+      if(kind==='exe'){
+        if(process.platform!=='win32')throw Error('Windows EXE 플러그인은 Windows에서만 실행됩니다.');
+        if(!await this.authorizeExecutable(uuid))return null;
+        const finalPermission=await this.executablePermissionInfo(uuid);
+        const currentManifest=validateManifest(JSON.parse(await fs.promises.readFile(path.join(dir,'manifest.json'),'utf8')));
+        if(!finalPermission.approved||json(currentManifest)!==json(manifest)||this.closing||this.suspended||this.executableChanges.has(uuid)||![...this.contexts.values()].some(c=>c.pluginUUID===uuid))return null;
+      }else{
+        const required=manifest.Nodejs?.Version?Number(manifest.Nodejs.Version):20;
+        runtime=await nodeRuntime(required);
+      }
       const info=json({application:{font:'Arial',language:'ko',platform:'windows',
         platformVersion:'10',version:'7.6.1'},devices:[{id:DEVICE,name:'D200X',
         size:{columns:4,rows:4},type:0}],plugin:{version:manifest.Version||'1.0.0'},devicePixelRatio:1});
       const args=['-port',String(this.port),
         '-pluginUUID',uuid,'-registerEvent','registerPlugin','-info',info];
-      const child=spawnNodePlugin(runtime,path.join(dir,manifest.CodePath),args,dir);
+      const executable=path.join(dir,entry);
+      const child=kind==='exe'?spawnExecutablePlugin(executable,args,dir):spawnNodePlugin(runtime,executable,args,dir);
+      const runtimeLabel=kind==='exe'?'Windows EXE':'Node.js';
       instance.process=child;this.instances.set(uuid,instance);
       const fail=error=>{
         if(this.instances.get(uuid)===instance)this.instances.delete(uuid);
-        this.onUpdate({kind:'error',message:'Node.js 플러그인 '+uuid+' 실행 실패: '+error.message});
+        this.onUpdate({kind:'error',message:runtimeLabel+' 플러그인 '+uuid+' 실행 실패: '+error.message});
       };
       child.once('error',fail);
       let failureKind='';
@@ -497,7 +569,7 @@ class StreamDeckPluginHost{
         instance.ws?.close();
         for(const ctx of this.contexts.values())if(ctx.pluginUUID===uuid)ctx.appeared=false;
         if(code!==0&&signal!=='SIGTERM')
-          this.onUpdate({kind:'error',message:'Node.js 플러그인 '+uuid+' 종료 (code '+code+')'+(failureKind?' · '+failureKind:'')});
+          this.onUpdate({kind:'error',message:runtimeLabel+' 플러그인 '+uuid+' 종료 (code '+code+')'+(failureKind?' · '+failureKind:'')});
       });
       // Drain stdout/stderr to prevent child process blocking on full pipes.
       child.stdout?.on('data',()=>{});
@@ -517,7 +589,7 @@ class StreamDeckPluginHost{
     instance.window=win;this.instances.set(uuid,instance);
     win.on('closed',()=>{if(this.instances.get(uuid)===instance)this.disconnect(instance);});
     win.webContents.on('render-process-gone',()=>{if(this.instances.get(uuid)===instance)this.disconnect(instance);});
-    await win.loadFile(path.join(dir,manifest.CodePath));
+    await win.loadFile(path.join(dir,entry));
     const info=json({application:{font:'Arial',language:'ko',platform:'windows',platformVersion:'10',version:'7.6.1'},devices:[{id:DEVICE,name:'D200X',size:{columns:4,rows:4},type:0}],plugin:{version:manifest.Version||'1.0.0'},devicePixelRatio:1});
     await win.webContents.executeJavaScript('typeof connectElgatoStreamDeckSocket==="function" && connectElgatoStreamDeckSocket('+[this.port,uuid,'registerPlugin',info,'{}'].map(json).join(',')+')');
     return instance;
@@ -812,4 +884,4 @@ class StreamDeckPluginHost{
     this.server=null;
   }
 }
-module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,nodeRuntime,safeSdkExternalUrl,allowedSdkOpenUrlContext,fusionInspectorBounds,normalizeSdkImage};
+module.exports={StreamDeckPluginHost,parseArchive,validateManifest,pluginKind,windowsEntry,nodeRuntime,safeSdkExternalUrl,allowedSdkOpenUrlContext,fusionInspectorBounds,normalizeSdkImage};

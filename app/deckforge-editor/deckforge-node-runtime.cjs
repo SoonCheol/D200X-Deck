@@ -31,4 +31,8 @@ function spawnNodeTask(runtime,bootstrap,cwd){
   return spawn(runtime.executable,['-e',bootstrap],{cwd,env:runtime.env,
     windowsHide:true,shell:false,stdio:['pipe','pipe','pipe']});
 }
-module.exports={nodeRuntime,spawnNodePlugin,spawnNodeTask};
+function spawnExecutablePlugin(entry,args,cwd){
+  const env={...process.env};delete env.ELECTRON_RUN_AS_NODE;
+  return spawn(entry,args,{cwd,env,windowsHide:true,shell:false,stdio:['ignore','pipe','pipe']});
+}
+module.exports={nodeRuntime,spawnNodePlugin,spawnNodeTask,spawnExecutablePlugin};

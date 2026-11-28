@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld('deckBridge', Object.freeze({
   nativeBrowserPermission:id=>ipcRenderer.invoke('d200x:native-browser-permission',id),
   nativeNodePermission:id=>ipcRenderer.invoke('d200x:native-node-permission',id),
   nativeCustomSettings:(pluginId,actionId,settings)=>ipcRenderer.invoke('d200x:native-custom-settings',pluginId,actionId,settings),
+  legacyExecutablePermission:id=>ipcRenderer.invoke('d200x:legacy-executable-permission',id),
   nativeCredentialInfo:id=>ipcRenderer.invoke('d200x:native-credential-info',id),
   nativeCredentialWrite:(id,binding,revision,token)=>ipcRenderer.invoke('d200x:native-credential-write',id,binding,revision,token),
   fusionHealth: () => ipcRenderer.invoke('d200x:fusion-health'),

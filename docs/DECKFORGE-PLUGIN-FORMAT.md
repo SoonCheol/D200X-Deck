@@ -10,6 +10,12 @@ DeckForge 독자 패키지 v2와 외부 호환 패키지 v1을 구분한다. 외
 Elgato/Ulanzi 원본 런타임과 리소스 보존을 우선한다. 정적 변환은 원본 실행을 대신하는 의무 경로가 아니라 보조 수단이다. PrivateAPI 선언만으로 전체 플러그인을 차단하지 않고 실제 API별 지원 여부를 검사한다. 기존 변환 후보 설치 금지 조건은 새 호환 엔진의 검증·승인 경로가 구현되기 전까지 유지한다. 패키지 규격, 원본 보존, 라이선스, 무결성 및 안전한 설치/복원 검증은 유지한다.
 
 
+## 외부 원본 Windows 실행 확장 (2.0.151 후보)
+
+- 공식 매니페스트 https://docs.elgato.com/streamdeck/sdk/references/manifest/ 및 등록 규격 https://docs.elgato.com/streamdeck/sdk/references/websocket/plugin/ 근거. Windows는 CodePathWin 우선, 없으면 CodePath. HTML/HTM·Node.js·EXE 지원, 설치 시 실행하지 않고 원본 매니페스트/파일 유지. Windows 전용 EXE는 shell 없이 기존 등록 인자와 작업 디렉터리로 실행.
+- EXE 최초 실행 시 사용자 OS 권한 안내·승인/거부. 암호화 grant는 별도 LegacyExecutableApprovals, 전체 패키지 해시(기존 logs/*.log 제외) 결합, 파일 변경 시 재승인. 도움말 실행 권한 관리에서 승인/철회, 철회 시 직접 실행 프로세스 종료. 보존 제거/복원은 유지, 명시적 완전 제거 시 grant도 삭제. 내부 설정 파일 변경도 재승인 대상이 될 수 있음. 실제 원본 EXE 등록/기능 검증은 후속이며 DRM 우회는 지원하지 않는다.
+- Windows 경로 선택/원본 보존/승인·거부·철회/실제 Windows EXE 인자 전달 테스트 추가. 전체 CI 및 실제 원본 플러그인 검증 대기. 기존 HTML/Node 호환 경로 유지.
+
 ## 0.23 독자 SDK 1.1 네트워크 확장 (최신 계약은 SDK 문서 참조)
 
 - 승인 HTTP PUT/PATCH/DELETE와 queryKeys 기반 쿼리 값, WSS 연결/송수신/종료 구현. 최신 계약은 docs/DECKFORGE-SDK-1.0.md SDK 1.1 절. API 2 번호 유지. 새 권한 network.websocket 및 설치 화면의 승인 WSS 주소. 실제 서버/실기 별도.

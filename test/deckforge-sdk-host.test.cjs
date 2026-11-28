@@ -16,7 +16,8 @@ async function zipWith(entries){
 }
 test('Stream Deck SDK manifest is compatible with HTML Home Assistant action',()=>{
   assert.equal(validateManifest(M).UUID,M.UUID);
-  assert.throws(()=>validateManifest({...M,CodePath:'plugin.exe'}),/HTML 또는 Node.js CodePath/);
+  assert.equal(validateManifest({...M,CodePath:'plugin.exe'}).CodePath,'plugin.exe');
+  assert.throws(()=>validateManifest({...M,CodePath:'plugin.bat'}),/CodePath/);
 });
 test('SDK plugin importer extracts nested sdPlugin folder and preserves manifest',async()=>{
   const prefix=M.UUID+'.sdPlugin/';
@@ -106,8 +107,8 @@ const fusionManifest={UUID:'com.autodesk.fusionstreamdeck',Name:'Fusion 360',Ver
 test('FusionStreamDeck Node.js 24 manifest accepted without changing original SDK fields',()=>{
   assert.equal(validateManifest(fusionManifest).CodePath,'bin/plugin.js');
   assert.equal(validateManifest(fusionManifest).Nodejs.Version,'24');
-  assert.throws(()=>validateManifest({...fusionManifest,CodePath:'bin/plugin.exe'}),/HTML 또는 Node.js/);
-  assert.throws(()=>validateManifest({...fusionManifest,CodePath:'../outside.js'}),/HTML 또는 Node.js/);
+  assert.equal(validateManifest({...fusionManifest,CodePath:'bin/plugin.exe'}).CodePath,'bin/plugin.exe');
+  assert.throws(()=>validateManifest({...fusionManifest,CodePath:'../outside.js'}),/CodePath/);
 });
 test('Node plugin importer preserves its entrypoint and inspector assets',async()=>{
   const prefix=fusionManifest.UUID+'.sdPlugin/';
@@ -532,4 +533,62 @@ test('trusted Node task executes file, module and child process, returns JSON an
     assert.deepEqual(await pending,{status:'cancelled'});
     assert.deepEqual(await executeNodeTask({source:'return "x".repeat(9000);'},{},dir),{status:'result-limit'});
   }finally{await fs.rm(dir,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
+});
+
+test('Windows entry override is selected and original package files preserved',async()=>{
+  const {windowsEntry,pluginKind}=require('../app/deckforge-editor/sd-plugin-host.cjs');
+  const m={...M,CodePath:'mac/plugin',CodePathMac:'mac/plugin',CodePathWin:'bin/worker.exe'};
+  assert.equal(windowsEntry(validateManifest(m)),'bin/worker.exe');
+  assert.equal(pluginKind(windowsEntry(m)),'exe');
+  assert.equal(pluginKind('ui.htm'),'html');
+  assert.throws(()=>validateManifest({...m,CodePathWin:'../worker.exe'}),/CodePath/);
+  assert.throws(()=>validateManifest({...m,CodePathWin:'bin/worker.cmd'}),/CodePath/);
+  const prefix=m.UUID+'.sdPlugin/';
+  const pack=await parseArchive(await zipWith({[prefix+'manifest.json']:JSON.stringify(m),[prefix+'bin/worker.exe']:'fixture',[prefix+'pi.html']:'<html></html>'}));
+  assert.deepEqual(pack.manifest,m);
+  assert.deepEqual(pack.files.map(f=>f.name).sort(),['bin/worker.exe','manifest.json','pi.html']);
+  await assert.rejects(parseArchive(await zipWith({[prefix+'manifest.json']:JSON.stringify(m),[prefix+'mac/plugin']:'mac'})),/Windows CodePath/);
+});
+test('original executable grant persists per package revision, denial and revocation',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge-exe-grant-'));
+  const m={...M,UUID:'com.deckforge.external.exefixture',CodePath:'worker.exe',Actions:[{UUID:'com.deckforge.external.exefixture.key',Name:'EXE'}]};
+  const prefix=m.UUID+'.sdPlugin/';
+  const storage={isEncryptionAvailable:()=>true,encryptString:v=>Buffer.from(v),decryptString:b=>b.toString()}; // Mock encryption adapter.
+  let prompts=0,allow=false;
+  const make=()=>new StreamDeckPluginHost(root,()=>{},()=>null,{executableStorage:storage,executableApprove:async()=>{prompts++;return allow;}});
+  let host=make();
+  try{
+    await host.install(await zipWith({[prefix+'manifest.json']:JSON.stringify(m),[prefix+'worker.exe']:'fixture',[prefix+'dependency.dll']:'v1'}));
+    assert.equal((await host.list())[0].executable,true);
+    assert.equal(prompts,0);
+    assert.equal(await host.authorizeExecutable(m.UUID),false);
+    assert.equal(await host.authorizeExecutable(m.UUID),false);assert.equal(prompts,1);
+    let info=await host.executablePermissionInfo(m.UUID);
+    await host.setExecutablePermission(m.UUID,info.revision,true);
+    assert.equal(await host.authorizeExecutable(m.UUID),true);assert.equal(prompts,1);
+    await host.close();host=make();
+    assert.equal(await host.authorizeExecutable(m.UUID),true);assert.equal(prompts,1);
+    info=await host.executablePermissionInfo(m.UUID);await host.setExecutablePermission(m.UUID,info.revision,false);
+    assert.equal(await host.authorizeExecutable(m.UUID),false);assert.equal(prompts,1);
+    await fs.writeFile(path.join(host.root,prefix,'dependency.dll'),'v2');
+    allow=true;assert.equal(await host.authorizeExecutable(m.UUID),true);assert.equal(prompts,2);
+    await assert.rejects(host.setExecutablePermission(m.UUID,info.revision,true),/변경 감지/);
+  }finally{await host.close();await fs.rm(root,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
+});
+test('Windows native executable receives original registration arguments', {skip:process.platform!=='win32',timeout:30000},async()=>{
+  const {execFileSync}=require('node:child_process');
+  const {spawnExecutablePlugin}=require('../app/deckforge-editor/deckforge-node-runtime.cjs');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'deckforge exe fixture '));
+  let child;
+  try{
+    const exe=path.join(root,'fixture.exe'),source=path.join(root,'fixture.cs');
+    await fs.writeFile(source,'using System; using System.IO; public class Fixture { public static void Main(string[] args) { File.WriteAllLines("received.txt",args); } }');
+    const compiler=path.join(process.env.SystemRoot||'C:\\Windows','Microsoft.NET','Framework64','v4.0.30319','csc.exe');
+    execFileSync(compiler,['/nologo','/target:exe','/out:'+exe,source],{windowsHide:true,timeout:10000});
+    const args=['-port','12345','-pluginUUID','com.deckforge.test.exe','-registerEvent','registerPlugin','-info','{"name":"A & B"}'];
+    child=spawnExecutablePlugin(exe,args,root);child.stdout.resume();child.stderr.resume();
+    const [code]=await require('node:events').once(child,'close');
+    assert.equal(code,0);
+    assert.deepEqual((await fs.readFile(path.join(root,'received.txt'),'utf8')).trim().split(/\r?\n/),args);
+  }finally{if(child&&child.exitCode===null&&!child.killed)child.kill();await fs.rm(root,{recursive:true,force:true,maxRetries:6,retryDelay:150});}
 });

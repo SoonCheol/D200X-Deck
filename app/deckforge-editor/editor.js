@@ -1766,6 +1766,11 @@ function openSdkPluginHelp(plugin,isFusion,retained=false){
     button.addEventListener('click',async()=>{dialog.close();try{const result=await window.deckBridge.nativeNodePermission(plugin.uuid);if(result)window.d200xActionStatus?.(result.approved?'운영체제 접근 권한 승인':'운영체제 접근 권한 철회');}catch(error){window.d200xActionStatus?.('권한 변경 실패: '+String(error?.message||error));}});
     dialog.append(button);
   }
+  if(plugin.executable&&window.deckBridge?.legacyExecutablePermission){
+    const button=document.createElement('button');button.type='button';button.className='sdk-plugin-help-close';button.textContent='실행 권한 관리';
+    button.addEventListener('click',async()=>{dialog.close();try{const result=await window.deckBridge.legacyExecutablePermission(plugin.uuid);if(result){window.d200xActionStatus?.(result.approved?'실행 권한 승인':'실행 권한 철회');if(result.approved)scheduleSdkSync();}}catch(error){window.d200xActionStatus?.('권한 변경 실패: '+String(error?.message||error));}});
+    dialog.append(button);
+  }
   if(storePluginIsOptional(plugin)&&plugin.runtime==='deckforge-sdk'&&window.deckBridge?.storeUpdates){
     const section=document.createElement('section'),check=document.createElement('button'),info=document.createElement('span');
     section.className='native-sdk-tools';check.type='button';check.className='sdk-plugin-help-close';check.textContent='업데이트 확인';

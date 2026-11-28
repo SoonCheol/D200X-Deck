@@ -179,11 +179,17 @@ async function approveNodePlugin(info){
   const choice=await dialog.showMessageBox(window,{type:'warning',title:'플러그인 운영체제 접근 승인',message:info.name+' '+info.version,detail:nodePermissionDetail,buttons:['거부','승인'],defaultId:0,cancelId:0,noLink:true});
   return choice.response===1;
 }
+const executablePermissionDetail='원본 Windows 실행 파일은 현재 Windows 사용자 권한으로 실행됩니다. 파일·네트워크·프로세스에 접근할 수 있으므로 신뢰하는 플러그인만 승인하세요. 패키지 파일 변경 시 다시 승인합니다.';
+async function approveExecutablePlugin(info){
+  if(!window||window.isDestroyed())return false;
+  const choice=await dialog.showMessageBox(window,{type:'warning',title:'외부 플러그인 실행 승인',message:info.name+' '+info.version,detail:info.entry+'\n'+executablePermissionDetail,buttons:['거부','승인'],defaultId:0,cancelId:0,noLink:true});
+  return choice.response===1;
+}
 const pluginAudit=require('./plugin-audit.cjs').createPluginAudit({userData:app.getPath('userData'),appVersion:app.getVersion(),onError:()=>console.warn('DeckForge plugin audit write failed')});
 function sdk(){
   if(!sdkHost){
     const userData=app.getPath('userData'),update=payload=>send('d200x:sdk-event',payload);
-    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href),nodeApprove:approveNodePlugin,viewManager:new (require('./deckforge-native-view.cjs').NativeViewManager)(()=>window)}));
+    sdkHost=new PluginRouter(new StreamDeckPluginHost(userData,update,()=>window,{executableApprove:approveExecutablePlugin}),new NativePluginHost(userData,update,null,{browserOpen:href=>shell.openExternal(href),nodeApprove:approveNodePlugin,viewManager:new (require('./deckforge-native-view.cjs').NativeViewManager)(()=>window)}));
   }
   return sdkHost;
 }
@@ -384,6 +390,15 @@ ipcMain.handle('d200x:native-node-permission',async(event,id)=>{
     buttons:['닫기',info.approved?'권한 철회':'권한 승인'],defaultId:0,cancelId:0,noLink:true});
   if(choice.response!==1)return null;
   return sdk().setNodePermission(id,info.digest,!info.approved);
+});
+ipcMain.handle('d200x:legacy-executable-permission',async(event,id)=>{
+  assertEditor(event);
+  const host=sdk().legacy,info=await host.executablePermissionInfo(id);
+  const choice=await dialog.showMessageBox(window,{type:'warning',title:'외부 플러그인 실행 권한 관리',message:info.name+' '+info.version,
+    detail:info.entry+'\n'+(info.approved?'승인됨':'승인되지 않음')+'\n'+executablePermissionDetail,
+    buttons:['닫기',info.approved?'권한 철회':'권한 승인'],defaultId:0,cancelId:0,noLink:true});
+  if(choice.response!==1)return null;
+  return host.setExecutablePermission(id,info.revision,!info.approved);
 });
 ipcMain.handle('d200x:native-custom-settings',async(event,pluginId,actionId,settings)=>{
   assertEditor(event);return sdk().customSettings(pluginId,actionId,settings);
